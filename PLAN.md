@@ -21,7 +21,7 @@ level (1800–2000). Open source, distributed via GitHub Releases (no app stores
 | Game import | No |
 | Sync | One file in your Google Drive hidden app folder, synced only when online, battery-friendly |
 | Design | Modern Fluent UI; Light / Dark / Wooden themes, switchable anytime |
-| Who builds | Claude codes and tests everything (cloud sessions on GitHub); you test final builds |
+| Who builds | Claude codes and tests everything on your PC (Pro plan, no cloud); you test final builds |
 
 ## Architecture
 
@@ -76,32 +76,32 @@ The planner decides *what* to fill the slot with, based on your weakest areas.
 
 ## Milestones
 
-| # | Milestone | Done when | Est. credit |
+| # | Milestone | Done when | Est. time |
 |---|---|---|---|
-| 1 | Foundation | Board, legal moves, play vs Stockfish, 3 themes; CI builds APK + .exe + AppImage | $10–15 |
-| 2 | Human-like coach | Maia opponent at your level, live tips, post-game review with key moments | $20–25 |
-| 3 | Puzzles | Lichess puzzle set + puzzles from your own mistakes, puzzle rating | $10–15 |
-| 4 | Lessons | Repertoire trainer + middlegame and endgame lessons, beginner → 2000 | $15–25 |
-| 5 | Personal learning | Skill model, RL planner, spaced repetition, "I have X minutes" | $15–20 |
-| 6 | Local LLM explainer | Offline natural-language explanations, template fallback | $15–20 |
-| 7 | Google Drive sync | Merge-safe, battery-friendly sync across all three devices | $10–15 |
-| 8 | Polish | Animations, Fluent UI details, performance on phone | $10+ |
-|   | **Total** | | **≈ $105–150** |
+| 1 | Foundation | Board, legal moves, play vs Stockfish, 3 themes; CI builds APK + .exe + AppImage | 3–4 days |
+| 2 | Human-like coach | Maia opponent at your level, live tips, post-game review with key moments | 5–7 days |
+| 3 | Puzzles | Lichess puzzle set + puzzles from your own mistakes, puzzle rating | 2–3 days |
+| 4 | Lessons | Repertoire trainer + middlegame and endgame lessons, beginner → 2000 | 4–6 days |
+| 5 | Personal learning | Skill model, RL planner, spaced repetition, "I have X minutes" | 3–5 days |
+| 6 | Local LLM explainer | Offline natural-language explanations, template fallback | 4–6 days |
+| 7 | Google Drive sync | Merge-safe, battery-friendly sync across all three devices | 2–3 days |
+| 8 | Polish | Animations, Fluent UI details, performance on phone | 2–3 days |
+|   | **Total** | | **≈ 4–6 weeks** |
 
-Estimates assume Opus 5.5 API rates ($4 in / $20 out per million tokens, cached input $0.20).
-They can move with debugging, especially cross-compiling Lc0 and llama.cpp for Android.
-Using Sonnet 5.5 ($2 / $10) for routine milestones (3, 7, 8) roughly halves their cost.
+All work runs on your PC under the Pro plan, so there's no extra cost. The pace is set by the plan's
+5-hour usage windows and weekly cap. Times can move with debugging, especially cross-compiling Lc0 and
+llama.cpp for Android.
 
 ## Testing (done by Claude)
 
 - Unit tests: move generation, engine wrappers, detectors, skill model, sync merge
-- Widget tests for UI; integration tests on Linux desktop and an Android emulator in CI
-- GitHub Actions builds all three platforms on every change
+- Widget tests for UI; the Linux build is run and checked on your PC, Android on an emulator or your phone over USB
+- GitHub Actions builds all three platforms on every change (Ubuntu can't build the Windows .exe itself)
 - **You** do the final check: install the APK on your phone, run the .exe and AppImage
 
 ## What you need to do
 
-1. A GitHub repo for the cloud sessions (Claude can create it with your OK)
+1. Run a few `sudo apt install` commands Claude gives you (build tools for Flutter on Linux)
 2. For sync (milestone 7): create a free Google Cloud project and OAuth client — Claude will give
    click-by-click steps. Because it's a personal app, Google shows an "unverified app" warning once;
    you accept it for your own account.

@@ -8,7 +8,8 @@ The full spec is `PLAN.md`; current state is `PROGRESS.md`.
 - Work through the milestones in `PLAN.md` in order. Don't stop to ask questions: make a sensible choice,
   note it under "Decisions" in `PROGRESS.md`, and keep going.
 - Commit and push after every working step (at least every hour of work), so nothing is lost if the
-  session stops because credit runs out. Push to `main` if allowed; otherwise push your branch and write
+  session stops when the Pro plan's usage limit is reached. All work happens on the owner's PC, never in
+  cloud sessions. Push to `main` if allowed; otherwise push your branch and write
   its name in `PROGRESS.md`.
 - Keep `PROGRESS.md` current: milestone status, what's done, the exact next step, and how to resume.
 - Each milestone is done only when its tests pass and the GitHub Actions workflow builds the Android APK,
