@@ -48,6 +48,21 @@
 Milestone 6: local LLM explainer. Optional ~1B model via llama.cpp, downloaded on demand, that rephrases the
 facts from `lib/coach/explain.dart` into friendly English; the current templates stay as the fallback.
 
+Findings so far (nothing committed yet):
+- Use `llamadart` pinned (0.11.1 tested): its build hook downloads prebuilt llama.cpp libraries; unsupported
+  targets (e.g. armeabi-v7a) are skipped with a warning, not an error. `flutter build linux --release` works.
+- Add to pubspec: `hooks: user_defines: llamadart: llamadart_native_runtimes: [llama_cpp]`. The plain
+  `llamadart_native_backends: [cpu]` is ignored; it needs a `platforms:` map (e.g.
+  `llamadart_native_backends: {platforms: {linux: [cpu], windows: [cpu], android: [cpu]}}`) to drop the 26 MB
+  Vulkan library. Verify the bundle after a clean build.
+- No Android SDK on this PC, so the APK build can't be checked locally; consider building only arm64 in CI
+  (`--target-platform android-arm64`).
+- Model: Qwen2.5-0.5B-Instruct q4_k_m (491 MB, Apache-2.0, ungated, sha256 74a4da8c…a9db) as default;
+  Qwen2.5-1.5B q4_k_m (1117 MB) as a desktop option. Download with our own downloader + sha256 check,
+  load with `LlamaEngine.load(LlamaModel(ModelSource.path(file)))`.
+- Plan: show the template at once, replace it with the LLM text only if every square/move in the output
+  appears in the facts (never trust the LLM with chess); hook into `GameController._say` and the review cards.
+
 ## Decisions
 
 - Flutter 3.47.7 with `fluent_ui` (Fluent design), `chessground` (Lichess board widget) and `dartchess` (rules).
