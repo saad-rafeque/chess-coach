@@ -1,0 +1,16 @@
+#!/bin/bash
+# Blocks a push unless the analyzer and all tests pass, so CI stays green.
+export PATH="$HOME/development/flutter/bin:$PATH"
+cd "$(git rev-parse --show-toplevel)" || exit 1
+echo "pre-push: running flutter analyze and flutter test..."
+if ! out=$(flutter analyze 2>&1); then
+  echo "$out" | tail -20
+  echo "pre-push: analyzer found problems, push blocked."
+  exit 1
+fi
+if ! out=$(flutter test -r compact 2>&1); then
+  echo "$out" | tail -30
+  echo "pre-push: tests failed, push blocked."
+  exit 1
+fi
+echo "pre-push: all checks passed."

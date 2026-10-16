@@ -1,3 +1,5 @@
+import 'package:chessground/chessground.dart';
+import 'package:dartchess/dartchess.dart' show PieceKind;
 import 'package:fluent_ui/fluent_ui.dart';
 
 import '../screens/home_page.dart';
@@ -147,8 +149,8 @@ class _Logo extends StatelessWidget {
         gradient: LinearGradient(colors: [p.accent, Color.lerp(p.accent, const Color(0xFF000000), 0.3)!]),
         borderRadius: BorderRadius.circular(size * 0.28),
       ),
-      alignment: Alignment.center,
-      child: Text('♞', style: TextStyle(fontSize: size * 0.68, color: p.onAccent, height: 1.1)),
+      padding: EdgeInsets.all(size * 0.12),
+      child: Image(image: PieceSet.cburnettAssets[PieceKind.whiteKnight]!),
     );
   }
 }

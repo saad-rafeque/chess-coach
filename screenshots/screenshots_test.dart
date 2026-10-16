@@ -26,9 +26,11 @@ Future<void> _loadFonts() async {
     }
   }
   await roboto.load();
-  final icons = FontLoader('packages/fluent_ui/FluentIcons')
-    ..addFont(rootBundle.load('packages/fluent_ui/fonts/FluentIcons.ttf'));
-  await icons.load();
+  for (final family in ['FluentIcons', 'SegoeIcons']) {
+    final loader = FontLoader('packages/fluent_ui/$family')
+      ..addFont(rootBundle.load('packages/fluent_ui/fonts/$family.ttf'));
+    await loader.load();
+  }
 }
 
 Future<void> _settle(WidgetTester tester, AppTheme theme, double dpr) async {
