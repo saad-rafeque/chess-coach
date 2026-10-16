@@ -2,7 +2,7 @@
 
 | # | Milestone | Status |
 |---|---|---|
-| 1 | Foundation | In progress: UI preview built, waiting for owner's approval |
+| 1 | Foundation | In progress: UI approved, Stockfish coach working; packaging + release left |
 | 2 | Human-like coach | Not started |
 | 3 | Puzzles | Not started |
 | 4 | Lessons | Not started |
@@ -17,13 +17,18 @@
   Training / Real game, undo, hint, flip, resign), Puzzles (4 verified starter puzzles), Lessons
   (opening / middlegame / endgame outline), Settings (Light / Dark / Wooden themes, coordinates, hints).
 - Side navigation on desktop, bottom bar on phones; pages keep their state when switching tabs.
-- Rule-based quick tips and a one-ply practice bot stand in for the real coach until milestone 2.
+- Stockfish 19 everywhere: desktop binary bundled next to the app (`tool/fetch_engines.sh` + CMake install),
+  Android via the `multistockfish` plugin. Falls back to simple rules if the engine can't start.
+- Coach plays like a human of a chosen strength (400–3200): MultiPV candidates sampled by centipawn loss.
+- Training mode grades every move (best/good/inaccuracy/mistake/blunder, Lichess win% thresholds),
+  explains errors from engine facts, shows the better move, two-step hints, evaluation bar.
+- New game dialog (colour, strength), undo, resign, unfinished game restored on restart.
 - GitHub Actions: analyze, test, screenshots, Linux tarball, Android arm64 APK, Windows zip (all green).
 
 ## Next step
 
-Get the owner's feedback on the UI. Then finish milestone 1: Stockfish on all platforms
-(engine wrapper + tests), AppImage and Windows installer packaging, Release `v0.1.0`.
+Finish milestone 1: app icon, Android release signing, Linux AppImage, Windows installer,
+GitHub Release `v0.1.0` with all three builds. Then milestone 2 (post-game review, Maia opponent).
 
 ## Decisions
 

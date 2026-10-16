@@ -21,7 +21,9 @@ class AppSettings extends ChangeNotifier {
   AppSettings._(this._prefs)
       : _theme = AppTheme.values.asNameMap()[_prefs?.getString('theme')] ?? AppTheme.dark,
         _showCoordinates = _prefs?.getBool('coords') ?? true,
-        _trainingHints = _prefs?.getBool('hints') ?? true;
+        _trainingHints = _prefs?.getBool('hints') ?? true,
+        _evalBar = _prefs?.getBool('evalBar') ?? true,
+        _coachElo = _prefs?.getInt('coachElo') ?? 800;
 
   /// In-memory settings for tests.
   AppSettings.memory() : this._(null);
@@ -55,5 +57,29 @@ class AppSettings extends ChangeNotifier {
     _trainingHints = value;
     _prefs?.setBool('hints', value);
     notifyListeners();
+  }
+
+  /// Evaluation bar above the board in Training games.
+  bool _evalBar;
+  bool get evalBar => _evalBar;
+  set evalBar(bool value) {
+    _evalBar = value;
+    _prefs?.setBool('evalBar', value);
+    notifyListeners();
+  }
+
+  /// Playing strength of the coach in games.
+  int _coachElo;
+  int get coachElo => _coachElo;
+  set coachElo(int value) {
+    _coachElo = value;
+    _prefs?.setInt('coachElo', value);
+    notifyListeners();
+  }
+
+  /// The unfinished game, as JSON (restored on the next start).
+  String? get savedGame => _prefs?.getString('savedGame');
+  set savedGame(String? value) {
+    value == null ? _prefs?.remove('savedGame') : _prefs?.setString('savedGame', value);
   }
 }

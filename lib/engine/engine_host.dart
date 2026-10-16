@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 import 'chess_engine.dart';
 
@@ -30,4 +30,16 @@ class EngineHost {
   }
 
   Future<void> dispose() async => (await _engine)?.dispose();
+}
+
+/// Makes the app's [EngineHost] available to widgets.
+class EngineScope extends InheritedWidget {
+  const EngineScope({super.key, required this.host, required super.child});
+
+  final EngineHost host;
+
+  static EngineHost of(BuildContext context) => context.getInheritedWidgetOfExactType<EngineScope>()!.host;
+
+  @override
+  bool updateShouldNotify(EngineScope oldWidget) => host != oldWidget.host;
 }

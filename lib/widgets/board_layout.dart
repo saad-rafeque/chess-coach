@@ -14,6 +14,7 @@ class BoardLayout extends StatelessWidget {
     this.top,
     this.bottom,
     this.actions,
+    this.overBoard,
   });
 
   final Widget Function(double size) board;
@@ -22,14 +23,22 @@ class BoardLayout extends StatelessWidget {
   final Widget? bottom;
   final Widget? actions;
 
+  /// Slim strip directly above the board (the evaluation bar).
+  final Widget? overBoard;
+
   static const _barHeight = 52.0;
+  static const _overBoardHeight = 18.0;
   static const _panelWidth = 380.0;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, c) {
       final mobile = c.maxWidth < mobileBreakpoint || c.maxWidth < c.maxHeight * 0.9;
-      final bars = (top != null ? _barHeight : 0) + (bottom != null ? _barHeight : 0);
+      final bars = (top != null ? _barHeight : 0) + (bottom != null ? _barHeight : 0) + _overBoardHeight;
+      final strip = SizedBox(
+        height: _overBoardHeight,
+        child: Align(alignment: Alignment.topCenter, child: overBoard ?? const SizedBox.shrink()),
+      );
       if (!mobile) {
         final size = math.min(c.maxWidth - _panelWidth - 24, c.maxHeight - bars);
         return Row(
@@ -39,6 +48,7 @@ class BoardLayout extends StatelessWidget {
               width: size,
               child: Column(children: [
                 if (top != null) SizedBox(height: _barHeight, child: top),
+                strip,
                 board(size),
                 if (bottom != null) SizedBox(height: _barHeight, child: bottom),
               ]),
@@ -60,6 +70,7 @@ class BoardLayout extends StatelessWidget {
         padding: EdgeInsets.zero,
         children: [
           if (top != null) SizedBox(height: _barHeight, child: top),
+          strip,
           Center(child: board(size)),
           if (bottom != null) SizedBox(height: _barHeight, child: bottom),
           if (actions != null) ...[const SizedBox(height: 4), actions!],
@@ -144,6 +155,50 @@ class CoachBubble extends StatelessWidget {
 }
 
 enum BubbleTone { info, good, warning, move }
+
+/// Thin horizontal bar: White's share of the winning chances.
+class EvalBar extends StatelessWidget {
+  const EvalBar({super.key, required this.whitePercent, required this.label, this.flipped = false});
+
+  final double whitePercent;
+  final String label;
+
+  /// True when the board shows Black at the bottom (bar fills from the right).
+  final bool flipped;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Palette.of(context);
+    final share = (whitePercent / 100).clamp(0.02, 0.98);
+    return Row(children: [
+      Expanded(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: SizedBox(
+            height: 8,
+            child: Stack(children: [
+              Container(color: const Color(0xFF2B2B2E)),
+              AnimatedFractionallySizedBox(
+                duration: const Duration(milliseconds: 400),
+                curve: Curves.easeOutCubic,
+                alignment: flipped ? Alignment.centerRight : Alignment.centerLeft,
+                widthFactor: share,
+                child: Container(color: const Color(0xFFF2F2F2)),
+              ),
+            ]),
+          ),
+        ),
+      ),
+      const SizedBox(width: 8),
+      SizedBox(
+        width: 42,
+        child: Text(label,
+            textAlign: TextAlign.right,
+            style: TextStyle(color: p.muted, fontSize: 12, fontWeight: FontWeight.w600)),
+      ),
+    ]);
+  }
+}
 
 /// Two-option segmented switch.
 class Segmented<T> extends StatelessWidget {
