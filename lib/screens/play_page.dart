@@ -256,11 +256,14 @@ class _PlayPageState extends State<PlayPage> {
     final actions = Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _Action(icon: FluentIcons.add, label: 'New', onPressed: _newGame),
-        _Action(icon: FluentIcons.undo, label: 'Undo', onPressed: _moves.isEmpty || _thinking ? null : _undo),
-        _Action(icon: FluentIcons.lightbulb, label: 'Hint', onPressed: _over ? null : _hint),
-        _Action(icon: FluentIcons.sync, label: 'Flip', onPressed: () => setState(() => _flipped = !_flipped)),
-        _Action(icon: FluentIcons.flag, label: 'Resign', onPressed: _over || _moves.isEmpty ? null : _resign),
+        for (final a in [
+          _Action(icon: FluentIcons.add, label: 'New', onPressed: _newGame),
+          _Action(icon: FluentIcons.undo, label: 'Undo', onPressed: _moves.isEmpty || _thinking ? null : _undo),
+          _Action(icon: FluentIcons.lightbulb, label: 'Hint', onPressed: _over ? null : _hint),
+          _Action(icon: FluentIcons.sync, label: 'Flip', onPressed: () => setState(() => _flipped = !_flipped)),
+          _Action(icon: FluentIcons.flag, label: 'Resign', onPressed: _over || _moves.isEmpty ? null : _resign),
+        ])
+          Flexible(child: a),
       ],
     );
 
@@ -305,12 +308,14 @@ class _Action extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = Palette.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 3),
       child: Tooltip(
         message: label,
         child: Button(
           onPressed: onPressed,
-          style: ButtonStyle(padding: WidgetStatePropertyAll(const EdgeInsets.symmetric(horizontal: 12, vertical: 8))),
+          style: ButtonStyle(
+              padding: WidgetStatePropertyAll(
+                  EdgeInsets.symmetric(horizontal: isMobile(context) ? 6 : 12, vertical: 8))),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Icon(icon, size: 16, color: onPressed == null ? p.muted.withValues(alpha: 0.5) : p.text),
             const SizedBox(height: 2),

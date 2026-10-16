@@ -37,5 +37,19 @@ void main() {
     await tester.tap(find.text('Play').last);
     await tester.pumpAndSettle();
     expect(find.text('Training'), findsOneWidget);
+
+    // Every page must lay out without overflow on a phone.
+    for (final label in ['Puzzles', 'Lessons', 'Settings', 'Home']) {
+      await tester.tap(find.text(label).last);
+      await tester.pumpAndSettle();
+    }
+  });
+
+  testWidgets('small desktop window lays out every page', (tester) async {
+    await _pumpAt(tester, const Size(900, 620), AppSettings.memory());
+    for (final label in ['Play', 'Puzzles', 'Lessons', 'Settings', 'Home']) {
+      await tester.tap(find.text(label).last);
+      await tester.pumpAndSettle();
+    }
   });
 }

@@ -53,15 +53,18 @@ class BoardLayout extends StatelessWidget {
           ],
         );
       }
+      // Phones: board fills the width, everything below scrolls.
       final size = math.min(c.maxWidth, c.maxHeight * 0.62 - bars);
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      final panelHeight = math.max(320.0, c.maxHeight - size - bars - 76);
+      return ListView(
+        padding: EdgeInsets.zero,
         children: [
           if (top != null) SizedBox(height: _barHeight, child: top),
           Center(child: board(size)),
           if (bottom != null) SizedBox(height: _barHeight, child: bottom),
-          if (actions != null) ...[const SizedBox(height: 4), actions!, const SizedBox(height: 12)],
-          Expanded(child: panel),
+          if (actions != null) ...[const SizedBox(height: 4), actions!],
+          const SizedBox(height: 12),
+          SizedBox(height: panelHeight, child: panel),
         ],
       );
     });

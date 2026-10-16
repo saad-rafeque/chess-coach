@@ -105,8 +105,7 @@ class _PuzzlesPageState extends State<PuzzlesPage> {
 
     final panel = SurfaceCard(
       padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: ListView(
         children: [
           Row(children: [
             Pill(_puzzle.theme),
@@ -146,9 +145,7 @@ class _PuzzlesPageState extends State<PuzzlesPage> {
           const SizedBox(height: 20),
           Text('Today\'s set', style: TextStyle(color: p.text, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
-          Expanded(
-            child: ListView(children: [
-              for (final (i, pz) in starterPuzzles.indexed)
+          for (final (i, pz) in starterPuzzles.indexed)
                 HoverButton(
                   onPressed: () => _load(i),
                   builder: (context, states) => Container(
@@ -170,8 +167,7 @@ class _PuzzlesPageState extends State<PuzzlesPage> {
                     ]),
                   ),
                 ),
-            ]),
-          ),
+          const SizedBox(height: 8),
           Text('Preview set. Milestone 3 adds thousands of puzzles and puzzles from your own games.',
               style: TextStyle(color: p.muted, fontSize: 12)),
         ],

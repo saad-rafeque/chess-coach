@@ -31,8 +31,10 @@ class HomePage extends StatelessWidget {
           Row(children: [
             Icon(FluentIcons.timer, color: p.accent, size: 18),
             const SizedBox(width: 8),
-            Text('How much time do you have?',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: p.text)),
+            Expanded(
+              child: Text('How much time do you have?',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: p.text)),
+            ),
           ]),
           const SizedBox(height: 4),
           Text('Your coach builds the best session for the time you have.',
