@@ -97,7 +97,9 @@ class PlayerBar extends StatelessWidget {
       const SizedBox(width: 10),
       Text(name, style: TextStyle(color: p.text, fontWeight: FontWeight.w600)),
       const SizedBox(width: 8),
-      Text(detail, style: TextStyle(color: p.muted, fontSize: 12)),
+      Flexible(
+        child: Text(detail, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: p.muted, fontSize: 12)),
+      ),
       const Spacer(),
       if (active)
         Text('to move', style: TextStyle(color: p.accent, fontSize: 12, fontWeight: FontWeight.w600)),

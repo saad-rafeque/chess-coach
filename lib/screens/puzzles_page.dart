@@ -107,12 +107,10 @@ class _PuzzlesPageState extends State<PuzzlesPage> {
       padding: const EdgeInsets.all(16),
       child: ListView(
         children: [
-          Row(children: [
+          Wrap(spacing: 8, runSpacing: 8, children: [
             Pill(_puzzle.theme),
-            const SizedBox(width: 8),
             Pill('Rating ${_puzzle.rating}', color: p.muted),
-            const Spacer(),
-            Text('${_solved.length}/${starterPuzzles.length} solved', style: TextStyle(color: p.muted, fontSize: 12)),
+            Pill('${_solved.length}/${starterPuzzles.length} solved', color: p.success),
           ]),
           const SizedBox(height: 16),
           Text('$side to move',
