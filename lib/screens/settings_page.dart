@@ -5,6 +5,7 @@ import '../app/settings.dart';
 import '../app/theme.dart';
 import '../app/version.dart';
 import '../widgets/common.dart';
+import '../widgets/sync_settings.dart';
 import '../widgets/voice_settings.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -63,21 +64,7 @@ class SettingsPage extends StatelessWidget {
           const VoiceSettings(),
           const SizedBox(height: 24),
           const SectionTitle('Sync'),
-          SurfaceCard(
-            child: Row(children: [
-              Icon(FluentIcons.cloud, color: p.accent, size: 22),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Google Drive sync', style: TextStyle(color: p.text, fontWeight: FontWeight.w600)),
-                  Text('Keeps your phone, Windows and Ubuntu in step. Arrives in milestone 7.',
-                      style: TextStyle(color: p.muted, fontSize: 12)),
-                ]),
-              ),
-              const SizedBox(width: 12),
-              const Button(onPressed: null, child: Text('Connect')),
-            ]),
-          ),
+          const SyncSettings(),
           const SizedBox(height: 24),
           Center(
             child: Text('Chess Coach $appVersion · GPL-3.0 · Stockfish 19',

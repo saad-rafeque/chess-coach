@@ -56,7 +56,16 @@ jobs:
           channel: stable
           cache: true
       - run: bash tool/fetch_engines.sh linux
-      - run: flutter build linux --release
+      - name: Google sign-in client for sync (empty until the secrets exist)
+        shell: bash
+        env:
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+        run: |
+          mkdir -p build
+          printf '{"GOOGLE_OAUTH_CLIENT_ID":"%s","GOOGLE_OAUTH_CLIENT_SECRET":"%s"}' \
+            "$GOOGLE_OAUTH_CLIENT_ID" "$GOOGLE_OAUTH_CLIENT_SECRET" > build/oauth.json
+      - run: flutter build linux --release --dart-define-from-file=build/oauth.json
       - run: bash packaging/linux/build_appimage.sh ${{ needs.check.outputs.version }}
       - run: tar -czf build/ChessCoach-${{ needs.check.outputs.version }}-linux-x64.tar.gz -C build/linux/x64/release/bundle .
       - uses: actions/upload-artifact@v4
@@ -89,7 +98,16 @@ jobs:
             echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
             echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
           fi
-      - run: flutter build apk --release --split-per-abi
+      - name: Google sign-in client for sync (empty until the secrets exist)
+        shell: bash
+        env:
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+        run: |
+          mkdir -p build
+          printf '{"GOOGLE_OAUTH_CLIENT_ID":"%s","GOOGLE_OAUTH_CLIENT_SECRET":"%s"}' \
+            "$GOOGLE_OAUTH_CLIENT_ID" "$GOOGLE_OAUTH_CLIENT_SECRET" > build/oauth.json
+      - run: flutter build apk --release --split-per-abi --dart-define-from-file=build/oauth.json
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -113,7 +131,16 @@ jobs:
           cache: true
       - run: bash tool/fetch_engines.sh windows
         shell: bash
-      - run: flutter build windows --release
+      - name: Google sign-in client for sync (empty until the secrets exist)
+        shell: bash
+        env:
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+        run: |
+          mkdir -p build
+          printf '{"GOOGLE_OAUTH_CLIENT_ID":"%s","GOOGLE_OAUTH_CLIENT_SECRET":"%s"}' \
+            "$GOOGLE_OAUTH_CLIENT_ID" "$GOOGLE_OAUTH_CLIENT_SECRET" > build/oauth.json
+      - run: flutter build windows --release --dart-define-from-file=build/oauth.json
       - name: Bundle the Visual C++ runtime
         shell: pwsh
         run: |

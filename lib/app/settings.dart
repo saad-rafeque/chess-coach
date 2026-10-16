@@ -28,7 +28,8 @@ class AppSettings extends ChangeNotifier {
         _coachElo = _prefs?.getInt('coachElo') ?? 800,
         _autoStrength = _prefs?.getBool('autoStrength') ?? true,
         _friendlyVoice = _prefs?.getBool('friendlyVoice') ?? true,
-        _voiceModel = _prefs?.getString('voiceModel');
+        _voiceModel = _prefs?.getString('voiceModel'),
+        _changedAt = DateTime.tryParse(_prefs?.getString('settingsChangedAt') ?? '');
 
   /// In-memory settings for tests.
   AppSettings.memory() : this._(null);
@@ -38,12 +39,65 @@ class AppSettings extends ChangeNotifier {
   }
 
   final SharedPreferences? _prefs;
+  final _memory = <String, String>{};
+
+  /// When a synced setting last changed on this device (settings sync is last-write-wins).
+  DateTime? _changedAt;
+  DateTime? get changedAt => _changedAt;
+
+  void _touch() {
+    _changedAt = DateTime.now().toUtc();
+    _prefs?.setString('settingsChangedAt', _changedAt!.toIso8601String());
+  }
+
+  /// The settings shared between devices.
+  Map<String, dynamic> toSyncJson() => {
+        'theme': _theme.name,
+        'coords': _showCoordinates,
+        'hints': _trainingHints,
+        'evalBar': _evalBar,
+        'autoStrength': _autoStrength,
+        'coachElo': _coachElo,
+      };
+
+  /// Takes the settings from another device if they changed later than ours.
+  bool applySync(Map<String, dynamic> j, DateTime changed) {
+    if (_changedAt != null && !changed.isAfter(_changedAt!)) return false;
+    _theme = AppTheme.values.asNameMap()[j['theme']] ?? _theme;
+    _showCoordinates = j['coords'] as bool? ?? _showCoordinates;
+    _trainingHints = j['hints'] as bool? ?? _trainingHints;
+    _evalBar = j['evalBar'] as bool? ?? _evalBar;
+    _autoStrength = j['autoStrength'] as bool? ?? _autoStrength;
+    _coachElo = j['coachElo'] as int? ?? _coachElo;
+    _prefs
+      ?..setString('theme', _theme.name)
+      ..setBool('coords', _showCoordinates)
+      ..setBool('hints', _trainingHints)
+      ..setBool('evalBar', _evalBar)
+      ..setBool('autoStrength', _autoStrength)
+      ..setInt('coachElo', _coachElo);
+    _changedAt = changed;
+    _prefs?.setString('settingsChangedAt', changed.toIso8601String());
+    notifyListeners();
+    return true;
+  }
+
+  /// Small stored values for other services (sync tokens, last sync time).
+  String? readValue(String key) => _prefs == null ? _memory[key] : _prefs.getString(key);
+  void writeValue(String key, String? value) {
+    if (_prefs == null) {
+      value == null ? _memory.remove(key) : _memory[key] = value;
+    } else {
+      value == null ? _prefs.remove(key) : _prefs.setString(key, value);
+    }
+  }
 
   AppTheme _theme;
   AppTheme get theme => _theme;
   set theme(AppTheme value) {
     _theme = value;
     _prefs?.setString('theme', value.name);
+    _touch();
     notifyListeners();
   }
 
@@ -52,6 +106,7 @@ class AppSettings extends ChangeNotifier {
   set showCoordinates(bool value) {
     _showCoordinates = value;
     _prefs?.setBool('coords', value);
+    _touch();
     notifyListeners();
   }
 
@@ -61,6 +116,7 @@ class AppSettings extends ChangeNotifier {
   set trainingHints(bool value) {
     _trainingHints = value;
     _prefs?.setBool('hints', value);
+    _touch();
     notifyListeners();
   }
 
@@ -70,6 +126,7 @@ class AppSettings extends ChangeNotifier {
   set evalBar(bool value) {
     _evalBar = value;
     _prefs?.setBool('evalBar', value);
+    _touch();
     notifyListeners();
   }
 
@@ -79,6 +136,7 @@ class AppSettings extends ChangeNotifier {
   set autoStrength(bool value) {
     _autoStrength = value;
     _prefs?.setBool('autoStrength', value);
+    _touch();
     notifyListeners();
   }
 
@@ -106,6 +164,7 @@ class AppSettings extends ChangeNotifier {
   set coachElo(int value) {
     _coachElo = value;
     _prefs?.setInt('coachElo', value);
+    _touch();
     notifyListeners();
   }
 

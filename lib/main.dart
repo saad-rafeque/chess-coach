@@ -9,6 +9,8 @@ import 'coach/llm/coach_voice.dart';
 import 'coach/llm/model_store.dart';
 import 'data/event_store.dart';
 import 'engine/engine_host.dart';
+import 'sync/google_auth.dart';
+import 'sync/sync_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,11 +27,13 @@ Future<void> main() async {
   final models = ModelStore();
   unawaited(models.refresh());
   final voice = CoachVoice(settings: settings, models: models);
-  runApp(ChessCoachApp(settings: settings, engine: engine, store: store, voice: voice));
+  final sync = SyncService(store: store, settings: settings)..start();
+  runApp(ChessCoachApp(settings: settings, engine: engine, store: store, voice: voice, sync: sync));
 }
 
 class ChessCoachApp extends StatelessWidget {
-  const ChessCoachApp({super.key, required this.settings, this.engine, this.store, this.voice, this.fontFamily});
+  const ChessCoachApp(
+      {super.key, required this.settings, this.engine, this.store, this.voice, this.sync, this.fontFamily});
 
   final AppSettings settings;
 
@@ -42,12 +46,17 @@ class ChessCoachApp extends StatelessWidget {
   /// Optional language model that rephrases explanations; tests leave it null (templates only).
   final CoachVoice? voice;
 
+  /// Google Drive sync; tests leave it null (sync off).
+  final SyncService? sync;
+
   /// Overrides the platform font (used by the screenshot tests).
   final String? fontFamily;
 
   static final _offline = EngineHost(starter: () => Future.error(UnsupportedError('Engine disabled')));
   static final _memory = EventStore.memory();
   static final _silent = CoachVoice.off();
+  static final _noSync = SyncService(
+      store: _memory, settings: AppSettings.memory(), config: const OAuthConfig(clientId: '', clientSecret: ''));
 
   @override
   Widget build(BuildContext context) {
@@ -57,22 +66,25 @@ class ChessCoachApp extends StatelessWidget {
         store: store ?? _memory,
         child: VoiceScope(
           voice: voice ?? _silent,
-          child: SettingsScope(
-            settings: settings,
-            child: ListenableBuilder(
-              listenable: settings,
-              builder: (context, _) {
-                final palette = Palette.forTheme(settings.theme);
-                return PaletteScope(
-                  palette: palette,
-                  child: FluentApp(
-                    title: 'Chess Coach',
-                    debugShowCheckedModeBanner: false,
-                    theme: buildFluentTheme(palette, fontFamily: fontFamily),
-                    home: const AppShell(),
-                  ),
-                );
-              },
+          child: SyncScope(
+            sync: sync ?? _noSync,
+            child: SettingsScope(
+              settings: settings,
+              child: ListenableBuilder(
+                listenable: settings,
+                builder: (context, _) {
+                  final palette = Palette.forTheme(settings.theme);
+                  return PaletteScope(
+                    palette: palette,
+                    child: FluentApp(
+                      title: 'Chess Coach',
+                      debugShowCheckedModeBanner: false,
+                      theme: buildFluentTheme(palette, fontFamily: fontFamily),
+                      home: const AppShell(),
+                    ),
+                  );
+                },
+              ),
             ),
           ),
         ),

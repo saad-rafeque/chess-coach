@@ -8,7 +8,7 @@
 | 4 | Lessons | Done (v0.5.0) |
 | 5 | Personal learning | Done (v0.5.0) |
 | 6 | Local LLM explainer | Done (next release) |
-| 7 | Google Drive sync | Not started |
+| 7 | Google Drive sync | Done in code; waiting for the owner's OAuth client |
 | 8 | Polish | Not started |
 
 ## Done
@@ -46,15 +46,25 @@
   message is replaced when the answer arrives) and in reviews (`FriendlyText`). `acceptRephrase` throws away any
   answer that adds or drops a move, square, number, piece, side or mate threat, praises an error, or talks about
   the task; then the template text stays. `tool/voice_smoke_test.dart` runs a real model (MODEL=path).
+- Google Drive sync (milestone 7): `lib/sync/`. Sign-in with Google through the system browser and a loopback
+  redirect with PKCE (`google_auth.dart`, same on Android, Windows, Linux), Drive API v3 over HTTPS on the
+  appDataFolder (`drive.dart`), one gzip JSON file (`chess-coach-sync.json.gz`) holding all events and the
+  synced settings. `SyncService` merges with `EventStore.merge` (union by id), settings last-write-wins, and runs
+  on app open/resume, on close/background (only if something changed) and, after a failure, retries 1, 3, 10
+  and 30 minutes later. Settings card: `lib/widgets/sync_settings.dart`. Owner's setup steps:
+  `docs/google-drive-sync.md`. CI passes the client from the secrets `GOOGLE_OAUTH_CLIENT_ID` and
+  `GOOGLE_OAUTH_CLIENT_SECRET` (`--dart-define-from-file`); without them the card says sync isn't set up.
 - Packaging: app icon, signed APK (key in `~/Documents/chess-coach-keys`, also in GitHub secrets),
   AppImage, Inno Setup installer with the VC++ runtime; pushing a `v*` tag publishes a GitHub Release.
 - GitHub Actions: analyze, test, screenshots, Linux tarball + AppImage, Android arm64 APK, Windows installer.
 
 ## Next step
 
-Milestone 7: Google Drive sync. One file in the appDataFolder, merged with `EventStore.merge` (union by event
-id), synced only on app open/close and when the network returns. Give the owner click-by-click steps to create
-the Google Cloud OAuth client.
+Milestone 8: polish (animations, accessibility, phone performance, an empty and error state on every screen),
+then version 0.8.0, `packaging/release-notes/v0.8.0.md` and the `v0.8.0` tag.
+
+Owner to do for sync: follow `docs/google-drive-sync.md` (create the Google OAuth client and add the two GitHub
+secrets). Until then sync is off in the builds; everything else works.
 
 ## Decisions
 
@@ -78,12 +88,17 @@ the Google Cloud OAuth client.
   rating gain in the block's area (0.5 = no change), the recall rate for reviews, or the first-try rate for
   lessons. Training sessions live in memory only (not synced).
 - New review cards are limited to 10 per day.
+- Sync uses a "Desktop app" OAuth client with the loopback flow on all platforms (no Google Play services or
+  extra SDK); the refresh token is kept in the app's local preferences, and the only scope is drive.appdata.
+  "When the network returns" is handled with a few backed-off retries after a failed sync, instead of a
+  connectivity plugin that would keep listening.
+- The Android manifest now asks for INTERNET (needed for the model download and sync).
 - LLM runtime: `llamadart` pinned to 0.11.1 (the package changes every few days); only its llama.cpp runtime and
   CPU backend are bundled (`hooks: user_defines` in pubspec.yaml). Targets without a prebuilt runtime (32-bit
   Android) just skip it, and the coach keeps its templates.
 - The model never sees the board and never chooses moves: it only rewords a sentence built from engine facts.
   With Qwen2.5 0.5B about half of the answers pass the safety check on this PC (0.5–1 s each after a 3 s load);
-  the rest fall back to the template.
+  the rest fall back to the template. The 1.5B model writes nicer English at 1–2 s per answer on this PC.
 
 ## How to resume
 
