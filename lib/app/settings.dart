@@ -25,7 +25,8 @@ class AppSettings extends ChangeNotifier {
         _showCoordinates = _prefs?.getBool('coords') ?? true,
         _trainingHints = _prefs?.getBool('hints') ?? true,
         _evalBar = _prefs?.getBool('evalBar') ?? true,
-        _coachElo = _prefs?.getInt('coachElo') ?? 800;
+        _coachElo = _prefs?.getInt('coachElo') ?? 800,
+        _autoStrength = _prefs?.getBool('autoStrength') ?? true;
 
   /// In-memory settings for tests.
   AppSettings.memory() : this._(null);
@@ -67,6 +68,15 @@ class AppSettings extends ChangeNotifier {
   set evalBar(bool value) {
     _evalBar = value;
     _prefs?.setBool('evalBar', value);
+    notifyListeners();
+  }
+
+  /// Let the skill model pick the coach's strength for each new game.
+  bool _autoStrength;
+  bool get autoStrength => _autoStrength;
+  set autoStrength(bool value) {
+    _autoStrength = value;
+    _prefs?.setBool('autoStrength', value);
     notifyListeners();
   }
 

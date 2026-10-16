@@ -21,11 +21,21 @@ const _themeChoices = [
   'trappedPiece', 'sacrifice', 'promotion', 'endgame', 'opening', 'defensiveMove',
 ];
 
+/// Opens a short puzzle drill (from a training session). Returns how many puzzles were tried.
+Future<int?> openPuzzleDrill(BuildContext context, {required int goal, String? theme}) => Navigator.of(context)
+    .push<int>(FluentPageRoute(builder: (_) => PuzzlesPage(goal: goal, theme: theme)));
+
 class PuzzlesPage extends StatefulWidget {
-  const PuzzlesPage({super.key, this.bank});
+  const PuzzlesPage({super.key, this.bank, this.goal, this.theme});
 
   /// Puzzle set; null loads the bundled one.
   final Future<PuzzleBank>? bank;
+
+  /// Drill mode: number of puzzles to do, shown as a pushed page with a back button.
+  final int? goal;
+
+  /// Drill mode: puzzle theme (null = rated puzzles).
+  final String? theme;
 
   @override
   State<PuzzlesPage> createState() => _PuzzlesPageState();
@@ -42,9 +52,19 @@ class _PuzzlesPageState extends State<PuzzlesPage> {
   double? _ratingBefore;
   String _shownFen = '';
 
+  /// Puzzles tried on this page (drill progress).
+  int _tried = 0;
+
+  bool get _drill => widget.goal != null;
+  bool get _drillDone => _drill && _tried >= widget.goal!;
+
   @override
   void initState() {
     super.initState();
+    if (widget.theme != null) {
+      _mode = PuzzleMode.themes;
+      _theme = widget.theme!;
+    }
     _board = ChessboardController(game: _emptyGame());
     unawaited(_init());
   }
@@ -124,6 +144,7 @@ class _PuzzlesPageState extends State<PuzzlesPage> {
       return;
     }
     final session = PuzzleSession(next, onResult: (p, solved) {
+      if (mounted) setState(() => _tried++);
       store.add(puzzleEventType, {
         'id': p.id,
         'solved': solved,
@@ -163,9 +184,18 @@ class _PuzzlesPageState extends State<PuzzlesPage> {
     final mistakesCount = _bank == null ? 0 : mistakePuzzles(store).length;
 
     final ratingPill = Pill('Rating ${stats.rating.rating.round()}', color: p.accent);
+    final drillTitle = widget.theme == null ? 'Puzzles' : '${themeNames[widget.theme] ?? 'Themed'} puzzles';
     return PageFrame(
-      title: 'Puzzles',
-      subtitle: isMobile(context) ? null : 'Sharpen your tactics, a few minutes at a time',
+      title: _drill ? drillTitle : 'Puzzles',
+      subtitle: _drill
+          ? '${_tried.clamp(0, widget.goal!)} of ${widget.goal} done'
+          : (isMobile(context) ? null : 'Sharpen your tactics, a few minutes at a time'),
+      leading: _drill
+          ? IconButton(
+              icon: const Icon(FluentIcons.back, size: 18),
+              onPressed: () => Navigator.of(context).pop(_tried),
+            )
+          : null,
       trailing: ratingPill,
       scroll: false,
       child: BoardLayout(
@@ -182,16 +212,24 @@ class _PuzzlesPageState extends State<PuzzlesPage> {
         panel: SurfaceCard(
           padding: const EdgeInsets.all(16),
           child: ListView(children: [
-            Segmented<PuzzleMode>(
-              options: {
-                PuzzleMode.rated: 'Rated',
-                PuzzleMode.themes: 'Themes',
-                PuzzleMode.mistakes: 'Mistakes${mistakesCount > 0 ? ' ($mistakesCount)' : ''}',
-              },
-              value: _mode,
-              onChanged: _setMode,
-            ),
-            if (_mode == PuzzleMode.themes) ...[
+            if (_drill) ...[
+              Meter(_tried / widget.goal!),
+              if (_drillDone) ...[
+                const SizedBox(height: 12),
+                const CoachBubble(text: 'Drill complete! Go back to your session, or keep solving.', tone: BubbleTone.good),
+                FilledButton(onPressed: () => Navigator.of(context).pop(_tried), child: const Text('Back to session')),
+              ],
+            ] else
+              Segmented<PuzzleMode>(
+                options: {
+                  PuzzleMode.rated: 'Rated',
+                  PuzzleMode.themes: 'Themes',
+                  PuzzleMode.mistakes: 'Mistakes${mistakesCount > 0 ? ' ($mistakesCount)' : ''}',
+                },
+                value: _mode,
+                onChanged: _setMode,
+              ),
+            if (_mode == PuzzleMode.themes && !_drill) ...[
               const SizedBox(height: 12),
               ComboBox<String>(
                 value: _theme,

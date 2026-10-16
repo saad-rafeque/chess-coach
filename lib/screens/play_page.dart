@@ -14,6 +14,7 @@ import '../data/game_record.dart';
 import '../engine/engine_host.dart';
 import '../game/game_controller.dart';
 import '../maia/maia_player.dart';
+import '../train/skill_model.dart';
 import '../widgets/board_layout.dart';
 import '../widgets/common.dart';
 import 'review_page.dart';
@@ -49,7 +50,7 @@ class _PlayPageState extends State<PlayPage> {
     )..hintsEnabled = settings.trainingHints;
     final saved = settings.savedGame;
     if (saved == null || !_game.restore(saved)) {
-      _game.newGame(side: Side.white, elo: settings.coachElo);
+      _game.newGame(side: Side.white, elo: _strength(settings, store));
     }
     _board = ChessboardController(game: _gameData());
     _shownFen = _game.position.fen;
@@ -102,9 +103,15 @@ class _PlayPageState extends State<PlayPage> {
     }
   }
 
+  /// The coach's strength for a new game: tuned to the player, or the fixed choice.
+  int _strength(AppSettings settings, EventStore store) =>
+      settings.autoStrength ? SkillModel.of(store).recommendedCoachElo : settings.coachElo;
+
   Future<void> _newGameDialog() async {
     final settings = SettingsScope.read(context);
+    final recommended = SkillModel.of(StoreScope.read(context)).recommendedCoachElo;
     var side = 'white';
+    var auto = settings.autoStrength;
     var elo = settings.coachElo;
     final start = await showDialog<bool>(
       context: context,
@@ -122,25 +129,37 @@ class _PlayPageState extends State<PlayPage> {
             const SizedBox(height: 16),
             const Text('Coach strength'),
             const SizedBox(height: 8),
-            ComboBox<int>(
-              value: elo,
-              isExpanded: true,
-              items: [
-                for (final l in coachLevels)
-                  ComboBoxItem(
-                    value: l,
-                    child: Text(l >= 3200
-                        ? 'Maximum (Stockfish)'
-                        : l <= MaiaPlayer.maxElo
-                            ? 'About $l · plays like a human'
-                            : 'About $l · Stockfish'),
-                  ),
-              ],
-              onChanged: (v) => setDialog(() => elo = v ?? elo),
+            ToggleSwitch(
+              checked: auto,
+              onChanged: (v) => setDialog(() => auto = v),
+              content: const Text('Match my level automatically'),
             ),
             const SizedBox(height: 8),
-            Text('Beginners: start around 600–800. Move up when you win most games.',
-                style: TextStyle(fontSize: 12, color: Palette.of(context).muted)),
+            if (auto)
+              Text('Your coach plays at about $recommended, so you win a bit less than half of your games. '
+                  'It follows your results.',
+                  style: TextStyle(fontSize: 12, color: Palette.of(context).muted))
+            else ...[
+              ComboBox<int>(
+                value: elo,
+                isExpanded: true,
+                items: [
+                  for (final l in coachLevels)
+                    ComboBoxItem(
+                      value: l,
+                      child: Text(l >= 3200
+                          ? 'Maximum (Stockfish)'
+                          : l <= MaiaPlayer.maxElo
+                              ? 'About $l · plays like a human'
+                              : 'About $l · Stockfish'),
+                    ),
+                ],
+                onChanged: (v) => setDialog(() => elo = v ?? elo),
+              ),
+              const SizedBox(height: 8),
+              Text('Beginners: start around 600–800. Move up when you win most games.',
+                  style: TextStyle(fontSize: 12, color: Palette.of(context).muted)),
+            ],
           ]),
           actions: [
             Button(child: const Text('Cancel'), onPressed: () => Navigator.pop(context, false)),
@@ -150,7 +169,12 @@ class _PlayPageState extends State<PlayPage> {
       ),
     );
     if (start != true || !mounted) return;
-    settings.coachElo = elo;
+    settings.autoStrength = auto;
+    if (auto) {
+      elo = recommended;
+    } else {
+      settings.coachElo = elo;
+    }
     final s = side == 'random' ? (math.Random().nextBool() ? Side.white : Side.black) : Side.values.byName(side);
     setState(() => _flipped = false);
     _game.newGame(side: s, elo: elo);

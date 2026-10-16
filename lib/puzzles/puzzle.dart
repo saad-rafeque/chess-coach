@@ -82,14 +82,19 @@ class PuzzleBank {
 
   final List<PuzzleItem> puzzles;
   final byTheme = <String, List<PuzzleItem>>{};
+  late final byId = {for (final p in puzzles) p.id: p};
 
   static Future<PuzzleBank>? _shared;
+
+  /// The bundled set once [shared] has finished loading.
+  static PuzzleBank? loaded;
 
   /// Loads `assets/puzzles/puzzles.tsv.gz` once, parsing off the UI thread.
   static Future<PuzzleBank> shared() => _shared ??= () async {
         final data = await rootBundle.load('assets/puzzles/puzzles.tsv.gz');
         final bytes = data.buffer.asUint8List();
-        return Isolate.run(() => fromGzip(bytes));
+        final bank = await Isolate.run(() => fromGzip(bytes));
+        return loaded = bank;
       }();
 
   static PuzzleBank fromGzip(List<int> bytes) {

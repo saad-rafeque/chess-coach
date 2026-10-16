@@ -4,9 +4,16 @@ import '../app/theme.dart';
 import '../data/curriculum.dart';
 import '../data/event_store.dart';
 import '../data/game_record.dart';
-import '../data/sample_profile.dart';
+import '../data/home_content.dart';
+import '../lessons/progress.dart';
+import '../train/cards.dart';
+import '../train/planner.dart';
+import '../train/skill_model.dart';
 import '../widgets/common.dart';
+import 'cards_page.dart';
+import 'lesson_page.dart';
 import 'review_page.dart';
+import 'session_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key, required this.onNavigate});
@@ -25,7 +32,12 @@ class HomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = Palette.of(context);
     final mobile = isMobile(context);
-    final next = courses.first.lessons.firstWhere((l) => l.status == LessonStatus.inProgress);
+    final store = StoreScope.of(context);
+    final lessons = LessonProgress.fromEvents(store.events);
+    final next = lessons.next();
+    final skills = SkillModel.of(store);
+    final due = CardDeck.fromStore(store).due().length;
+    final planner = Planner.forStore(store, dueCards: due);
 
     final timeCard = SurfaceCard(
       child: Column(
@@ -50,13 +62,14 @@ class HomePage extends StatelessWidget {
               for (final (i, o) in sessionOptions.indexed)
                 _SessionTile(
                   option: o,
+                  plan: planner.preview(o.minutes),
                   icon: const [
                     FluentIcons.lightning_bolt,
                     FluentIcons.coffee_script,
                     FluentIcons.game,
                     FluentIcons.trophy2,
                   ][i],
-                  onTap: () => onNavigate(o.minutes <= 15 ? 2 : (o.minutes <= 60 ? 1 : 3)),
+                  onTap: () => startSession(context, o.minutes, onNavigate: onNavigate),
                 ),
             ],
           ),
@@ -68,54 +81,92 @@ class HomePage extends StatelessWidget {
       minItemWidth: mobile ? 140 : 200,
       spacing: 12,
       children: [
-        _Stat(label: 'Estimated rating', value: '~$sampleRating', note: 'Beginner', icon: FluentIcons.chart),
-        _Stat(label: 'Puzzle streak', value: '$samplePuzzleStreak days', note: 'Keep it going', icon: FluentIcons.favorite_star),
+        _Stat(
+            label: 'Estimated rating',
+            value: skills.estimatedRating == null ? 'New' : '~${skills.estimatedRating}',
+            note: skills.estimatedRating == null ? 'Play or solve puzzles' : levelName(skills.estimatedRating!),
+            icon: FluentIcons.chart),
+        _Stat(
+            label: 'Training streak',
+            value: '${skills.streakDays} day${skills.streakDays == 1 ? '' : 's'}',
+            note: skills.activeToday ? 'Trained today' : 'Train today to keep it',
+            icon: FluentIcons.favorite_star),
         _Stat(label: 'Target', value: '1800–2000', note: 'Strong club player', icon: FluentIcons.flag),
       ],
     );
 
-    final skills = SurfaceCard(
+    final skillsCard = SurfaceCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SectionTitle('Your skills'),
-          for (final s in sampleSkills) ...[
+          for (final area in Area.all) ...[
             Row(children: [
-              Expanded(child: Text(s.name, style: TextStyle(color: p.text))),
-              Text('${(s.value * 100).round()}%', style: TextStyle(color: p.muted, fontSize: 12)),
+              Expanded(child: Text(Area.label(area), style: TextStyle(color: p.text))),
+              Text(skills.rated(area) ? '${skills.areas[area]!.rating.round()}' : 'Not rated yet',
+                  style: TextStyle(color: p.muted, fontSize: 12)),
             ]),
             const SizedBox(height: 6),
-            Meter(s.value),
+            Meter(skills.rated(area) ? skills.skill(area) : 0),
             const SizedBox(height: 14),
           ],
-          Text('Progress toward your 2000 target', style: TextStyle(color: p.muted, fontSize: 12)),
+          Text('Progress toward your 2000 target. Ratings update after every game, puzzle and lesson.',
+              style: TextStyle(color: p.muted, fontSize: 12)),
         ],
       ),
     );
 
+    final reviewCard = SurfaceCard(
+      onTap: () => openCardReview(context),
+      child: Row(children: [
+        Icon(FluentIcons.history, color: due > 0 ? p.accent : p.muted, size: 20),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(due > 0 ? '$due card${due == 1 ? '' : 's'} to review' : 'No cards due',
+                style: TextStyle(fontWeight: FontWeight.w600, color: p.text)),
+            Text(
+                due > 0
+                    ? 'Repertoire moves and old mistakes, just before you forget them'
+                    : 'Lessons, reviewed games and missed puzzles add cards here',
+                style: TextStyle(color: p.muted, fontSize: 12)),
+          ]),
+        ),
+        Icon(FluentIcons.chevron_right, size: 12, color: p.muted),
+      ]),
+    );
+
+    final active = _ActiveSession(onNavigate: onNavigate);
+
+    final nextFraction = next == null ? 1.0 : lessons.fraction(next);
     final continueCard = SurfaceCard(
-      onTap: () => onNavigate(3),
+      onTap: () => next == null ? onNavigate(3) : openLesson(context, next),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            Pill('Continue'),
+            Pill(next == null ? 'All lessons done' : (nextFraction > 0 ? 'Continue lesson' : 'Next lesson')),
             const Spacer(),
             Icon(FluentIcons.chevron_right, size: 12, color: p.muted),
           ]),
           const SizedBox(height: 14),
-          Text(next.title, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: p.text)),
+          Text(next?.title ?? 'Every lesson finished',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: p.text)),
           const SizedBox(height: 4),
-          Text(next.summary, style: TextStyle(color: p.muted)),
+          Text(next?.summary ?? 'Repeat any lesson from the Lessons tab, or keep playing and solving puzzles.',
+              style: TextStyle(color: p.muted)),
           const SizedBox(height: 16),
-          Meter(next.progress),
+          Meter(nextFraction),
           const SizedBox(height: 6),
-          Text('${(next.progress * 100).round()}% complete', style: TextStyle(color: p.muted, fontSize: 12)),
+          Text(
+              '${(nextFraction * 100).round()}% complete · '
+              '${lessons.lessonsDone} of ${allLessons.length} lessons done',
+              style: TextStyle(color: p.muted, fontSize: 12)),
         ],
       ),
     );
 
-    final games = StoreScope.of(context)
+    final games = store
         .ofType(GameRecord.eventType)
         .map(GameRecord.fromEvent)
         .toList()
@@ -138,6 +189,7 @@ class HomePage extends StatelessWidget {
       ),
     );
 
+    final tips = tipsByArea[skills.weakestArea]!;
     final tip = SurfaceCard(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -155,7 +207,7 @@ class HomePage extends StatelessWidget {
               children: [
                 Text('Coach tip', style: TextStyle(fontWeight: FontWeight.w600, color: p.text)),
                 const SizedBox(height: 4),
-                Text(tipsOfTheDay[DateTime.now().day % tipsOfTheDay.length],
+                Text(tips[DateTime.now().day % tips.length],
                     style: TextStyle(color: p.muted, height: 1.4)),
               ],
             ),
@@ -166,11 +218,11 @@ class HomePage extends StatelessWidget {
 
     return PageFrame(
       title: _greeting(),
-      subtitle: 'Your coach has today\'s plan ready',
-      trailing: mobile ? null : Pill('Preview data', color: p.warning),
+      subtitle: skills.hasData ? 'Your coach has today\'s plan ready' : 'Welcome! Pick how much time you have to start',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          active,
           timeCard,
           const SizedBox(height: 16),
           stats,
@@ -178,16 +230,18 @@ class HomePage extends StatelessWidget {
           if (mobile) ...[
             continueCard,
             const SizedBox(height: 16),
+            reviewCard,
+            const SizedBox(height: 16),
             tip,
             const SizedBox(height: 16),
             recent,
             const SizedBox(height: 16),
-            skills,
+            skillsCard,
           ] else
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(child: skills),
+                Expanded(child: Column(children: [skillsCard, const SizedBox(height: 16), reviewCard])),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(children: [
@@ -207,9 +261,10 @@ class HomePage extends StatelessWidget {
 }
 
 class _SessionTile extends StatelessWidget {
-  const _SessionTile({required this.option, required this.icon, required this.onTap});
+  const _SessionTile({required this.option, required this.plan, required this.icon, required this.onTap});
 
   final SessionOption option;
+  final String plan;
   final IconData icon;
   final VoidCallback onTap;
 
@@ -234,7 +289,7 @@ class _SessionTile extends StatelessWidget {
             const Spacer(),
             Text(option.label, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: p.text)),
             const SizedBox(height: 2),
-            Text(option.plan,
+            Text(plan,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: 12, color: p.muted, height: 1.3)),
@@ -314,6 +369,48 @@ class _GameRow extends StatelessWidget {
           Icon(FluentIcons.chevron_right, size: 10, color: p.accent),
         ]),
       ),
+    );
+  }
+}
+
+/// "Continue your session" banner while a planned session is unfinished.
+class _ActiveSession extends StatelessWidget {
+  const _ActiveSession({required this.onNavigate});
+
+  final ValueChanged<int> onNavigate;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Palette.of(context);
+    return ValueListenableBuilder<TrainingSession?>(
+      valueListenable: TrainingSession.current,
+      builder: (context, session, _) {
+        if (session == null) return const SizedBox.shrink();
+        return ListenableBuilder(
+          listenable: session,
+          builder: (context, _) {
+            if (session.finished) return const SizedBox.shrink();
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: SurfaceCard(
+                highlight: true,
+                onTap: () => openSession(context, onNavigate: onNavigate),
+                child: Row(children: [
+                  Icon(FluentIcons.play, color: p.accent, size: 18),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                        'Your ${session.minutes}-minute session: ${session.done.length} of ${session.plan.length} done',
+                        style: TextStyle(fontWeight: FontWeight.w600, color: p.text)),
+                  ),
+                  Text('Continue', style: TextStyle(color: p.accent, fontWeight: FontWeight.w600)),
+                  Icon(FluentIcons.chevron_right, size: 10, color: p.accent),
+                ]),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

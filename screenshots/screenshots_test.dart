@@ -8,6 +8,7 @@ import 'package:chess_coach/app/settings.dart';
 import 'package:chess_coach/data/event_store.dart';
 import 'package:chess_coach/main.dart';
 import 'package:chess_coach/puzzles/puzzle.dart';
+import 'package:chess_coach/screens/session_page.dart';
 import 'package:chessground/chessground.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -77,6 +78,7 @@ Future<void> _shoot(
   tester.view.physicalSize = size * dpr;
   tester.view.devicePixelRatio = dpr;
   addTearDown(tester.view.reset);
+  TrainingSession.current.value = null;
   final settings = AppSettings.memory()..theme = theme;
   await tester.runAsync(PuzzleBank.shared);
   await tester.pumpWidget(RepaintBoundary(
@@ -84,6 +86,11 @@ Future<void> _shoot(
     child: ChessCoachApp(settings: settings, store: store ?? EventStore.memory(), fontFamily: 'Roboto'),
   ));
   for (final page in pages) {
+    final nav = tester.state<NavigatorState>(find.byType(Navigator).first);
+    if (nav.canPop()) {
+      nav.pop();
+      await tester.pumpAndSettle();
+    }
     if (page == 'Review') {
       await tester.tap(find.text('Home').last);
       await tester.pumpAndSettle();
@@ -96,6 +103,24 @@ Future<void> _shoot(
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Show the better move'));
       await tester.tap(find.text('Show the better move'));
+    } else if (page == 'Session') {
+      await tester.tap(find.text('Home').last);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('1 hour'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('1 hour'));
+    } else if (page == 'Cards') {
+      await tester.tap(find.text('Home').last);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.textContaining('to review'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('to review'));
+    } else if (page == 'Lesson') {
+      await tester.tap(find.text('Lessons').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Opening principles'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Next'));
     } else if (page != 'Home') {
       await tester.tap(find.text(page).last);
     }
@@ -116,7 +141,7 @@ void main() {
           dpr: 1,
           theme: theme,
           store: await storeWithReviewedGame(),
-          pages: theme == AppTheme.dark ? [...all, 'Review'] : const ['Home', 'Play', 'Settings']);
+          pages: theme == AppTheme.dark ? [...all, 'Review', 'Lesson', 'Session', 'Cards'] : const ['Home', 'Play', 'Settings']);
     });
     testWidgets('phone ${theme.name}', (tester) async {
       await _shoot(tester,
@@ -125,7 +150,7 @@ void main() {
           dpr: 2,
           theme: theme,
           store: await storeWithReviewedGame(),
-          pages: theme == AppTheme.dark ? [...all, 'Review'] : const ['Home', 'Play']);
+          pages: theme == AppTheme.dark ? [...all, 'Review', 'Lesson', 'Session', 'Cards'] : const ['Home', 'Play']);
     });
   }
 }

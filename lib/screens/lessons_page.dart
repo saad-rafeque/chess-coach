@@ -2,28 +2,35 @@ import 'package:fluent_ui/fluent_ui.dart';
 
 import '../app/theme.dart';
 import '../data/curriculum.dart';
+import '../data/event_store.dart';
+import '../lessons/progress.dart';
 import '../widgets/common.dart';
+import 'lesson_page.dart';
 
 class LessonsPage extends StatelessWidget {
   const LessonsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final p = Palette.of(context);
+    final progress = LessonProgress.fromEvents(StoreScope.of(context).events);
     return PageFrame(
       title: 'Lessons',
       subtitle: 'From beginner to 2000, one step at a time',
+      trailing: Pill('${progress.lessonsDone} / ${allLessons.length} done', color: p.success),
       child: ResponsiveGrid(
         minItemWidth: 360,
-        children: [for (final c in courses) _CourseCard(course: c)],
+        children: [for (final c in courses) _CourseCard(course: c, progress: progress)],
       ),
     );
   }
 }
 
 class _CourseCard extends StatelessWidget {
-  const _CourseCard({required this.course});
+  const _CourseCard({required this.course, required this.progress});
 
   final Course course;
+  final LessonProgress progress;
 
   IconData get _icon => switch (course.phase) {
         Phase.opening => FluentIcons.rocket,
@@ -63,12 +70,13 @@ class _CourseCard extends StatelessWidget {
           ]),
           const SizedBox(height: 14),
           Row(children: [
-            Expanded(child: Meter(course.progress)),
+            Expanded(child: Meter(progress.courseFraction(course))),
             const SizedBox(width: 10),
-            Text('${(course.progress * 100).round()}%', style: TextStyle(color: p.muted, fontSize: 12)),
+            Text('${(progress.courseFraction(course) * 100).round()}%',
+                style: TextStyle(color: p.muted, fontSize: 12)),
           ]),
           const SizedBox(height: 8),
-          for (final l in course.lessons) _LessonRow(lesson: l),
+          for (final l in course.lessons) _LessonRow(lesson: l, progress: progress),
         ],
       ),
     );
@@ -76,27 +84,25 @@ class _CourseCard extends StatelessWidget {
 }
 
 class _LessonRow extends StatelessWidget {
-  const _LessonRow({required this.lesson});
+  const _LessonRow({required this.lesson, required this.progress});
 
   final Lesson lesson;
+  final LessonProgress progress;
 
   @override
   Widget build(BuildContext context) {
     final p = Palette.of(context);
-    final (icon, color) = switch (lesson.status) {
+    final status = progress.status(lesson);
+    final (icon, color) = switch (status) {
       LessonStatus.done => (FluentIcons.completed_solid, p.success),
       LessonStatus.inProgress => (FluentIcons.circle_half_full, p.accent),
       LessonStatus.todo => (FluentIcons.circle_ring, p.muted),
     };
+    final steps = lesson.steps.length;
+    final done = (progress.fraction(lesson) * steps).round();
     return HoverButton(
-      onPressed: () => showDialog<void>(
-        context: context,
-        builder: (context) => ContentDialog(
-          title: Text(lesson.title),
-          content: Text('${lesson.summary}\n\nInteractive lessons arrive in milestone 4.'),
-          actions: [FilledButton(child: const Text('OK'), onPressed: () => Navigator.pop(context))],
-        ),
-      ),
+      semanticLabel: '${lesson.title}, ${status == LessonStatus.done ? 'done' : '$done of $steps steps'}',
+      onPressed: () => openLesson(context, lesson),
       builder: (context, states) => Container(
         margin: const EdgeInsets.symmetric(vertical: 2),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
@@ -115,7 +121,7 @@ class _LessonRow extends StatelessWidget {
                   Text(lesson.title,
                       style: TextStyle(
                           color: p.text,
-                          fontWeight: lesson.status == LessonStatus.inProgress ? FontWeight.w600 : FontWeight.w400)),
+                          fontWeight: status == LessonStatus.inProgress ? FontWeight.w600 : FontWeight.w400)),
                   Text(lesson.summary,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -124,7 +130,8 @@ class _LessonRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            Text('${lesson.level}', style: TextStyle(color: p.muted, fontSize: 12)),
+            Text(status == LessonStatus.inProgress ? '$done/$steps' : '${lesson.level}',
+                style: TextStyle(color: status == LessonStatus.inProgress ? p.accent : p.muted, fontSize: 12)),
           ],
         ),
       ),
