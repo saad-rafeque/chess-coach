@@ -2,8 +2,11 @@ import 'package:fluent_ui/fluent_ui.dart';
 
 import '../app/theme.dart';
 import '../data/curriculum.dart';
+import '../data/event_store.dart';
+import '../data/game_record.dart';
 import '../data/sample_profile.dart';
 import '../widgets/common.dart';
+import 'review_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key, required this.onNavigate});
@@ -112,6 +115,29 @@ class HomePage extends StatelessWidget {
       ),
     );
 
+    final games = StoreScope.of(context)
+        .ofType(GameRecord.eventType)
+        .map(GameRecord.fromEvent)
+        .toList()
+        .reversed
+        .take(5)
+        .toList();
+    final recent = SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SectionTitle('Recent games'),
+          if (games.isEmpty) ...[
+            Text('No games yet. Play the coach and your games appear here for review.',
+                style: TextStyle(color: p.muted)),
+            const SizedBox(height: 12),
+            Button(onPressed: () => onNavigate(1), child: const Text('Play a game')),
+          ],
+          for (final g in games) _GameRow(game: g),
+        ],
+      ),
+    );
+
     final tip = SurfaceCard(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -154,6 +180,8 @@ class HomePage extends StatelessWidget {
             const SizedBox(height: 16),
             tip,
             const SizedBox(height: 16),
+            recent,
+            const SizedBox(height: 16),
             skills,
           ] else
             Row(
@@ -161,7 +189,15 @@ class HomePage extends StatelessWidget {
               children: [
                 Expanded(child: skills),
                 const SizedBox(width: 16),
-                Expanded(child: Column(children: [continueCard, const SizedBox(height: 16), tip])),
+                Expanded(
+                  child: Column(children: [
+                    continueCard,
+                    const SizedBox(height: 16),
+                    tip,
+                    const SizedBox(height: 16),
+                    recent,
+                  ]),
+                ),
               ],
             ),
         ],
@@ -237,6 +273,46 @@ class _Stat extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _GameRow extends StatelessWidget {
+  const _GameRow({required this.game});
+
+  final GameRecord game;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Palette.of(context);
+    final color = switch (game.playerScore) {
+      1 => p.success,
+      0 => p.danger,
+      _ => p.muted,
+    };
+    return HoverButton(
+      onPressed: () => openReview(context, game),
+      builder: (context, states) => Container(
+        margin: const EdgeInsets.only(bottom: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+        decoration: BoxDecoration(
+          color: states.isHovered ? p.surfaceAlt : null,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(children: [
+          SizedBox(width: 56, child: Pill(game.outcomeLabel, color: color)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'vs Coach ~${game.coachElo} · ${(game.moves.length + 1) ~/ 2} moves · ${game.date.day}/${game.date.month}',
+              style: TextStyle(color: p.text),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Text('Review', style: TextStyle(color: p.accent, fontSize: 12, fontWeight: FontWeight.w600)),
+          Icon(FluentIcons.chevron_right, size: 10, color: p.accent),
+        ]),
       ),
     );
   }

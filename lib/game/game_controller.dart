@@ -9,8 +9,11 @@ import '../coach/coach_player.dart';
 import '../coach/explain.dart';
 import '../coach/preview_bot.dart';
 import '../coach/quick_tips.dart';
+import '../data/event_store.dart';
+import '../data/game_record.dart';
 import '../engine/analysis.dart';
 import '../engine/engine_host.dart';
+import '../maia/maia_player.dart';
 
 enum PlayMode { training, real }
 
@@ -35,9 +38,19 @@ const _praise = [
 
 /// A game against the coach: moves, engine feedback, hints and saving.
 class GameController extends ChangeNotifier {
-  GameController({required this.host, this.onSave, math.Random? random}) : _rnd = random ?? math.Random();
+  GameController({required this.host, this.maia, this.onSave, this.onFinished, math.Random? random})
+      : _rnd = random ?? math.Random();
 
   final EngineHost host;
+
+  /// Human-like opponent for strengths up to [MaiaPlayer.maxElo]; Stockfish above that.
+  final MaiaPlayer? maia;
+
+  /// Called once when a game ends, with the record to archive.
+  final void Function(GameRecord record)? onFinished;
+
+  /// The most recently finished game (for review).
+  GameRecord? lastRecord;
 
   /// Receives the game as JSON after each move, or null when it's finished.
   final void Function(String? json)? onSave;
@@ -232,17 +245,28 @@ class GameController extends ChangeNotifier {
     thinking = true;
     notifyListeners();
     final started = DateTime.now();
-    final engine = await host.engine;
-    var move = pickPreviewMove(position, _rnd);
-    if (engine != null) {
-      final a = await engine.analyse(position.fen,
-          depth: depthForElo(coachElo), multiPv: candidatesForElo(coachElo));
+    NormalMove? chosen;
+    if (maia != null && coachElo <= MaiaPlayer.maxElo) {
+      try {
+        chosen = await maia!.pick([for (final m in moves) m.uci], coachElo, _rnd);
+      } catch (e) {
+        debugPrint('Maia failed, using Stockfish: $e');
+      }
       if (token != _token) return;
-      final picked = Move.parse(pickHumanMove(a, coachElo, _rnd));
-      if (picked is NormalMove && position.isLegal(picked)) move = picked;
-    } else {
-      _engineNotice(true);
     }
+    if (chosen == null) {
+      final engine = await host.engine;
+      if (engine != null) {
+        final a = await engine.analyse(position.fen,
+            depth: depthForElo(coachElo), multiPv: candidatesForElo(coachElo));
+        if (token != _token) return;
+        final picked = Move.parse(pickHumanMove(a, coachElo, _rnd));
+        if (picked is NormalMove) chosen = picked;
+      } else {
+        _engineNotice(true);
+      }
+    }
+    var move = chosen != null && position.isLegal(chosen) ? chosen : pickPreviewMove(position, _rnd);
     final lastWasError = grades[moves.length - 1]?.isError ?? false;
     final wait = Duration(milliseconds: 450 + _rnd.nextInt(500) + (lastWasError ? 1500 : 0));
     final elapsed = DateTime.now().difference(started);
@@ -362,6 +386,19 @@ class GameController extends ChangeNotifier {
     } else {
       _say(p.isStalemate ? 'Stalemate: the game is a draw.' : 'The game is a draw.', CoachTone.info);
     }
+    final whiteLost = resigned ? playerSide == Side.white : p.isCheckmate && p.turn == Side.white;
+    final blackLost = resigned ? playerSide == Side.black : p.isCheckmate && p.turn == Side.black;
+    lastRecord = GameRecord(
+      id: newId(),
+      date: DateTime.now(),
+      playerSide: playerSide,
+      coachElo: coachElo,
+      moves: [for (final m in moves) m.uci],
+      result: whiteLost ? '0-1' : (blackLost ? '1-0' : '1/2-1/2'),
+      ending: resigned ? 'resignation' : (p.isCheckmate ? 'checkmate' : (p.isStalemate ? 'stalemate' : 'draw')),
+      grades: Map.of(grades),
+    );
+    onFinished?.call(lastRecord!);
     final errors = grades.values.where((q) => q.isError).toList();
     if (grades.isNotEmpty) {
       int count(MoveQuality q) => errors.where((e) => e == q).length;

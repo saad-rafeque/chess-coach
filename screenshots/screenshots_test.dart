@@ -5,12 +5,15 @@ import 'dart:ui' as ui;
 
 import 'package:chess_coach/app/board_style.dart';
 import 'package:chess_coach/app/settings.dart';
+import 'package:chess_coach/data/event_store.dart';
 import 'package:chess_coach/main.dart';
 import 'package:chessground/chessground.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../test/fixtures.dart';
 
 final _root = GlobalKey();
 
@@ -68,6 +71,7 @@ Future<void> _shoot(
   required double dpr,
   required AppTheme theme,
   required List<String> pages,
+  EventStore? store,
 }) async {
   tester.view.physicalSize = size * dpr;
   tester.view.devicePixelRatio = dpr;
@@ -75,10 +79,22 @@ Future<void> _shoot(
   final settings = AppSettings.memory()..theme = theme;
   await tester.pumpWidget(RepaintBoundary(
     key: _root,
-    child: ChessCoachApp(settings: settings, fontFamily: 'Roboto'),
+    child: ChessCoachApp(settings: settings, store: store ?? EventStore.memory(), fontFamily: 'Roboto'),
   ));
   for (final page in pages) {
-    if (page != 'Home') {
+    if (page == 'Review') {
+      await tester.tap(find.text('Home').last);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Review').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Review').first);
+      await _settle(tester, theme, dpr);
+      await tester.ensureVisible(find.textContaining('Move 3: Nf6'));
+      await tester.tap(find.textContaining('Move 3: Nf6'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Show the better move'));
+      await tester.tap(find.text('Show the better move'));
+    } else if (page != 'Home') {
       await tester.tap(find.text(page).last);
     }
     await _settle(tester, theme, dpr);
@@ -97,7 +113,8 @@ void main() {
           size: const Size(1440, 900),
           dpr: 1,
           theme: theme,
-          pages: theme == AppTheme.dark ? all : const ['Home', 'Play', 'Settings']);
+          store: await storeWithReviewedGame(),
+          pages: theme == AppTheme.dark ? [...all, 'Review'] : const ['Home', 'Play', 'Settings']);
     });
     testWidgets('phone ${theme.name}', (tester) async {
       await _shoot(tester,
@@ -105,7 +122,8 @@ void main() {
           size: const Size(390, 844),
           dpr: 2,
           theme: theme,
-          pages: theme == AppTheme.dark ? all : const ['Home', 'Play']);
+          store: await storeWithReviewedGame(),
+          pages: theme == AppTheme.dark ? [...all, 'Review'] : const ['Home', 'Play']);
     });
   }
 }

@@ -9,10 +9,14 @@ import '../app/board_style.dart';
 import '../app/settings.dart';
 import '../app/theme.dart';
 import '../coach/coach_player.dart';
+import '../data/event_store.dart';
+import '../data/game_record.dart';
 import '../engine/engine_host.dart';
 import '../game/game_controller.dart';
+import '../maia/maia_player.dart';
 import '../widgets/board_layout.dart';
 import '../widgets/common.dart';
+import 'review_page.dart';
 
 /// Coach strengths offered in the New game dialog.
 const coachLevels = [400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000, 2200, 2500, 2800, 3200];
@@ -36,8 +40,13 @@ class _PlayPageState extends State<PlayPage> {
   void initState() {
     super.initState();
     final settings = SettingsScope.read(context);
-    _game = GameController(host: EngineScope.of(context), onSave: (json) => settings.savedGame = json)
-      ..hintsEnabled = settings.trainingHints;
+    final store = StoreScope.read(context);
+    _game = GameController(
+      host: EngineScope.of(context),
+      maia: MaiaPlayer.shared,
+      onSave: (json) => settings.savedGame = json,
+      onFinished: (r) => store.add(GameRecord.eventType, r.toData(), id: r.id),
+    )..hintsEnabled = settings.trainingHints;
     final saved = settings.savedGame;
     if (saved == null || !_game.restore(saved)) {
       _game.newGame(side: Side.white, elo: settings.coachElo);
@@ -118,7 +127,14 @@ class _PlayPageState extends State<PlayPage> {
               isExpanded: true,
               items: [
                 for (final l in coachLevels)
-                  ComboBoxItem(value: l, child: Text(l >= 3200 ? 'Maximum (Stockfish)' : 'About $l')),
+                  ComboBoxItem(
+                    value: l,
+                    child: Text(l >= 3200
+                        ? 'Maximum (Stockfish)'
+                        : l <= MaiaPlayer.maxElo
+                            ? 'About $l · plays like a human'
+                            : 'About $l · Stockfish'),
+                  ),
               ],
               onChanged: (v) => setDialog(() => elo = v ?? elo),
             ),
@@ -183,6 +199,16 @@ class _PlayPageState extends State<PlayPage> {
               itemBuilder: (context, i) => CoachBubble(text: g.chat[i].text, tone: _bubbleTone(g.chat[i].tone)),
             ),
           ),
+          if (g.isOver && g.lastRecord != null) ...[
+            const SizedBox(height: 8),
+            FilledButton(
+              onPressed: () => openReview(context, g.lastRecord!),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(vertical: 4),
+                child: Text('Review this game'),
+              ),
+            ),
+          ],
           const SizedBox(height: 8),
           Text('Moves', style: TextStyle(color: p.text, fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),

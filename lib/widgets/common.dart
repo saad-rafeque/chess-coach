@@ -15,6 +15,7 @@ class PageFrame extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.trailing,
+    this.leading,
     required this.child,
     this.scroll = true,
   });
@@ -22,6 +23,9 @@ class PageFrame extends StatelessWidget {
   final String title;
   final String? subtitle;
   final Widget? trailing;
+
+  /// Shown before the title, e.g. a back button.
+  final Widget? leading;
   final Widget child;
   final bool scroll;
 
@@ -35,6 +39,7 @@ class PageFrame extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
+          if (leading != null) ...[leading!, const SizedBox(width: 12)],
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

@@ -1,6 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../data/event_store.dart';
+
 /// Gives widgets access to [AppSettings] and rebuilds them when it changes.
 class SettingsScope extends InheritedNotifier<AppSettings> {
   const SettingsScope({super.key, required AppSettings settings, required super.child})
@@ -75,6 +77,16 @@ class AppSettings extends ChangeNotifier {
     _coachElo = value;
     _prefs?.setInt('coachElo', value);
     notifyListeners();
+  }
+
+  /// Random id of this install, stamped on stored events (for sync).
+  String get deviceId {
+    var id = _prefs?.getString('deviceId');
+    if (id == null) {
+      id = newId();
+      _prefs?.setString('deviceId', id);
+    }
+    return id;
   }
 
   /// The unfinished game, as JSON (restored on the next start).

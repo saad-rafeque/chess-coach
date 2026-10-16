@@ -19,6 +19,16 @@ class BoardStyle {
         AppTheme.wooden => const BoardStyle(ChessboardColorScheme.wood4, PieceSet.stauntyAssets),
       };
 
+  StaticChessboardSettings staticSettings({required bool coordinates}) => StaticChessboardSettings(
+        colorScheme: colors,
+        pieceAssets: pieces,
+        enableCoordinates: coordinates,
+        borderRadius: const BorderRadius.all(Radius.circular(10)),
+        boxShadow: const [
+          BoxShadow(color: Color(0x40000000), blurRadius: 24, offset: Offset(0, 10)),
+        ],
+      );
+
   ChessboardSettings settings({required bool coordinates}) => ChessboardSettings(
         colorScheme: colors,
         pieceAssets: pieces,

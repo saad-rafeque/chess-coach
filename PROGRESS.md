@@ -2,8 +2,8 @@
 
 | # | Milestone | Status |
 |---|---|---|
-| 1 | Foundation | In progress: UI approved, Stockfish coach working; packaging + release left |
-| 2 | Human-like coach | Not started |
+| 1 | Foundation | Done (v0.2.0) |
+| 2 | Human-like coach | Done (v0.2.0) |
 | 3 | Puzzles | Not started |
 | 4 | Lessons | Not started |
 | 5 | Personal learning | Not started |
@@ -23,12 +23,18 @@
 - Training mode grades every move (best/good/inaccuracy/mistake/blunder, Lichess win% thresholds),
   explains errors from engine facts, shows the better move, two-step hints, evaluation bar.
 - New game dialog (colour, strength), undo, resign, unfinished game restored on restart.
+- Maia 1100–1900 nets run in pure Dart (`lib/maia/`, verified against a numpy reference) for a human-like
+  opponent up to 1900; below 1100 the 1100 net is sampled with a higher temperature; Stockfish above 1900.
+- Finished games are stored in an append-only event log (`events.jsonl`, sync-ready); Review screen with
+  accuracy, key moments, better-move arrows, move navigation; recent games on Home.
+- Packaging: app icon, signed APK (key in `~/Documents/chess-coach-keys`, also in GitHub secrets),
+  AppImage, Inno Setup installer with the VC++ runtime; pushing a `v*` tag publishes a GitHub Release.
 - GitHub Actions: analyze, test, screenshots, Linux tarball, Android arm64 APK, Windows zip (all green).
 
 ## Next step
 
-Finish milestone 1: app icon, Android release signing, Linux AppImage, Windows installer,
-GitHub Release `v0.1.0` with all three builds. Then milestone 2 (post-game review, Maia opponent).
+Milestone 3: puzzles. Bundle a rated, themed subset of the Lichess puzzle database (CC0), puzzle rating
+(Glicko-2), and turn mistakes from reviewed games into personal puzzles.
 
 ## Decisions
 
