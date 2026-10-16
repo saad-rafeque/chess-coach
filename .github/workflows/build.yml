@@ -24,6 +24,7 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+      - run: bash tool/fetch_engines.sh linux
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
@@ -46,6 +47,7 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+      - run: bash tool/fetch_engines.sh linux
       - run: flutter build linux --release
       - run: tar -czf chess-coach-linux-x64.tar.gz -C build/linux/x64/release/bundle .
       - uses: actions/upload-artifact@v4
@@ -86,6 +88,8 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+      - run: bash tool/fetch_engines.sh windows
+        shell: bash
       - run: flutter build windows --release
       - run: Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath chess-coach-windows-x64.zip
         shell: pwsh

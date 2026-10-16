@@ -13,6 +13,7 @@ dependencies:
   dartchess: ^0.14.0
   fluent_ui: ^4.16.1
   shared_preferences: ^2.5.6
+  multistockfish: ^0.6.1
 
 dev_dependencies:
   flutter_test:

@@ -25,3 +25,6 @@ linux/flutter/ephemeral/
 # OS
 .DS_Store
 screenshots/out/
+
+# Engine binaries are downloaded by tool/fetch_engines.sh
+engines/

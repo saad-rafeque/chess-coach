@@ -106,3 +106,7 @@ install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
 install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   CONFIGURATIONS Profile;Release
   COMPONENT Runtime)
+
+# Bundle the Stockfish engine (fetched by tool/fetch_engines.sh) next to the app.
+install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/../engines/windows/stockfish.exe"
+  DESTINATION "${CMAKE_INSTALL_PREFIX}/engines" COMPONENT Runtime OPTIONAL)

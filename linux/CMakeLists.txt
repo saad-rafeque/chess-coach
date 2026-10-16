@@ -126,3 +126,7 @@ if(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
   install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
 endif()
+
+# Bundle the Stockfish engine (fetched by tool/fetch_engines.sh) next to the app.
+install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/../engines/linux/stockfish"
+  DESTINATION "${CMAKE_INSTALL_PREFIX}/engines" COMPONENT Runtime OPTIONAL)
