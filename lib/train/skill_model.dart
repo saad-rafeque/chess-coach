@@ -104,7 +104,7 @@ class SkillModel {
         case GameAnalysis.eventType:
           final g = records[e.data['game']];
           if (g == null || !reviewed.add(g.id)) break;
-          final review = buildReview(g, GameAnalysis.fromData(e.data));
+          final review = cachedReview(g, e);
           phases(g, {for (final m in review.movesOf(g.playerSide)) m.ply: m.quality});
         case cardEventType:
           days.add(DateTime(t.year, t.month, t.day));

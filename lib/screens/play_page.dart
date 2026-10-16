@@ -214,8 +214,9 @@ class _PlayPageState extends State<PlayPage> {
             Text('Coach', style: TextStyle(color: p.text, fontWeight: FontWeight.w600)),
             const SizedBox(width: 8),
             if (g.thinking && coachToMove) const SizedBox(width: 14, height: 14, child: ProgressRing(strokeWidth: 2)),
-            const Spacer(),
-            _EngineStatus(host: EngineScope.of(context)),
+            Expanded(
+              child: Align(alignment: Alignment.centerRight, child: _EngineStatus(host: EngineScope.of(context))),
+            ),
           ]),
           const SizedBox(height: 8),
           Expanded(
@@ -277,6 +278,7 @@ class _PlayPageState extends State<PlayPage> {
       subtitle: isMobile(context) ? null : 'Play the coach and learn from every move',
       scroll: false,
       child: BoardLayout(
+        boardLabel: 'Your game against the coach. ${g.playerToMove ? 'Your move' : 'The coach is thinking'}.',
         top: youAtBottom ? coachBar : youBar,
         bottom: youAtBottom ? youBar : coachBar,
         overBoard: training && s.evalBar && eval != null

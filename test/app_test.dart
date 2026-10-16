@@ -1,6 +1,7 @@
 import 'package:chess_coach/app/settings.dart';
 import 'package:chess_coach/data/event_store.dart';
 import 'package:chess_coach/main.dart';
+import 'package:fluent_ui/fluent_ui.dart' show FluentIcons;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -73,5 +74,41 @@ void main() {
     await tester.tap(find.text('Show the better move'));
     await tester.pumpAndSettle();
     expect(find.text('Back to the game'), findsOneWidget);
+  });
+
+  testWidgets('large text: every screen lays out on a phone at 150% font size', (tester) async {
+    tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await _pumpAt(tester, const Size(390, 844), AppSettings.memory(), store: await storeWithReviewedGame());
+    for (final label in ['Play', 'Puzzles', 'Lessons', 'Settings', 'Home']) {
+      await tester.tap(find.text(label).last);
+      await tester.pumpAndSettle();
+    }
+    // Pushed pages: a lesson, a session, the review cards and a game review.
+    await tester.tap(find.text('Lessons').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Opening principles'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Next'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(FluentIcons.back));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Home').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('15 min'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(FluentIcons.back));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.textContaining('to review'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('to review'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(FluentIcons.back));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Review').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Review').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Game review'), findsOneWidget);
   });
 }

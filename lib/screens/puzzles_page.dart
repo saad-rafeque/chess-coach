@@ -191,14 +191,14 @@ class _PuzzlesPageState extends State<PuzzlesPage> {
           ? '${_tried.clamp(0, widget.goal!)} of ${widget.goal} done'
           : (isMobile(context) ? null : 'Sharpen your tactics, a few minutes at a time'),
       leading: _drill
-          ? IconButton(
-              icon: const Icon(FluentIcons.back, size: 18),
-              onPressed: () => Navigator.of(context).pop(_tried),
-            )
+          ? PageBackButton(onPressed: () => Navigator.of(context).pop(_tried))
           : null,
       trailing: ratingPill,
       scroll: false,
       child: BoardLayout(
+        boardLabel: session == null
+            ? 'Puzzle board'
+            : 'Puzzle. ${session.playerSide == Side.white ? 'White' : 'Black'} to move.',
         board: (size) => Chessboard(
           size: size,
           controller: _board,
@@ -287,7 +287,7 @@ class _PuzzlesPageState extends State<PuzzlesPage> {
         Row(children: [
           Icon(FluentIcons.puzzle, size: 16, color: p.muted),
           const SizedBox(width: 10),
-          Text('Loading puzzles…', style: TextStyle(color: p.muted)),
+          Expanded(child: Text('Loading puzzles…', style: TextStyle(color: p.muted))),
         ]),
       ];
     }

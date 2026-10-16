@@ -13,7 +13,7 @@ List<PuzzleItem> mistakePuzzles(EventStore store) {
   for (final e in store.ofType(GameAnalysis.eventType)) {
     final game = games[e.data['game']];
     if (game == null) continue;
-    final review = buildReview(game, GameAnalysis.fromData(e.data));
+    final review = cachedReview(game, e);
     final positions = game.positions();
     for (final m in review.movesOf(game.playerSide)) {
       if (m.quality.index < MoveQuality.mistake.index || m.bestUci == null) continue;

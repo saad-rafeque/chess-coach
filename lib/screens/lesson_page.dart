@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:chessground/chessground.dart';
 import 'package:dartchess/dartchess.dart';
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/services.dart';
 
 import '../app/board_style.dart';
 import '../app/settings.dart';
@@ -255,15 +256,33 @@ class _LessonPageState extends State<LessonPage> {
     final settings = SettingsScope.of(context);
     final style = BoardStyle.forTheme(settings.theme);
     final n = lesson.steps.length;
+    // Keyboard: right arrow or Enter = Next, left arrow = Back.
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.arrowRight): _keyNext,
+        const SingleActivator(LogicalKeyboardKey.enter): _keyNext,
+        const SingleActivator(LogicalKeyboardKey.arrowLeft): () {
+          if (!_complete && _index > 0) _enter(_index - 1);
+        },
+      },
+      child: Focus(autofocus: true, child: _page(p, style, settings, n)),
+    );
+  }
+
+  void _keyNext() {
+    if (!_complete && _canContinue) _next();
+  }
+
+  Widget _page(Palette p, BoardStyle style, AppSettings settings, int n) {
     return PageFrame(
       title: lesson.title,
       subtitle: _complete ? 'Lesson complete' : 'Step ${_index + 1} of $n · ${lesson.summary}',
-      leading: IconButton(
-        icon: const Icon(FluentIcons.back, size: 18),
-        onPressed: () => Navigator.of(context).maybePop(),
-      ),
+      leading: const PageBackButton(),
       scroll: false,
       child: BoardLayout(
+        boardLabel: _isFind
+            ? 'Find the move. ${_orientation == Side.white ? 'White' : 'Black'} to play.'
+            : 'Lesson board.',
         board: (size) => Chessboard(
           size: size,
           controller: _board,
@@ -287,14 +306,18 @@ class _LessonPageState extends State<LessonPage> {
     final step = _step;
     return ListView(children: [
       Row(children: [
-        Pill(_isFind ? 'Find the move' : 'Learn', color: _isFind ? p.warning : p.accent),
+        Flexible(child: Pill(_isFind ? 'Find the move' : 'Learn', color: _isFind ? p.warning : p.accent)),
         const Spacer(),
         Text('${_index + 1} / $n', style: TextStyle(color: p.muted, fontSize: 12)),
       ]),
       const SizedBox(height: 10),
       Meter((_index + (_canContinue ? 1 : 0)) / n),
       const SizedBox(height: 16),
-      Text(_content.text, style: TextStyle(color: p.text, fontSize: 15, height: 1.45)),
+      AnimatedSwitcher(
+        duration: motion(context, const Duration(milliseconds: 250)),
+        child: Text(_content.text,
+            key: ValueKey(_index), style: TextStyle(color: p.text, fontSize: 15, height: 1.45)),
+      ),
       const SizedBox(height: 14),
       if (_error != null) CoachBubble(text: _error!, tone: BubbleTone.warning),
       if (step != null && s == null && step.demo.isNotEmpty)

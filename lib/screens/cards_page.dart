@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:chessground/chessground.dart';
 import 'package:dartchess/dartchess.dart';
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/services.dart';
 
 import '../app/board_style.dart';
 import '../app/settings.dart';
@@ -139,17 +140,29 @@ class _CardsPageState extends State<CardsPage> {
     final s = _session;
     final card = _card;
     final done = card == null;
+    void next() {
+      if (s != null && s.finished) _next();
+    }
+
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.arrowRight): next,
+        const SingleActivator(LogicalKeyboardKey.enter): next,
+      },
+      child: Focus(autofocus: true, child: _page(p, style, settings, s, card, done)),
+    );
+  }
+
+  Widget _page(Palette p, BoardStyle style, AppSettings settings, PuzzleSession? s, StudyCard? card, bool done) {
     return PageFrame(
       title: 'Review',
       subtitle: done
           ? 'All done for now'
           : 'Card ${_index + 1} of ${_queue.length} · spaced repetition brings each position back just in time',
-      leading: IconButton(
-        icon: const Icon(FluentIcons.back, size: 18),
-        onPressed: () => Navigator.of(context).pop(_grades.length),
-      ),
+      leading: PageBackButton(onPressed: () => Navigator.of(context).pop(_grades.length)),
       scroll: false,
       child: BoardLayout(
+        boardLabel: s == null ? 'Review board' : 'Review card. ${s.playerSide == Side.white ? 'White' : 'Black'} to move.',
         board: (size) => Chessboard(
           size: size,
           controller: _board,
@@ -162,7 +175,7 @@ class _CardsPageState extends State<CardsPage> {
         ),
         panel: SurfaceCard(
           padding: const EdgeInsets.all(16),
-          child: ListView(children: done ? _summary(p) : _status(p, s!, card)),
+          child: ListView(children: done ? _summary(p) : _status(p, s!, card!)),
         ),
         actions: done
             ? null
@@ -203,7 +216,7 @@ class _CardsPageState extends State<CardsPage> {
     };
     return [
       Row(children: [
-        Pill(kind, color: card.kind == CardKind.mistake ? p.warning : p.accent),
+        Flexible(child: Pill(kind, color: card.kind == CardKind.mistake ? p.warning : p.accent)),
         const Spacer(),
         Text('${_index + 1} / ${_queue.length}', style: TextStyle(color: p.muted, fontSize: 12)),
       ]),

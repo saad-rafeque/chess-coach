@@ -99,7 +99,7 @@ class TrainingSession extends ChangeNotifier {
 /// Plans a session for [minutes] and opens it.
 Future<void> startSession(BuildContext context, int minutes, {required ValueChanged<int> onNavigate}) {
   final store = StoreScope.read(context);
-  final due = CardDeck.fromStore(store).due().length;
+  final due = CardDeck.of(store).due().length;
   final plan = Planner.forStore(store, dueCards: due).plan(minutes);
   TrainingSession.current.value = TrainingSession(minutes, plan);
   return openSession(context, onNavigate: onNavigate);
@@ -155,10 +155,7 @@ class _SessionPageState extends State<SessionPage> {
     return PageFrame(
       title: s == null ? 'Training session' : '${s.minutes}-minute session',
       subtitle: 'Planned by your coach for what helps you most right now',
-      leading: IconButton(
-        icon: const Icon(FluentIcons.back, size: 18),
-        onPressed: () => Navigator.of(context).maybePop(),
-      ),
+      leading: const PageBackButton(),
       child: s == null
           ? const CoachBubble(text: 'No session planned. Pick how much time you have on Home.')
           : ListenableBuilder(
@@ -189,7 +186,7 @@ class _SessionPageState extends State<SessionPage> {
               ),
           ]),
           const SizedBox(height: 10),
-          Meter(s.done.length / s.plan.length, color: s.finished ? p.success : null),
+          Meter(s.plan.isEmpty ? 1 : s.done.length / s.plan.length, color: s.finished ? p.success : null),
           const SizedBox(height: 10),
           Text(
               !skills.hasData

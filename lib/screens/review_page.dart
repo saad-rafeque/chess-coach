@@ -128,12 +128,10 @@ class _ReviewPageState extends State<ReviewPage> {
         title: 'Game review',
         subtitle: '${game.outcomeLabel} by ${game.ending} · You played ${game.playerSide == Side.white ? 'White' : 'Black'} '
             'vs Coach ~${game.coachElo} · $when',
-        leading: IconButton(
-          icon: const Icon(FluentIcons.back, size: 18),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
+        leading: const PageBackButton(),
         scroll: false,
         child: BoardLayout(
+          boardLabel: 'Game review, after ${_ply ~/ 2 + _ply % 2} moves.',
           overBoard: evalScore == null
               ? null
               : EvalBar(whitePercent: evalScore.whiteWinPercent, label: evalScore.label,

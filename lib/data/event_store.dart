@@ -58,6 +58,19 @@ class EventStore extends ChangeNotifier {
 
   List<AppEvent> get events => List.unmodifiable(_events);
 
+  /// Set when progress can't be saved (no storage, disk full...). The app keeps working in memory.
+  String? storageError;
+
+  Future<void> _append(String text) async {
+    final f = _file;
+    if (f == null) return;
+    try {
+      await f.writeAsString(text, mode: FileMode.append, flush: true);
+    } catch (e) {
+      storageError = 'Your progress could not be saved on this device ($e).';
+    }
+  }
+
   Iterable<AppEvent> ofType(String type) => _events.where((e) => e.type == type);
 
   Future<void> _load() async {
@@ -75,15 +88,20 @@ class EventStore extends ChangeNotifier {
 
   bool _insert(AppEvent e) {
     if (!_ids.add(e.id)) return false;
+    // New events usually come last; only older ones (from sync) need a search.
+    if (_events.isEmpty || !_events.last.time.isAfter(e.time)) {
+      _events.add(e);
+      return true;
+    }
     final i = _events.indexWhere((x) => x.time.isAfter(e.time));
-    i < 0 ? _events.add(e) : _events.insert(i, e);
+    _events.insert(i, e);
     return true;
   }
 
   Future<AppEvent> add(String type, Map<String, dynamic> data, {String? id}) async {
     final e = AppEvent(id: id ?? newId(), type: type, time: DateTime.now().toUtc(), device: device, data: data);
     if (_insert(e)) {
-      await _file?.writeAsString('${jsonEncode(e.toJson())}\n', mode: FileMode.append, flush: true);
+      await _append('${jsonEncode(e.toJson())}\n');
       notifyListeners();
     }
     return e;
@@ -93,8 +111,7 @@ class EventStore extends ChangeNotifier {
   Future<int> merge(Iterable<AppEvent> incoming) async {
     final fresh = [for (final e in incoming) if (_insert(e)) e];
     if (fresh.isNotEmpty) {
-      await _file?.writeAsString(fresh.map((e) => '${jsonEncode(e.toJson())}\n').join(),
-          mode: FileMode.append, flush: true);
+      await _append(fresh.map((e) => '${jsonEncode(e.toJson())}\n').join());
       notifyListeners();
     }
     return fresh.length;

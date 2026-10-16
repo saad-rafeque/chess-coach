@@ -4,6 +4,7 @@ import 'package:dartchess/dartchess.dart';
 
 import '../coach/coach_player.dart';
 import '../coach/explain.dart';
+import '../data/event_store.dart';
 import '../data/game_record.dart';
 import '../engine/analysis.dart';
 import '../engine/chess_engine.dart';
@@ -170,4 +171,15 @@ GameReview buildReview(GameRecord game, GameAnalysis analysis) {
     ));
   }
   return GameReview(game, reviewed);
+}
+
+final _reviewCache = <String, GameReview>{};
+
+/// [buildReview] for a stored analysis event, computed once per event (games and
+/// analyses never change once stored).
+GameReview cachedReview(GameRecord game, AppEvent analysis) {
+  final hit = _reviewCache[analysis.id];
+  if (hit != null) return hit;
+  if (_reviewCache.length > 400) _reviewCache.remove(_reviewCache.keys.first);
+  return _reviewCache[analysis.id] = buildReview(game, GameAnalysis.fromData(analysis.data));
 }

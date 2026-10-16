@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/foundation.dart' show kReleaseMode;
 
 import 'app/settings.dart';
 import 'app/shell.dart';
@@ -11,9 +12,12 @@ import 'data/event_store.dart';
 import 'engine/engine_host.dart';
 import 'sync/google_auth.dart';
 import 'sync/sync_service.dart';
+import 'widgets/friendly_error.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // In release builds a broken widget shows a calm message instead of a grey box.
+  if (kReleaseMode) ErrorWidget.builder = (details) => const FriendlyError();
   final settings = await AppSettings.load();
   final engine = EngineHost();
   unawaited(engine.engine); // warm up Stockfish in the background
@@ -22,7 +26,9 @@ Future<void> main() async {
     store = await EventStore.open(device: settings.deviceId);
   } catch (e) {
     debugPrint('Storage unavailable, keeping data in memory: $e');
-    store = EventStore.memory(device: settings.deviceId);
+    store = EventStore.memory(device: settings.deviceId)
+      ..storageError = 'Your progress can\'t be saved on this device right now, so it will be lost when the app '
+          'closes.';
   }
   final models = ModelStore();
   unawaited(models.refresh());

@@ -7,9 +7,9 @@
 | 3 | Puzzles | Done (v0.5.0) |
 | 4 | Lessons | Done (v0.5.0) |
 | 5 | Personal learning | Done (v0.5.0) |
-| 6 | Local LLM explainer | Done (next release) |
-| 7 | Google Drive sync | Done in code; waiting for the owner's OAuth client |
-| 8 | Polish | Not started |
+| 6 | Local LLM explainer | Done (v0.8.0) |
+| 7 | Google Drive sync | Done (v0.8.0); needs the owner's OAuth client to switch on |
+| 8 | Polish | Done (v0.8.0) |
 
 ## Done
 
@@ -54,17 +54,21 @@
   and 30 minutes later. Settings card: `lib/widgets/sync_settings.dart`. Owner's setup steps:
   `docs/google-drive-sync.md`. CI passes the client from the secrets `GOOGLE_OAUTH_CLIENT_ID` and
   `GOOGLE_OAUTH_CLIENT_SECRET` (`--dart-define-from-file`); without them the card says sync isn't set up.
+- Polish (milestone 8): animated meters and coach messages, `motion()` turns animations off when the system
+  asks for reduced motion; screen-reader labels for boards, meters and the back button (`PageBackButton`);
+  keyboard shortcuts in lessons and review cards; a large-text test walks every screen at 150% font size
+  (`test/app_test.dart`); storage errors shown on Home; a calm `FriendlyError` replaces broken widgets in
+  release builds; reviews and the card deck are cached so phones don't recompute them on every event.
 - Packaging: app icon, signed APK (key in `~/Documents/chess-coach-keys`, also in GitHub secrets),
   AppImage, Inno Setup installer with the VC++ runtime; pushing a `v*` tag publishes a GitHub Release.
 - GitHub Actions: analyze, test, screenshots, Linux tarball + AppImage, Android arm64 APK, Windows installer.
 
 ## Next step
 
-Milestone 8: polish (animations, accessibility, phone performance, an empty and error state on every screen),
-then version 0.8.0, `packaging/release-notes/v0.8.0.md` and the `v0.8.0` tag.
-
-Owner to do for sync: follow `docs/google-drive-sync.md` (create the Google OAuth client and add the two GitHub
-secrets). Until then sync is off in the builds; everything else works.
+All eight milestones are done. Waiting for the owner:
+1. Test v0.8.0 on the phone, Windows and Ubuntu and report what feels wrong.
+2. To switch on sync: follow `docs/google-drive-sync.md` (Google OAuth client + two GitHub secrets), then
+   publish a new build (bump the version, add release notes, push a `v*` tag).
 
 ## Decisions
 

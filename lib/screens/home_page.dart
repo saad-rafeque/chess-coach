@@ -9,6 +9,7 @@ import '../lessons/progress.dart';
 import '../train/cards.dart';
 import '../train/planner.dart';
 import '../train/skill_model.dart';
+import '../widgets/board_layout.dart';
 import '../widgets/common.dart';
 import 'cards_page.dart';
 import 'lesson_page.dart';
@@ -36,7 +37,7 @@ class HomePage extends StatelessWidget {
     final lessons = LessonProgress.fromEvents(store.events);
     final next = lessons.next();
     final skills = SkillModel.of(store);
-    final due = CardDeck.fromStore(store).due().length;
+    final due = CardDeck.of(store).due().length;
     final planner = Planner.forStore(store, dueCards: due);
 
     final timeCard = SurfaceCard(
@@ -222,6 +223,10 @@ class HomePage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (store.storageError != null) ...[
+            CoachBubble(text: store.storageError!, tone: BubbleTone.warning),
+            const SizedBox(height: 8),
+          ],
           active,
           timeCard,
           const SizedBox(height: 16),
@@ -274,8 +279,8 @@ class _SessionTile extends StatelessWidget {
     return HoverButton(
       onPressed: onTap,
       builder: (context, states) => AnimatedContainer(
-        duration: const Duration(milliseconds: 140),
-        height: 118,
+        duration: motion(context, const Duration(milliseconds: 140)),
+        constraints: const BoxConstraints(minHeight: 118),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: states.isHovered ? p.accent.withValues(alpha: 0.12) : p.surfaceAlt,
@@ -286,13 +291,18 @@ class _SessionTile extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(icon, color: p.accent, size: 18),
-            const Spacer(),
-            Text(option.label, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: p.text)),
+            const SizedBox(height: 14),
+            Text(option.label,
+                maxLines: 1, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: p.text)),
             const SizedBox(height: 2),
-            Text(plan,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 12, color: p.muted, height: 1.3)),
+            // Two lines tall whatever the plan, so the tiles line up.
+            SizedBox(
+              height: MediaQuery.textScalerOf(context).scale(12) * 1.3 * 2 + 2,
+              child: Text(plan,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, color: p.muted, height: 1.3)),
+            ),
           ],
         ),
       ),

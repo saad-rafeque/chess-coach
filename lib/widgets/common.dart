@@ -8,6 +8,27 @@ const mobileBreakpoint = 700.0;
 
 bool isMobile(BuildContext context) => MediaQuery.sizeOf(context).width < mobileBreakpoint;
 
+/// [d], or no animation at all when the system asks for reduced motion.
+Duration motion(BuildContext context, Duration d) =>
+    MediaQuery.maybeDisableAnimationsOf(context) ?? false ? Duration.zero : d;
+
+/// Back arrow for pushed pages, with a tooltip for mouse and screen-reader users.
+class PageBackButton extends StatelessWidget {
+  const PageBackButton({super.key, this.onPressed});
+
+  /// Defaults to closing the page.
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+        message: 'Back',
+        child: IconButton(
+          icon: const Icon(FluentIcons.back, size: 18, semanticLabel: 'Back'),
+          onPressed: onPressed ?? () => Navigator.of(context).maybePop(),
+        ),
+      );
+}
+
 /// Page background (gradient, plus grain for the wooden theme) with a title header.
 class PageFrame extends StatelessWidget {
   const PageFrame({
@@ -124,7 +145,7 @@ class SurfaceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = Palette.of(context);
     final card = AnimatedContainer(
-      duration: const Duration(milliseconds: 160),
+      duration: motion(context, const Duration(milliseconds: 160)),
       padding: padding,
       decoration: BoxDecoration(
         color: p.surface.withValues(alpha: p.woodGrain ? 0.88 : 1),
@@ -144,7 +165,7 @@ class SurfaceCard extends StatelessWidget {
     return HoverButton(
       onPressed: onTap,
       builder: (context, states) => AnimatedScale(
-        duration: const Duration(milliseconds: 120),
+        duration: motion(context, const Duration(milliseconds: 120)),
         scale: states.isPressed ? 0.98 : 1,
         child: Opacity(opacity: states.isHovered ? 0.92 : 1, child: card),
       ),
@@ -187,25 +208,34 @@ class Meter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = Palette.of(context);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(height),
-      child: Stack(
-        children: [
-          Container(height: height, color: p.surfaceAlt),
-          FractionallySizedBox(
-            widthFactor: value.clamp(0, 1),
-            child: Container(
-              height: height,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(height),
-                gradient: LinearGradient(colors: [
-                  (color ?? p.accent).withValues(alpha: 0.75),
-                  color ?? p.accent,
-                ]),
+    final target = value.isNaN ? 0.0 : value.clamp(0.0, 1.0);
+    return Semantics(
+      value: '${(target * 100).round()}%',
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(height),
+        child: Stack(
+          children: [
+            Container(height: height, color: p.surfaceAlt),
+            TweenAnimationBuilder<double>(
+              tween: Tween(end: target),
+              duration: motion(context, const Duration(milliseconds: 450)),
+              curve: Curves.easeOutCubic,
+              builder: (context, v, _) => FractionallySizedBox(
+                widthFactor: v,
+                child: Container(
+                  height: height,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(height),
+                    gradient: LinearGradient(colors: [
+                      (color ?? p.accent).withValues(alpha: 0.75),
+                      color ?? p.accent,
+                    ]),
+                  ),
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

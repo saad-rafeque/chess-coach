@@ -15,6 +15,7 @@ class BoardLayout extends StatelessWidget {
     this.bottom,
     this.actions,
     this.overBoard,
+    this.boardLabel,
   });
 
   final Widget Function(double size) board;
@@ -25,6 +26,12 @@ class BoardLayout extends StatelessWidget {
 
   /// Slim strip directly above the board (the evaluation bar).
   final Widget? overBoard;
+
+  /// What screen readers announce for the board, e.g. "Puzzle. White to move."
+  final String? boardLabel;
+
+  Widget _board(double size) =>
+      boardLabel == null ? board(size) : Semantics(container: true, label: boardLabel, child: board(size));
 
   static const _barHeight = 52.0;
   static const _overBoardHeight = 18.0;
@@ -49,7 +56,7 @@ class BoardLayout extends StatelessWidget {
               child: Column(children: [
                 if (top != null) SizedBox(height: _barHeight, child: top),
                 strip,
-                board(size),
+                _board(size),
                 if (bottom != null) SizedBox(height: _barHeight, child: bottom),
               ]),
             ),
@@ -71,7 +78,7 @@ class BoardLayout extends StatelessWidget {
         children: [
           if (top != null) SizedBox(height: _barHeight, child: top),
           strip,
-          Center(child: board(size)),
+          Center(child: _board(size)),
           if (bottom != null) SizedBox(height: _barHeight, child: bottom),
           if (actions != null) ...[const SizedBox(height: 4), actions!],
           const SizedBox(height: 12),
@@ -133,7 +140,7 @@ class CoachBubble extends StatelessWidget {
       BubbleTone.warning => (p.warning, FluentIcons.warning),
       BubbleTone.move => (p.muted, FluentIcons.robot),
     };
-    return Container(
+    final bubble = Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
@@ -150,6 +157,17 @@ class CoachBubble extends StatelessWidget {
         const SizedBox(width: 10),
         Expanded(child: Text(text, style: TextStyle(color: p.text, height: 1.35))),
       ]),
+    );
+    // New messages fade and slide in (skipped when the system asks for less motion).
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: motion(context, const Duration(milliseconds: 260)),
+      curve: Curves.easeOutCubic,
+      builder: (context, t, child) => Opacity(
+        opacity: t,
+        child: Transform.translate(offset: Offset(0, (1 - t) * 8), child: child),
+      ),
+      child: bubble,
     );
   }
 }

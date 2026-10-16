@@ -96,37 +96,44 @@ class _BottomNav extends StatelessWidget {
       ),
       child: SafeArea(
         top: false,
-        child: SizedBox(
-          height: 64,
-          child: Row(children: [
-            for (final (i, d) in _dests.indexed)
-              Expanded(
-                child: HoverButton(
-                  onPressed: () => onTap(i),
-                  builder: (context, states) {
-                    final selected = i == index;
-                    final color = selected ? p.accent : p.muted;
-                    return Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: selected ? p.accent.withValues(alpha: 0.15) : null,
-                          borderRadius: BorderRadius.circular(14),
+        // Large system fonts would not fit the bar; labels grow a little, icons say the rest.
+        child: MediaQuery.withClampedTextScaling(
+          maxScaleFactor: 1.15,
+          child: SizedBox(
+            height: 64,
+            child: Row(children: [
+              for (final (i, d) in _dests.indexed)
+                Expanded(
+                  child: HoverButton(
+                    onPressed: () => onTap(i),
+                    builder: (context, states) {
+                      final selected = i == index;
+                      final color = selected ? p.accent : p.muted;
+                      return Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        AnimatedContainer(
+                          duration: motion(context, const Duration(milliseconds: 180)),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: selected ? p.accent.withValues(alpha: 0.15) : null,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Icon(d.icon, size: 18, color: color),
                         ),
-                        child: Icon(d.icon, size: 18, color: color),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(d.label,
-                          style: TextStyle(
-                              fontSize: 11,
-                              color: color,
-                              fontWeight: selected ? FontWeight.w600 : FontWeight.w400)),
-                    ]);
-                  },
+                        const SizedBox(height: 3),
+                        Text(d.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.fade,
+                            softWrap: false,
+                            style: TextStyle(
+                                fontSize: 11,
+                                color: color,
+                                fontWeight: selected ? FontWeight.w600 : FontWeight.w400)),
+                      ]);
+                    },
+                  ),
                 ),
-              ),
-          ]),
+            ]),
+          ),
         ),
       ),
     );
