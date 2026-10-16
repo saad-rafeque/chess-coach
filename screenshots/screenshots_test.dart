@@ -7,6 +7,7 @@ import 'package:chess_coach/app/board_style.dart';
 import 'package:chess_coach/app/settings.dart';
 import 'package:chess_coach/data/event_store.dart';
 import 'package:chess_coach/main.dart';
+import 'package:chess_coach/puzzles/puzzle.dart';
 import 'package:chessground/chessground.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -77,6 +78,7 @@ Future<void> _shoot(
   tester.view.devicePixelRatio = dpr;
   addTearDown(tester.view.reset);
   final settings = AppSettings.memory()..theme = theme;
+  await tester.runAsync(PuzzleBank.shared);
   await tester.pumpWidget(RepaintBoundary(
     key: _root,
     child: ChessCoachApp(settings: settings, store: store ?? EventStore.memory(), fontFamily: 'Roboto'),

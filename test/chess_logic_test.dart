@@ -2,7 +2,6 @@ import 'dart:math' as math;
 
 import 'package:chess_coach/coach/preview_bot.dart';
 import 'package:chess_coach/coach/quick_tips.dart';
-import 'package:chess_coach/data/puzzles.dart';
 import 'package:dartchess/dartchess.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -22,22 +21,6 @@ Tip? _tip(Position before, String uci) {
 }
 
 void main() {
-  group('starter puzzles', () {
-    for (final pz in starterPuzzles) {
-      test('${pz.theme} solution is legal and reaches its goal', () {
-        final pos = _fen(pz.fen);
-        final move = NormalMove.fromUci(pz.solution);
-        expect(pos.isLegal(move), isTrue);
-        final after = pos.play(move);
-        if (pz.goal == PuzzleGoal.mate) {
-          expect(after.isCheckmate, isTrue);
-        } else {
-          expect(after.isCheck, isTrue);
-        }
-      });
-    }
-  });
-
   group('quick tips', () {
     test('praises a centre pawn on move one', () {
       expect(_tip(Chess.initial, 'e2e4')!.kind, TipKind.good);
@@ -65,7 +48,7 @@ void main() {
     });
 
     test('recognises checkmate', () {
-      final pos = _fen(starterPuzzles.first.fen);
+      final pos = _fen('r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4');
       expect(_tip(pos, 'h5f7')!.text, contains('Checkmate'));
     });
   });

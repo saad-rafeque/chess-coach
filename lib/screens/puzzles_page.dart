@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:chessground/chessground.dart';
 import 'package:dartchess/dartchess.dart';
 import 'package:fluent_ui/fluent_ui.dart';
@@ -5,190 +8,305 @@ import 'package:fluent_ui/fluent_ui.dart';
 import '../app/board_style.dart';
 import '../app/settings.dart';
 import '../app/theme.dart';
-import '../data/puzzles.dart';
+import '../data/event_store.dart';
+import '../puzzles/mistakes.dart';
+import '../puzzles/puzzle.dart';
 import '../widgets/board_layout.dart';
 import '../widgets/common.dart';
 
-enum _Status { solving, solved, wrong }
+enum PuzzleMode { rated, themes, mistakes }
+
+const _themeChoices = [
+  'mateIn1', 'mateIn2', 'fork', 'pin', 'skewer', 'hangingPiece', 'discoveredAttack', 'backRankMate',
+  'trappedPiece', 'sacrifice', 'promotion', 'endgame', 'opening', 'defensiveMove',
+];
 
 class PuzzlesPage extends StatefulWidget {
-  const PuzzlesPage({super.key});
+  const PuzzlesPage({super.key, this.bank});
+
+  /// Puzzle set; null loads the bundled one.
+  final Future<PuzzleBank>? bank;
 
   @override
   State<PuzzlesPage> createState() => _PuzzlesPageState();
 }
 
 class _PuzzlesPageState extends State<PuzzlesPage> {
-  int _index = 0;
-  late Position _pos;
-  Move? _lastMove;
-  _Status _status = _Status.solving;
-  bool _hint = false;
-  bool _showSolution = false;
-  final _solved = <int>{};
+  final _rnd = math.Random();
+  PuzzleBank? _bank;
+  String? _loadError;
+  PuzzleSession? _session;
   late final ChessboardController _board;
-
-  Puzzle get _puzzle => starterPuzzles[_index];
-  NormalMove get _solution => NormalMove.fromUci(_puzzle.solution);
+  PuzzleMode _mode = PuzzleMode.rated;
+  String _theme = 'fork';
+  double? _ratingBefore;
+  String _shownFen = '';
 
   @override
   void initState() {
     super.initState();
-    _pos = Chess.fromSetup(Setup.parseFen(_puzzle.fen));
-    _board = ChessboardController(game: _game());
+    _board = ChessboardController(game: _emptyGame());
+    unawaited(_init());
+  }
+
+  Future<void> _init() async {
+    try {
+      final bank = await (widget.bank ?? PuzzleBank.shared());
+      if (!mounted) return;
+      setState(() => _bank = bank);
+      _nextPuzzle();
+    } catch (e) {
+      if (mounted) setState(() => _loadError = 'Puzzles could not be loaded ($e).');
+    }
   }
 
   @override
   void dispose() {
+    _session?.dispose();
     _board.dispose();
     super.dispose();
   }
 
-  GameData _game() => GameData(
-        fen: _pos.fen,
-        lastMove: _lastMove,
-        playerSide: _status == _Status.solved
-            ? PlayerSide.none
-            : (_pos.turn == Side.white ? PlayerSide.white : PlayerSide.black),
-        sideToMove: _pos.turn,
-        validMoves: makeLegalMoves(_pos),
-        kingSquareInCheck: _pos.isCheck ? _pos.board.kingOf(_pos.turn) : null,
+  GameData _emptyGame() => GameData(
+        fen: Chess.initial.fen,
+        playerSide: PlayerSide.none,
+        sideToMove: Side.white,
+        validMoves: const {},
       );
 
-  void _onMove(Move move, {bool? viaDragAndDrop}) {
-    final correct = move is NormalMove && move.from == _solution.from && move.to == _solution.to;
-    if (correct) {
-      setState(() {
-        _pos = _pos.playUnchecked(move);
-        _lastMove = move;
-        _status = _Status.solved;
-        _showSolution = false;
-        _solved.add(_index);
-      });
-      _board.updatePosition(_game());
-    } else {
-      setState(() => _status = _Status.wrong);
-      _board.updatePosition(_game(), animate: false);
-    }
+  GameData _gameData(PuzzleSession s) {
+    final pos = s.position;
+    final canMove = s.state == PuzzleState.playerToMove || s.state == PuzzleState.wrongMove;
+    return GameData(
+      fen: pos.fen,
+      lastMove: s.lastMove,
+      playerSide: canMove ? (s.playerSide == Side.white ? PlayerSide.white : PlayerSide.black) : PlayerSide.none,
+      sideToMove: pos.turn,
+      validMoves: canMove ? makeLegalMoves(pos) : const {},
+      kingSquareInCheck: pos.isCheck ? pos.board.kingOf(pos.turn) : null,
+    );
   }
 
-  void _load(int index) {
-    setState(() {
-      _index = index;
-      _pos = Chess.fromSetup(Setup.parseFen(_puzzle.fen));
-      _lastMove = null;
-      _status = _Status.solving;
-      _hint = false;
-      _showSolution = false;
+  void _onSession() {
+    final s = _session!;
+    final fen = s.position.fen;
+    _board.updatePosition(_gameData(s), animate: fen != _shownFen);
+    _shownFen = fen;
+    if (mounted) setState(() {});
+  }
+
+  void _nextPuzzle() {
+    final bank = _bank;
+    if (bank == null) return;
+    final store = StoreScope.read(context);
+    final stats = PuzzleStats.fromEvents(store.events);
+    PuzzleItem? next;
+    if (_mode == PuzzleMode.mistakes) {
+      final mine = mistakePuzzles(store);
+      final fresh = mine.where((p) => !stats.seen.contains(p.id)).toList();
+      final pool = fresh.isNotEmpty ? fresh : mine;
+      next = pool.isEmpty ? null : pool[_rnd.nextInt(pool.length)];
+    } else {
+      next = bank.next(
+        rating: stats.rating.rating,
+        theme: _mode == PuzzleMode.themes ? _theme : null,
+        exclude: stats.seen,
+        random: _rnd,
+      );
+    }
+    _session?.removeListener(_onSession);
+    _session?.dispose();
+    _session = null;
+    _ratingBefore = stats.rating.rating;
+    if (next == null) {
+      _board.updatePosition(_emptyGame(), animate: false);
+      setState(() {});
+      return;
+    }
+    final session = PuzzleSession(next, onResult: (p, solved) {
+      store.add(puzzleEventType, {
+        'id': p.id,
+        'solved': solved,
+        'puzzleRating': p.rating,
+        'themes': p.themes,
+        'rated': p.setup,
+      });
     });
-    _board.updatePosition(_game(), animate: false, resetPremove: true);
+    _session = session..addListener(_onSession);
+    _shownFen = session.position.fen;
+    _board.updatePosition(_gameData(session), animate: false, resetPremove: true);
+    setState(() {});
+    unawaited(session.start());
+  }
+
+  void _onMove(Move move, {bool? viaDragAndDrop}) {
+    final s = _session;
+    if (s == null || move is! NormalMove) return;
+    unawaited(s.playerMove(move).then((ok) {
+      if (!ok && mounted) _board.updatePosition(_gameData(s), animate: false);
+    }));
+  }
+
+  void _setMode(PuzzleMode m) {
+    setState(() => _mode = m);
+    _nextPuzzle();
   }
 
   @override
   Widget build(BuildContext context) {
     final p = Palette.of(context);
     final s = SettingsScope.of(context);
+    final store = StoreScope.of(context);
+    final stats = PuzzleStats.fromEvents(store.events);
     final style = BoardStyle.forTheme(s.theme);
-    final side = _pos.turn == Side.white ? 'White' : 'Black';
-    final goal = _puzzle.goal == PuzzleGoal.mate ? 'Find the checkmate' : 'Find the winning move';
+    final session = _session;
+    final mistakesCount = _bank == null ? 0 : mistakePuzzles(store).length;
 
-    final (statusText, statusTone) = switch (_status) {
-      _Status.solving => (_hint ? _puzzle.hint : '$goal for $side.', _hint ? BubbleTone.info : BubbleTone.move),
-      _Status.solved => (
-          _puzzle.goal == PuzzleGoal.mate
-              ? 'Correct! That\'s checkmate.'
-              : 'Correct! The knight attacks the king and the queen together. Next move you win the queen.',
-          BubbleTone.good
-        ),
-      _Status.wrong => ('Not quite. Look again: checks, captures, threats.', BubbleTone.warning),
-    };
-
-    final panel = SurfaceCard(
-      padding: const EdgeInsets.all(16),
-      child: ListView(
-        children: [
-          Wrap(spacing: 8, runSpacing: 8, children: [
-            Pill(_puzzle.theme),
-            Pill('Rating ${_puzzle.rating}', color: p.muted),
-            Pill('${_solved.length}/${starterPuzzles.length} solved', color: p.success),
-          ]),
-          const SizedBox(height: 16),
-          Text('$side to move',
-              style: TextStyle(color: p.text, fontSize: 20, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 12),
-          CoachBubble(text: statusText, tone: statusTone),
-          const SizedBox(height: 8),
-          Wrap(spacing: 8, runSpacing: 8, children: [
-            Button(
-              onPressed: _status == _Status.solved ? null : () => setState(() => _hint = true),
-              child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(FluentIcons.lightbulb, size: 14),
-                SizedBox(width: 6),
-                Text('Hint'),
-              ]),
-            ),
-            Button(
-              onPressed: _status == _Status.solved ? null : () => setState(() => _showSolution = true),
-              child: const Text('Show solution'),
-            ),
-            FilledButton(
-              onPressed: () => _load((_index + 1) % starterPuzzles.length),
-              child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                Text('Next puzzle'),
-                SizedBox(width: 6),
-                Icon(FluentIcons.chevron_right, size: 12),
-              ]),
-            ),
-          ]),
-          const SizedBox(height: 20),
-          Text('Today\'s set', style: TextStyle(color: p.text, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          for (final (i, pz) in starterPuzzles.indexed)
-                HoverButton(
-                  onPressed: () => _load(i),
-                  builder: (context, states) => Container(
-                    margin: const EdgeInsets.only(bottom: 4),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-                    decoration: BoxDecoration(
-                      color: i == _index || states.isHovered ? p.surfaceAlt : null,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(children: [
-                      Icon(
-                        _solved.contains(i) ? FluentIcons.completed_solid : FluentIcons.circle_ring,
-                        size: 14,
-                        color: _solved.contains(i) ? p.success : p.muted,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(child: Text(pz.theme, style: TextStyle(color: p.text))),
-                      Text('${pz.rating}', style: TextStyle(color: p.muted, fontSize: 12)),
-                    ]),
-                  ),
-                ),
-          const SizedBox(height: 8),
-          Text('Preview set. Milestone 3 adds thousands of puzzles and puzzles from your own games.',
-              style: TextStyle(color: p.muted, fontSize: 12)),
-        ],
-      ),
-    );
-
+    final ratingPill = Pill('Rating ${stats.rating.rating.round()}', color: p.accent);
     return PageFrame(
       title: 'Puzzles',
       subtitle: isMobile(context) ? null : 'Sharpen your tactics, a few minutes at a time',
+      trailing: ratingPill,
       scroll: false,
       child: BoardLayout(
         board: (size) => Chessboard(
           size: size,
           controller: _board,
           settings: style.settings(coordinates: s.showCoordinates),
-          orientation: Setup.parseFen(_puzzle.fen).turn,
+          orientation: session?.playerSide ?? Side.white,
           onMove: _onMove,
-          shapes: _showSolution
-              ? {Arrow(color: p.success.withValues(alpha: 0.85), orig: _solution.from, dest: _solution.to)}
-              : const {},
+          shapes: {
+            if (session?.hintSquare != null) Circle(color: p.accent.withValues(alpha: 0.9), orig: session!.hintSquare!),
+          },
         ),
-        panel: panel,
+        panel: SurfaceCard(
+          padding: const EdgeInsets.all(16),
+          child: ListView(children: [
+            Segmented<PuzzleMode>(
+              options: {
+                PuzzleMode.rated: 'Rated',
+                PuzzleMode.themes: 'Themes',
+                PuzzleMode.mistakes: 'Mistakes${mistakesCount > 0 ? ' ($mistakesCount)' : ''}',
+              },
+              value: _mode,
+              onChanged: _setMode,
+            ),
+            if (_mode == PuzzleMode.themes) ...[
+              const SizedBox(height: 12),
+              ComboBox<String>(
+                value: _theme,
+                isExpanded: true,
+                items: [for (final t in _themeChoices) ComboBoxItem(value: t, child: Text(themeNames[t]!))],
+                onChanged: (t) {
+                  if (t == null) return;
+                  setState(() => _theme = t);
+                  _nextPuzzle();
+                },
+              ),
+            ],
+            const SizedBox(height: 16),
+            ..._status(p, session, stats),
+            const SizedBox(height: 16),
+            Row(children: [
+              Expanded(child: _MiniStat(label: 'Rating', value: '${stats.rating.rating.round()}')),
+              const SizedBox(width: 8),
+              Expanded(child: _MiniStat(label: 'Solved', value: '${stats.solved}')),
+              const SizedBox(width: 8),
+              Expanded(child: _MiniStat(label: 'Streak', value: '${stats.streakDays} d')),
+            ]),
+          ]),
+        ),
+        actions: Wrap(alignment: WrapAlignment.center, spacing: 8, runSpacing: 8, children: [
+          Button(
+            onPressed: session == null || session.finished ? null : session.hint,
+            child: const Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(FluentIcons.lightbulb, size: 14),
+              SizedBox(width: 6),
+              Text('Hint'),
+            ]),
+          ),
+          Button(
+            onPressed: session == null || session.finished ? null : session.showSolution,
+            child: const Text('Solution'),
+          ),
+          FilledButton(
+            onPressed: _bank == null ? null : _nextPuzzle,
+            child: const Row(mainAxisSize: MainAxisSize.min, children: [
+              Text('Next puzzle'),
+              SizedBox(width: 6),
+              Icon(FluentIcons.chevron_right, size: 12),
+            ]),
+          ),
+        ]),
       ),
+    );
+  }
+
+  List<Widget> _status(Palette p, PuzzleSession? session, PuzzleStats stats) {
+    if (_loadError != null) return [CoachBubble(text: _loadError!, tone: BubbleTone.warning)];
+    if (_bank == null) {
+      return [
+        Row(children: [
+          Icon(FluentIcons.puzzle, size: 16, color: p.muted),
+          const SizedBox(width: 10),
+          Text('Loading puzzles…', style: TextStyle(color: p.muted)),
+        ]),
+      ];
+    }
+    if (session == null) {
+      return [
+        CoachBubble(
+          text: _mode == PuzzleMode.mistakes
+              ? 'No mistake puzzles yet. Play a game and open its review: your mistakes become puzzles here.'
+              : 'No puzzle found for this choice.',
+          tone: BubbleTone.info,
+        ),
+      ];
+    }
+    final side = session.playerSide == Side.white ? 'White' : 'Black';
+    final change = stats.rating.rating - (_ratingBefore ?? stats.rating.rating);
+    final changeText = session.puzzle.setup && change.abs() >= 1
+        ? ' (${change > 0 ? '+' : ''}${change.round()} rating)'
+        : '';
+    final (text, tone) = switch (session.state) {
+      PuzzleState.opponentMoving => ('Watch your opponent\'s move…', BubbleTone.move),
+      PuzzleState.playerToMove => (
+          session.puzzle.setup ? 'Your turn: find the best move for $side.' : 'You went wrong here in a game. Find the best move for $side.',
+          BubbleTone.info
+        ),
+      PuzzleState.wrongMove => ('Not the best move. Look for checks, captures and threats, then try again.', BubbleTone.warning),
+      PuzzleState.solved => ('Solved!$changeText', BubbleTone.good),
+      PuzzleState.showingSolution => ('Here is the solution.$changeText', BubbleTone.move),
+    };
+    return [
+      Text('$side to move', style: TextStyle(color: p.text, fontSize: 20, fontWeight: FontWeight.w600)),
+      const SizedBox(height: 10),
+      CoachBubble(text: text, tone: tone),
+      Wrap(spacing: 8, runSpacing: 8, children: [
+        Pill('Puzzle ${session.puzzle.rating}', color: p.muted),
+        if (session.finished)
+          for (final t in session.puzzle.namedThemes.take(3)) Pill(t),
+      ]),
+    ];
+  }
+}
+
+class _MiniStat extends StatelessWidget {
+  const _MiniStat({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Palette.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+      decoration: BoxDecoration(color: p.surfaceAlt, borderRadius: BorderRadius.circular(10)),
+      child: Column(children: [
+        Text(value, style: TextStyle(color: p.text, fontSize: 18, fontWeight: FontWeight.w700)),
+        Text(label, style: TextStyle(color: p.muted, fontSize: 11)),
+      ]),
     );
   }
 }

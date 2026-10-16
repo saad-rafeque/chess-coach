@@ -4,7 +4,7 @@
 |---|---|---|
 | 1 | Foundation | Done (v0.2.0) |
 | 2 | Human-like coach | Done (v0.2.0) |
-| 3 | Puzzles | Not started |
+| 3 | Puzzles | Done (next release) |
 | 4 | Lessons | Not started |
 | 5 | Personal learning | Not started |
 | 6 | Local LLM explainer | Not started |
@@ -27,14 +27,17 @@
   opponent up to 1900; below 1100 the 1100 net is sampled with a higher temperature; Stockfish above 1900.
 - Finished games are stored in an append-only event log (`events.jsonl`, sync-ready); Review screen with
   accuracy, key moments, better-move arrows, move navigation; recent games on Home.
+- Puzzles: 30,000 Lichess puzzles (CC0, 400–2400, `tool/build_puzzles.py`), multi-move sessions,
+  Glicko-2 puzzle rating derived from stored attempts, Rated / Themes / Your-mistakes modes; mistakes from
+  reviewed games become puzzles.
 - Packaging: app icon, signed APK (key in `~/Documents/chess-coach-keys`, also in GitHub secrets),
   AppImage, Inno Setup installer with the VC++ runtime; pushing a `v*` tag publishes a GitHub Release.
 - GitHub Actions: analyze, test, screenshots, Linux tarball, Android arm64 APK, Windows zip (all green).
 
 ## Next step
 
-Milestone 3: puzzles. Bundle a rated, themed subset of the Lichess puzzle database (CC0), puzzle rating
-(Glicko-2), and turn mistakes from reviewed games into personal puzzles.
+Milestone 4: lessons. Interactive lesson player (explanation text + board positions + "find the move"
+steps), content for the opening repertoire, middlegame tactics/plans and essential endgames.
 
 ## Decisions
 
