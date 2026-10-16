@@ -11,6 +11,7 @@ import '../train/planner.dart';
 import '../train/skill_model.dart';
 import '../widgets/board_layout.dart';
 import '../widgets/common.dart';
+import '../widgets/sync_settings.dart';
 import 'cards_page.dart';
 import 'lesson_page.dart';
 import 'review_page.dart';
@@ -220,6 +221,7 @@ class HomePage extends StatelessWidget {
     return PageFrame(
       title: _greeting(),
       subtitle: skills.hasData ? 'Your coach has today\'s plan ready' : 'Welcome! Pick how much time you have to start',
+      trailing: const SyncChip(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

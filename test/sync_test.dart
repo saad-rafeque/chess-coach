@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:chess_coach/app/settings.dart';
+import 'package:chess_coach/data/data_folder.dart';
 import 'package:chess_coach/data/event_store.dart';
 import 'package:chess_coach/sync/drive.dart';
 import 'package:chess_coach/sync/google_auth.dart';
@@ -209,6 +210,25 @@ void main() {
       expect(forms.last['grant_type'], 'refresh_token');
       expect(await auth.accessToken('ref'), 'acc2', reason: 'cached until it expires');
       await token.close(force: true);
+    });
+  });
+
+  group('data folder', () {
+    test('old data moves to the new folder without overwriting anything', () async {
+      final from = await Directory.systemTemp.createTemp('old'), to = await Directory.systemTemp.createTemp('new');
+      File('${from.path}/events.jsonl').writeAsStringSync('old\n');
+      Directory('${from.path}/models').createSync();
+      File('${from.path}/models/m.gguf').writeAsStringSync('model');
+      await migrateLegacyData(from, to);
+      expect(File('${to.path}/events.jsonl').readAsStringSync(), 'old\n');
+      expect(File('${to.path}/models/m.gguf').existsSync(), isTrue);
+      expect(File('${from.path}/events.jsonl').existsSync(), isFalse, reason: 'renamed so it is not used twice');
+
+      File('${from.path}/events.jsonl').writeAsStringSync('older\n');
+      await migrateLegacyData(from, to);
+      expect(File('${to.path}/events.jsonl').readAsStringSync(), 'old\n');
+      await from.delete(recursive: true);
+      await to.delete(recursive: true);
     });
   });
 }

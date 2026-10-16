@@ -54,6 +54,9 @@
   and 30 minutes later. Settings card: `lib/widgets/sync_settings.dart`. Owner's setup steps:
   `docs/google-drive-sync.md`. CI passes the client from the secrets `GOOGLE_OAUTH_CLIENT_ID` and
   `GOOGLE_OAUTH_CLIENT_SECRET` (`--dart-define-from-file`); without them the card says sync isn't set up.
+- Data folder (v0.9.0): on Windows and Linux the event log and models live in `Documents/Chess Coach`
+  (`lib/data/data_folder.dart`, moves old data from the hidden app folder once); Android keeps app-private
+  storage. Home has a Sync button (`SyncChip`) next to Settings' "Sync now".
 - Polish (milestone 8): animated meters and coach messages, `motion()` turns animations off when the system
   asks for reduced motion; screen-reader labels for boards, meters and the back button (`PageBackButton`);
   keyboard shortcuts in lessons and review cards; a large-text test walks every screen at 150% font size

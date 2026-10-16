@@ -4,7 +4,8 @@ import 'dart:isolate';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
-import 'package:path_provider/path_provider.dart';
+
+import '../../data/data_folder.dart';
 
 /// A small instruction-tuned language model in GGUF format (run by llama.cpp).
 class ModelSpec {
@@ -64,7 +65,7 @@ class ModelStore extends ChangeNotifier {
         _client = client ?? HttpClient.new;
 
   static Future<Directory> _defaultDirectory() async {
-    final base = await getApplicationSupportDirectory();
+    final base = await dataFolder();
     return Directory('${base.path}${Platform.pathSeparator}models');
   }
 

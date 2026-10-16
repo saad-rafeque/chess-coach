@@ -3,7 +3,8 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
-import 'package:path_provider/path_provider.dart';
+
+import 'data_folder.dart';
 
 /// One immutable record: a finished game, a puzzle attempt, a lesson step...
 /// Events are only ever added, so copies from different devices merge by id.
@@ -41,7 +42,7 @@ class EventStore extends ChangeNotifier {
   EventStore.memory({this.device = 'test'}) : _file = null;
 
   static Future<EventStore> open({required String device}) async {
-    final dir = await getApplicationSupportDirectory();
+    final dir = await dataFolder();
     return openFile(File('${dir.path}${Platform.pathSeparator}events.jsonl'), device: device);
   }
 
