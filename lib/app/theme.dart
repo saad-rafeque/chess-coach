@@ -102,7 +102,7 @@ class PaletteScope extends InheritedWidget {
   bool updateShouldNotify(PaletteScope oldWidget) => palette != oldWidget.palette;
 }
 
-FluentThemeData buildFluentTheme(Palette p) {
+FluentThemeData buildFluentTheme(Palette p, {String? fontFamily}) {
   final accent = AccentColor.swatch({
     'darkest': Color.lerp(p.accent, const Color(0xFF000000), 0.45)!,
     'darker': Color.lerp(p.accent, const Color(0xFF000000), 0.3)!,
@@ -114,6 +114,7 @@ FluentThemeData buildFluentTheme(Palette p) {
   });
   return FluentThemeData(
     brightness: p.brightness,
+    fontFamily: fontFamily,
     accentColor: accent,
     scaffoldBackgroundColor: p.background,
     cardColor: p.surface,

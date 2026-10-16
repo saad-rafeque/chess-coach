@@ -9,7 +9,7 @@ env:
 
 jobs:
   check:
-    name: Analyze, test, web build
+    name: Analyze, test, screenshots
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,16 +20,17 @@ jobs:
           cache: true
       - name: Generate platform folders
         run: |
-          flutter create --org com.saadrafeque --project-name chess_coach --platforms=android,linux,windows,web .
+          flutter create --org com.saadrafeque --project-name chess_coach --platforms=android,linux,windows .
           rm -f test/widget_test.dart
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
-      - run: flutter build web --release
+      - name: Render screenshots
+        run: flutter test screenshots/screenshots_test.dart
       - uses: actions/upload-artifact@v4
         with:
-          name: web
-          path: build/web
+          name: screenshots
+          path: screenshots/out
 
   linux:
     name: Linux build
@@ -67,8 +68,8 @@ jobs:
           channel: stable
           cache: true
       - run: flutter create --org com.saadrafeque --project-name chess_coach --platforms=android . && rm -f test/widget_test.dart
-      - run: flutter build apk --release
-      - run: cp build/app/outputs/flutter-apk/app-release.apk chess-coach.apk
+      - run: flutter build apk --release --split-per-abi
+      - run: cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk chess-coach.apk
       - uses: actions/upload-artifact@v4
         with:
           name: android

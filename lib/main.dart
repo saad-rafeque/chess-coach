@@ -11,9 +11,12 @@ Future<void> main() async {
 }
 
 class ChessCoachApp extends StatelessWidget {
-  const ChessCoachApp({super.key, required this.settings});
+  const ChessCoachApp({super.key, required this.settings, this.fontFamily});
 
   final AppSettings settings;
+
+  /// Overrides the platform font (used by the screenshot tests).
+  final String? fontFamily;
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +31,7 @@ class ChessCoachApp extends StatelessWidget {
             child: FluentApp(
               title: 'Chess Coach',
               debugShowCheckedModeBanner: false,
-              theme: buildFluentTheme(palette),
+              theme: buildFluentTheme(palette, fontFamily: fontFamily),
               home: const AppShell(),
             ),
           );
