@@ -28,3 +28,6 @@ screenshots/out/
 
 # Engine binaries are downloaded by tool/fetch_engines.sh
 engines/
+android/key.properties
+*.jks
+*.keystore

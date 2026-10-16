@@ -130,3 +130,7 @@ endif()
 # Bundle the Stockfish engine (fetched by tool/fetch_engines.sh) next to the app.
 install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/../engines/linux/stockfish"
   DESTINATION "${CMAKE_INSTALL_PREFIX}/engines" COMPONENT Runtime OPTIONAL)
+
+# Window and desktop icon.
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../assets/icon/icon.png"
+  DESTINATION "${INSTALL_BUNDLE_DATA_DIR}" RENAME "app_icon.png" COMPONENT Runtime)

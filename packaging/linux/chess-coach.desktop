@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Chess Coach
+Comment=Your personal chess coach
+Exec=chess-coach
+Icon=chess-coach
+Categories=Game;BoardGame;Education;
+Keywords=chess;coach;training;puzzles;
+Terminal=false
+StartupWMClass=chess_coach

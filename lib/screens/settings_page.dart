@@ -3,6 +3,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import '../app/board_style.dart';
 import '../app/settings.dart';
 import '../app/theme.dart';
+import '../app/version.dart';
 import '../widgets/common.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -75,7 +76,7 @@ class SettingsPage extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           Center(
-            child: Text('Chess Coach 0.1 · UI preview · GPL-3.0',
+            child: Text('Chess Coach $appVersion · GPL-3.0 · Stockfish 19',
                 style: TextStyle(color: p.muted, fontSize: 12)),
           ),
         ],
