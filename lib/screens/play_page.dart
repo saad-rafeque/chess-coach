@@ -9,6 +9,7 @@ import '../app/board_style.dart';
 import '../app/settings.dart';
 import '../app/theme.dart';
 import '../coach/coach_player.dart';
+import '../coach/llm/coach_voice.dart';
 import '../data/event_store.dart';
 import '../data/game_record.dart';
 import '../engine/engine_host.dart';
@@ -47,6 +48,7 @@ class _PlayPageState extends State<PlayPage> {
       maia: MaiaPlayer.shared,
       onSave: (json) => settings.savedGame = json,
       onFinished: (r) => store.add(GameRecord.eventType, r.toData(), id: r.id),
+      polish: VoiceScope.read(context).polish,
     )..hintsEnabled = settings.trainingHints;
     final saved = settings.savedGame;
     if (saved == null || !_game.restore(saved)) {

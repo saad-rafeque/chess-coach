@@ -15,11 +15,24 @@ dependencies:
   shared_preferences: ^2.5.6
   multistockfish: ^0.6.1
   path_provider: ^2.1.6
+  llamadart: 0.11.1
+  crypto: ^3.0.6
 
 dev_dependencies:
   flutter_launcher_icons: ^0.14.4
   flutter_test:
     sdk: flutter
+
+# llamadart runs the optional explainer model. Bundle only its llama.cpp runtime, CPU backend.
+hooks:
+  user_defines:
+    llamadart:
+      llamadart_native_runtimes: [llama_cpp]
+      llamadart_native_backends:
+        platforms:
+          linux: [cpu]
+          windows: [cpu]
+          android: [cpu]
 
 flutter:
   uses-material-design: true

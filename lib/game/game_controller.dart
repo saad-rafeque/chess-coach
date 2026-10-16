@@ -38,8 +38,12 @@ const _praise = [
 
 /// A game against the coach: moves, engine feedback, hints and saving.
 class GameController extends ChangeNotifier {
-  GameController({required this.host, this.maia, this.onSave, this.onFinished, math.Random? random})
+  GameController({required this.host, this.maia, this.onSave, this.onFinished, this.polish, math.Random? random})
       : _rnd = random ?? math.Random();
+
+  /// Optional friendlier rewording of an explanation (the local language model);
+  /// null keeps the template text.
+  final Future<String?> Function(String text)? polish;
 
   final EngineHost host;
 
@@ -228,7 +232,9 @@ class GameController extends ChangeNotifier {
     if (quality.isError) {
       final why = explainError(
           quality: quality, before: before, beforeAnalysis: beforeAnalysis, after: after, afterAnalysis: afterAnalysis);
-      _say('${quality.label}. $why', quality == MoveQuality.blunder ? CoachTone.error : CoachTone.warning);
+      final tone = quality == MoveQuality.blunder ? CoachTone.error : CoachTone.warning;
+      _say('${quality.label}. $why', tone);
+      _polishLast(why, (text) => '${quality.label}. $text', tone, token);
       if (bestMove is NormalMove) arrow = bestMove;
     } else {
       final tip = tipForMove(before, move, after);
@@ -425,6 +431,19 @@ class GameController extends ChangeNotifier {
   }
 
   void _say(String text, CoachTone tone) => chat.add(CoachMessage(text, tone));
+
+  /// Replaces the last chat message with the language model's wording when it arrives.
+  void _polishLast(String facts, String Function(String) wrap, CoachTone tone, int token) {
+    final p = polish;
+    if (p == null) return;
+    final index = chat.length - 1;
+    final original = chat[index];
+    unawaited(p(facts).then((text) {
+      if (text == null || token != _token || index >= chat.length || !identical(chat[index], original)) return;
+      chat[index] = CoachMessage(wrap(text), tone);
+      notifyListeners();
+    }));
+  }
 
   void _engineNotice(bool missing) {
     if (!missing || _engineNoticeShown) return;

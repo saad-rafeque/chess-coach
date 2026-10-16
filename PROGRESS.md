@@ -7,7 +7,7 @@
 | 3 | Puzzles | Done (v0.5.0) |
 | 4 | Lessons | Done (v0.5.0) |
 | 5 | Personal learning | Done (v0.5.0) |
-| 6 | Local LLM explainer | Not started |
+| 6 | Local LLM explainer | Done (next release) |
 | 7 | Google Drive sync | Not started |
 | 8 | Polish | Not started |
 
@@ -39,29 +39,22 @@
   - Planner (`lib/train/planner.dart`): LinUCB contextual bandit over activity kinds with priors; rewards
     stored as `activity` events. "I have X minutes" opens a session (`lib/screens/session_page.dart`).
   - Coach strength auto-tuned to a ~45% expected score (New game dialog toggle, on by default).
+- Local LLM explainer (milestone 6): optional Qwen2.5 Instruct GGUF model (Small 0.5B, 491 MB, or Better 1.5B,
+  1.1 GB; Apache-2.0) downloaded on demand in Settings (`lib/coach/llm/model_store.dart`: resumable download,
+  sha256 check, delete) and run with llama.cpp through `llamadart` (CPU only). `CoachVoice`
+  (`lib/coach/llm/coach_voice.dart`) rewords the explanations from `lib/coach/explain.dart` in games (the chat
+  message is replaced when the answer arrives) and in reviews (`FriendlyText`). `acceptRephrase` throws away any
+  answer that adds or drops a move, square, number, piece, side or mate threat, praises an error, or talks about
+  the task; then the template text stays. `tool/voice_smoke_test.dart` runs a real model (MODEL=path).
 - Packaging: app icon, signed APK (key in `~/Documents/chess-coach-keys`, also in GitHub secrets),
   AppImage, Inno Setup installer with the VC++ runtime; pushing a `v*` tag publishes a GitHub Release.
 - GitHub Actions: analyze, test, screenshots, Linux tarball + AppImage, Android arm64 APK, Windows installer.
 
 ## Next step
 
-Milestone 6: local LLM explainer. Optional ~1B model via llama.cpp, downloaded on demand, that rephrases the
-facts from `lib/coach/explain.dart` into friendly English; the current templates stay as the fallback.
-
-Findings so far (nothing committed yet):
-- Use `llamadart` pinned (0.11.1 tested): its build hook downloads prebuilt llama.cpp libraries; unsupported
-  targets (e.g. armeabi-v7a) are skipped with a warning, not an error. `flutter build linux --release` works.
-- Add to pubspec: `hooks: user_defines: llamadart: llamadart_native_runtimes: [llama_cpp]`. The plain
-  `llamadart_native_backends: [cpu]` is ignored; it needs a `platforms:` map (e.g.
-  `llamadart_native_backends: {platforms: {linux: [cpu], windows: [cpu], android: [cpu]}}`) to drop the 26 MB
-  Vulkan library. Verify the bundle after a clean build.
-- No Android SDK on this PC, so the APK build can't be checked locally; consider building only arm64 in CI
-  (`--target-platform android-arm64`).
-- Model: Qwen2.5-0.5B-Instruct q4_k_m (491 MB, Apache-2.0, ungated, sha256 74a4da8c…a9db) as default;
-  Qwen2.5-1.5B q4_k_m (1117 MB) as a desktop option. Download with our own downloader + sha256 check,
-  load with `LlamaEngine.load(LlamaModel(ModelSource.path(file)))`.
-- Plan: show the template at once, replace it with the LLM text only if every square/move in the output
-  appears in the facts (never trust the LLM with chess); hook into `GameController._say` and the review cards.
+Milestone 7: Google Drive sync. One file in the appDataFolder, merged with `EventStore.merge` (union by event
+id), synced only on app open/close and when the network returns. Give the owner click-by-click steps to create
+the Google Cloud OAuth client.
 
 ## Decisions
 
@@ -85,6 +78,12 @@ Findings so far (nothing committed yet):
   rating gain in the block's area (0.5 = no change), the recall rate for reviews, or the first-try rate for
   lessons. Training sessions live in memory only (not synced).
 - New review cards are limited to 10 per day.
+- LLM runtime: `llamadart` pinned to 0.11.1 (the package changes every few days); only its llama.cpp runtime and
+  CPU backend are bundled (`hooks: user_defines` in pubspec.yaml). Targets without a prebuilt runtime (32-bit
+  Android) just skip it, and the coach keeps its templates.
+- The model never sees the board and never chooses moves: it only rewords a sentence built from engine facts.
+  With Qwen2.5 0.5B about half of the answers pass the safety check on this PC (0.5–1 s each after a 3 s load);
+  the rest fall back to the template.
 
 ## How to resume
 

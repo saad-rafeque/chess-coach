@@ -26,7 +26,9 @@ class AppSettings extends ChangeNotifier {
         _trainingHints = _prefs?.getBool('hints') ?? true,
         _evalBar = _prefs?.getBool('evalBar') ?? true,
         _coachElo = _prefs?.getInt('coachElo') ?? 800,
-        _autoStrength = _prefs?.getBool('autoStrength') ?? true;
+        _autoStrength = _prefs?.getBool('autoStrength') ?? true,
+        _friendlyVoice = _prefs?.getBool('friendlyVoice') ?? true,
+        _voiceModel = _prefs?.getString('voiceModel');
 
   /// In-memory settings for tests.
   AppSettings.memory() : this._(null);
@@ -77,6 +79,24 @@ class AppSettings extends ChangeNotifier {
   set autoStrength(bool value) {
     _autoStrength = value;
     _prefs?.setBool('autoStrength', value);
+    notifyListeners();
+  }
+
+  /// Rephrase coach explanations with the downloaded language model (when one is installed).
+  bool _friendlyVoice;
+  bool get friendlyVoice => _friendlyVoice;
+  set friendlyVoice(bool value) {
+    _friendlyVoice = value;
+    _prefs?.setBool('friendlyVoice', value);
+    notifyListeners();
+  }
+
+  /// Id of the explainer model chosen in Settings (null = the default for this device).
+  String? _voiceModel;
+  String? get voiceModel => _voiceModel;
+  set voiceModel(String? value) {
+    _voiceModel = value;
+    value == null ? _prefs?.remove('voiceModel') : _prefs?.setString('voiceModel', value);
     notifyListeners();
   }
 

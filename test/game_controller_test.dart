@@ -68,6 +68,26 @@ void main() {
     expect(g.position.turn, Side.black);
   });
 
+  test('the coach voice rewords an error explanation when it is ready', () async {
+    final asked = <String>[];
+    final g = GameController(
+      host: _host((pos) => pos.board.pieceAt(Square.a3) != null ? -900 : 0),
+      polish: (facts) async {
+        asked.add(facts);
+        return 'Friendly: $facts';
+      },
+    )..newGame(side: Side.white, elo: 800);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    final reply = g.playerMove(NormalMove.fromUci('a2a3'));
+    for (var i = 0; i < 40 && asked.isEmpty; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    expect(asked, hasLength(1));
+    expect(g.chat.any((m) => m.text == 'Blunder. Friendly: ${asked.single}'), isTrue);
+    await reply;
+  });
+
   test('flags a blunder and shows the better move', () async {
     // Every position is equal except the one after 1.e4 e5 2.Qh5 Nc6 3.Qxe5+?? style
     // drop: here, any position after White plays a2a3 is scored as lost.

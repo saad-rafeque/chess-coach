@@ -5,6 +5,7 @@ import '../app/settings.dart';
 import '../app/theme.dart';
 import '../app/version.dart';
 import '../widgets/common.dart';
+import '../widgets/voice_settings.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -57,6 +58,9 @@ class SettingsPage extends StatelessWidget {
               ),
             ]),
           ),
+          const SizedBox(height: 24),
+          const SectionTitle('Coach voice (optional)'),
+          const VoiceSettings(),
           const SizedBox(height: 24),
           const SectionTitle('Sync'),
           SurfaceCard(

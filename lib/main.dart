@@ -5,6 +5,8 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'app/settings.dart';
 import 'app/shell.dart';
 import 'app/theme.dart';
+import 'coach/llm/coach_voice.dart';
+import 'coach/llm/model_store.dart';
 import 'data/event_store.dart';
 import 'engine/engine_host.dart';
 
@@ -20,11 +22,14 @@ Future<void> main() async {
     debugPrint('Storage unavailable, keeping data in memory: $e');
     store = EventStore.memory(device: settings.deviceId);
   }
-  runApp(ChessCoachApp(settings: settings, engine: engine, store: store));
+  final models = ModelStore();
+  unawaited(models.refresh());
+  final voice = CoachVoice(settings: settings, models: models);
+  runApp(ChessCoachApp(settings: settings, engine: engine, store: store, voice: voice));
 }
 
 class ChessCoachApp extends StatelessWidget {
-  const ChessCoachApp({super.key, required this.settings, this.engine, this.store, this.fontFamily});
+  const ChessCoachApp({super.key, required this.settings, this.engine, this.store, this.voice, this.fontFamily});
 
   final AppSettings settings;
 
@@ -34,11 +39,15 @@ class ChessCoachApp extends StatelessWidget {
   /// Stockfish host; tests leave it null to run without an engine.
   final EngineHost? engine;
 
+  /// Optional language model that rephrases explanations; tests leave it null (templates only).
+  final CoachVoice? voice;
+
   /// Overrides the platform font (used by the screenshot tests).
   final String? fontFamily;
 
   static final _offline = EngineHost(starter: () => Future.error(UnsupportedError('Engine disabled')));
   static final _memory = EventStore.memory();
+  static final _silent = CoachVoice.off();
 
   @override
   Widget build(BuildContext context) {
@@ -46,22 +55,25 @@ class ChessCoachApp extends StatelessWidget {
       host: engine ?? _offline,
       child: StoreScope(
         store: store ?? _memory,
-        child: SettingsScope(
-          settings: settings,
-          child: ListenableBuilder(
-            listenable: settings,
-            builder: (context, _) {
-              final palette = Palette.forTheme(settings.theme);
-              return PaletteScope(
-                palette: palette,
-                child: FluentApp(
-                  title: 'Chess Coach',
-                  debugShowCheckedModeBanner: false,
-                  theme: buildFluentTheme(palette, fontFamily: fontFamily),
-                  home: const AppShell(),
-                ),
-              );
-            },
+        child: VoiceScope(
+          voice: voice ?? _silent,
+          child: SettingsScope(
+            settings: settings,
+            child: ListenableBuilder(
+              listenable: settings,
+              builder: (context, _) {
+                final palette = Palette.forTheme(settings.theme);
+                return PaletteScope(
+                  palette: palette,
+                  child: FluentApp(
+                    title: 'Chess Coach',
+                    debugShowCheckedModeBanner: false,
+                    theme: buildFluentTheme(palette, fontFamily: fontFamily),
+                    home: const AppShell(),
+                  ),
+                );
+              },
+            ),
           ),
         ),
       ),

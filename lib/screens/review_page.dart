@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import '../app/board_style.dart';
 import '../app/settings.dart';
 import '../app/theme.dart';
+import '../widgets/friendly_text.dart';
 import '../coach/coach_player.dart';
 import '../data/event_store.dart';
 import '../data/game_record.dart';
@@ -328,7 +329,7 @@ class _MoveCard extends StatelessWidget {
         ]),
         if (move.explanation != null) ...[
           const SizedBox(height: 8),
-          Text(move.explanation!, style: TextStyle(color: p.text, height: 1.4)),
+          FriendlyText(move.explanation!, style: TextStyle(color: p.text, height: 1.4)),
         ],
         if (onToggle != null) ...[
           const SizedBox(height: 10),
