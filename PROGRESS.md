@@ -8,7 +8,7 @@
 | 4 | Lessons | Done (v0.5.0) |
 | 5 | Personal learning | Done (v0.5.0) |
 | 6 | Local LLM explainer | Done (v0.8.0) |
-| 7 | Google Drive sync | Done (v0.8.0); needs the owner's OAuth client to switch on |
+| 7 | Google Drive sync | Done; switched on in v0.8.1 |
 | 8 | Polish | Done (v0.8.0) |
 
 ## Done
@@ -65,10 +65,9 @@
 
 ## Next step
 
-All eight milestones are done. Waiting for the owner:
-1. Test v0.8.0 on the phone, Windows and Ubuntu and report what feels wrong.
-2. To switch on sync: follow `docs/google-drive-sync.md` (Google OAuth client + two GitHub secrets), then
-   publish a new build (bump the version, add release notes, push a `v*` tag).
+All eight milestones are done; v0.8.1 switches sync on (Google Cloud project `chess-coach-511811`, free, no
+billing; OAuth app in Testing mode, so the sign-in expires weekly and the app asks to connect again).
+Waiting for the owner to test the builds on the phone, Windows and Ubuntu and report what feels wrong.
 
 ## Decisions
 
@@ -96,6 +95,7 @@ All eight milestones are done. Waiting for the owner:
   extra SDK); the refresh token is kept in the app's local preferences, and the only scope is drive.appdata.
   "When the network returns" is handled with a few backed-off retries after a failed sync, instead of a
   connectivity plugin that would keep listening.
+- The project must stay 100% free: no billing account on the Google Cloud project, only free APIs.
 - The Android manifest now asks for INTERNET (needed for the model download and sync).
 - LLM runtime: `llamadart` pinned to 0.11.1 (the package changes every few days); only its llama.cpp runtime and
   CPU backend are bundled (`hooks: user_defines` in pubspec.yaml). Targets without a prebuilt runtime (32-bit

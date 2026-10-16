@@ -1,5 +1,11 @@
 # Setting up Google Drive sync (one time, about 10 minutes)
 
+> **Status (16 Oct 2026):** done for this repo. Project `chess-coach-511811`, Desktop client "Chess Coach",
+> app in **Testing** with saadrafiique@gmail.com as test user, scope `drive.appdata` only, no billing account.
+> Both GitHub secrets are set. In Testing, Google expires the sign-in after about a week; the app then asks
+> you to tap Connect again. To avoid that, the app would need a public home page and privacy policy so it can
+> be published (step 5), which needs a public page (for example a public repo).
+
 Sync keeps your phone, Windows PC and Ubuntu PC in step. Each device stores your games, puzzles and lessons
 locally; the app merges them through **one small file in a hidden app folder of your Google Drive**. Only
 Chess Coach can see that folder, and it can't see any of your other files.
