@@ -1,0 +1,22 @@
+name: chess_coach
+description: Personal offline chess coach for Android, Windows and Ubuntu.
+publish_to: none
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  chessground: ^10.3.0
+  dartchess: ^0.14.0
+  fluent_ui: ^4.16.1
+  shared_preferences: ^2.5.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
