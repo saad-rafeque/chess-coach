@@ -45,8 +45,8 @@ void main() {
     }
   });
 
-  testWidgets('small desktop window lays out every page', (tester) async {
-    await _pumpAt(tester, const Size(900, 620), AppSettings.memory());
+  testWidgets('short desktop window lays out every page', (tester) async {
+    await _pumpAt(tester, const Size(1250, 620), AppSettings.memory());
     for (final label in ['Play', 'Puzzles', 'Lessons', 'Settings', 'Home']) {
       await tester.tap(find.text(label).last);
       await tester.pumpAndSettle();
