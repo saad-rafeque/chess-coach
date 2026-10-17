@@ -2,7 +2,7 @@
 # Blocks a push unless the analyzer and all tests pass, so CI stays green.
 export PATH="$HOME/development/flutter/bin:$PATH"
 cd "$(git rev-parse --show-toplevel)" || exit 1
-echo "pre-push: running flutter analyze and flutter test..."
+echo "pre-push: running flutter analyze, flutter test and the screenshot test..."
 if ! out=$(flutter analyze 2>&1); then
   echo "$out" | tail -20
   echo "pre-push: analyzer found problems, push blocked."
@@ -11,6 +11,12 @@ fi
 if ! out=$(flutter test -r compact 2>&1); then
   echo "$out" | tail -30
   echo "pre-push: tests failed, push blocked."
+  exit 1
+fi
+# CI renders every screen too; a layout that breaks there must not get pushed either.
+if ! out=$(flutter test -r compact screenshots/screenshots_test.dart 2>&1); then
+  echo "$out" | tail -30
+  echo "pre-push: screenshot test failed, push blocked."
   exit 1
 fi
 echo "pre-push: all checks passed."

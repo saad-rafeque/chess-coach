@@ -98,6 +98,11 @@ Future<void> _shoot(
       await tester.pumpAndSettle();
       await tester.tap(find.text('Review').first);
       await _settle(tester, theme, dpr);
+      // Phones keep the review behind a button under the board.
+      if (find.textContaining('Move 3: Nf6').hitTestable().evaluate().isEmpty && find.text('Review').evaluate().isNotEmpty) {
+        await tester.tap(find.text('Review').last);
+        await tester.pumpAndSettle();
+      }
       await tester.ensureVisible(find.textContaining('Move 3: Nf6'));
       await tester.tap(find.textContaining('Move 3: Nf6'));
       await tester.pumpAndSettle();
