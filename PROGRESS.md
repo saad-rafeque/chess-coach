@@ -68,11 +68,9 @@
 
 ## Next step
 
-All eight milestones are done. The owner's feedback round (Oct 2026) is in progress: done so far are the Linux
-freeze and icon, phone layout, 120 Hz, board and piece choice with ten 3D sets, in-app updates, Play services
-sign-in on Android, the first-start setup and the guided post-game review. Still to do: board effects and sounds
-(move/capture/check), then a release (v1.0.0). The repo is private for now (owner's choice, 17 Oct 2026), so
-GitHub Pages, public downloads and the in-app updater only work for people with access until it's public again.
+All eight milestones and the owner's feedback round are done (v1.0.0, 17 Oct 2026). The repo is private for now
+(owner's choice), so GitHub Pages, public downloads and the in-app updater only work for people with access
+until it's public again.
 
 ## Decisions
 
@@ -148,6 +146,10 @@ GitHub Pages, public downloads and the in-app updater only work for people with 
   blunders, the mistakes (mistakes and inaccuracies) or the whole game, then shows per move what happened, the
   better move with an engine line, where the played move leads (both can be played out on the board) and a
   habit for next time, chosen by error kind and game phase.
+- Board effects and sounds (v1.0.0): wooden move, capture, check, victory and defeat sounds in games, puzzles
+  and lessons (`lib/app/board_sound.dart`, `assets/sounds/`, audioplayers), phone vibrations for the player's
+  own moves, both with Settings toggles (on by default); the square of a checked king pulses red on every
+  board (`lib/widgets/check_pulse.dart`).
 
 ## How to resume
 
