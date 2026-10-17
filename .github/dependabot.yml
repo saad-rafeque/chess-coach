@@ -1,0 +1,8 @@
+# Keeps the pinned GitHub Actions fresh; app packages are updated by hand so
+# Flutter SDK compatibility is always checked before a bump.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
