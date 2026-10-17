@@ -8,6 +8,7 @@ import '../app/settings.dart';
 import '../data/event_store.dart';
 import 'drive.dart';
 import 'google_auth.dart';
+import 'play_services_auth.dart';
 import 'token_store.dart';
 
 enum SyncStatus { notSetUp, signedOut, signingIn, idle, syncing, offline, error }
@@ -29,7 +30,8 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
     Future<bool> Function(Uri url)? openBrowser,
     TokenStore? tokens,
     this.retryDelays = const [Duration(minutes: 1), Duration(minutes: 3), Duration(minutes: 10), Duration(minutes: 30)],
-  })  : auth = auth ?? GoogleAuth(config),
+  })  : auth = auth ??
+            (Platform.isAndroid && config.androidServerClientId.isNotEmpty ? PlayServicesAuth(config) : GoogleAuth(config)),
         tokens = tokens ?? FileTokenStore(),
         _folder = folder ?? ((token) => DriveAppFolder(token)),
         _openBrowser = openBrowser ?? ((url) => launchUrl(url, mode: LaunchMode.externalApplication));

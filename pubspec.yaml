@@ -18,6 +18,8 @@ dependencies:
   llamadart: 0.11.1
   crypto: ^3.0.6
   url_launcher: 6.3.2
+  google_sign_in: ^7.2.0
+  google_sign_in_platform_interface: ^3.1.0
 
 dev_dependencies:
   flutter_launcher_icons: ^0.14.4

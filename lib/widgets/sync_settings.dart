@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
 import '../app/theme.dart';
+import '../sync/play_services_auth.dart';
 import '../sync/sync_service.dart';
 import 'common.dart';
 
@@ -34,7 +35,12 @@ class SyncSettings extends StatelessWidget {
               'Google Drive. It syncs only when the app opens or closes, so it doesn\'t drain the battery.',
           p.muted
         ),
-      SyncStatus.signingIn => ('Sign in with Google in your browser, then come back here.', p.accent),
+      SyncStatus.signingIn => (
+          sync.auth is PlayServicesAuth
+              ? 'Choose your Google account and allow Chess Coach to use its Drive folder.'
+              : 'Sign in with Google in your browser, then come back here.',
+          p.accent
+        ),
       SyncStatus.syncing => ('Syncing…', p.accent),
       SyncStatus.offline => ('No connection. Your data is safe on this device and syncs when you\'re back online.', p.warning),
       SyncStatus.error => (sync.error ?? 'Sync failed.', p.danger),

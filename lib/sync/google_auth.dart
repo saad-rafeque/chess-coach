@@ -8,17 +8,22 @@ import 'package:crypto/crypto.dart';
 /// The Google OAuth client ("Desktop app" type) the owner creates once; passed to builds
 /// with `--dart-define` (see docs/google-drive-sync.md). Empty = sync not set up.
 class OAuthConfig {
-  const OAuthConfig({required this.clientId, required this.clientSecret});
+  const OAuthConfig({required this.clientId, required this.clientSecret, this.androidServerClientId = ''});
 
   static const fromEnvironment = OAuthConfig(
     clientId: String.fromEnvironment('GOOGLE_OAUTH_CLIENT_ID'),
     clientSecret: String.fromEnvironment('GOOGLE_OAUTH_CLIENT_SECRET'),
+    androidServerClientId: String.fromEnvironment('GOOGLE_ANDROID_SERVER_CLIENT_ID'),
   );
 
   final String clientId;
 
   /// Google issues one for installed apps too; it is not treated as a secret there.
   final String clientSecret;
+
+  /// The "Web application" client id that Android's Google sign-in needs (see PlayServicesAuth).
+  /// Empty: Android uses the browser flow like the desktop.
+  final String androidServerClientId;
 
   bool get isSet => clientId.isNotEmpty;
 }

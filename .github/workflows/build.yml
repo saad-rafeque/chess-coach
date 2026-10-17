@@ -62,10 +62,11 @@ jobs:
         env:
           GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
           GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          GOOGLE_ANDROID_SERVER_CLIENT_ID: ${{ vars.GOOGLE_ANDROID_SERVER_CLIENT_ID }}
         run: |
           mkdir -p build
-          printf '{"GOOGLE_OAUTH_CLIENT_ID":"%s","GOOGLE_OAUTH_CLIENT_SECRET":"%s"}' \
-            "$GOOGLE_OAUTH_CLIENT_ID" "$GOOGLE_OAUTH_CLIENT_SECRET" > build/oauth.json
+          printf '{"GOOGLE_OAUTH_CLIENT_ID":"%s","GOOGLE_OAUTH_CLIENT_SECRET":"%s","GOOGLE_ANDROID_SERVER_CLIENT_ID":"%s"}' \
+            "$GOOGLE_OAUTH_CLIENT_ID" "$GOOGLE_OAUTH_CLIENT_SECRET" "$GOOGLE_ANDROID_SERVER_CLIENT_ID" > build/oauth.json
       - run: flutter build linux --release --dart-define-from-file=build/oauth.json --obfuscate --split-debug-info=build/debug-info
       - name: Check the downloaded llama.cpp runtime
         run: dart run tool/check_native_bundles.dart linux-x64
@@ -113,10 +114,11 @@ jobs:
         env:
           GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
           GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          GOOGLE_ANDROID_SERVER_CLIENT_ID: ${{ vars.GOOGLE_ANDROID_SERVER_CLIENT_ID }}
         run: |
           mkdir -p build
-          printf '{"GOOGLE_OAUTH_CLIENT_ID":"%s","GOOGLE_OAUTH_CLIENT_SECRET":"%s"}' \
-            "$GOOGLE_OAUTH_CLIENT_ID" "$GOOGLE_OAUTH_CLIENT_SECRET" > build/oauth.json
+          printf '{"GOOGLE_OAUTH_CLIENT_ID":"%s","GOOGLE_OAUTH_CLIENT_SECRET":"%s","GOOGLE_ANDROID_SERVER_CLIENT_ID":"%s"}' \
+            "$GOOGLE_OAUTH_CLIENT_ID" "$GOOGLE_OAUTH_CLIENT_SECRET" "$GOOGLE_ANDROID_SERVER_CLIENT_ID" > build/oauth.json
       - run: flutter build apk --release --split-per-abi --dart-define-from-file=build/oauth.json --obfuscate --split-debug-info=build/debug-info
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -148,10 +150,11 @@ jobs:
         env:
           GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
           GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          GOOGLE_ANDROID_SERVER_CLIENT_ID: ${{ vars.GOOGLE_ANDROID_SERVER_CLIENT_ID }}
         run: |
           mkdir -p build
-          printf '{"GOOGLE_OAUTH_CLIENT_ID":"%s","GOOGLE_OAUTH_CLIENT_SECRET":"%s"}' \
-            "$GOOGLE_OAUTH_CLIENT_ID" "$GOOGLE_OAUTH_CLIENT_SECRET" > build/oauth.json
+          printf '{"GOOGLE_OAUTH_CLIENT_ID":"%s","GOOGLE_OAUTH_CLIENT_SECRET":"%s","GOOGLE_ANDROID_SERVER_CLIENT_ID":"%s"}' \
+            "$GOOGLE_OAUTH_CLIENT_ID" "$GOOGLE_OAUTH_CLIENT_SECRET" "$GOOGLE_ANDROID_SERVER_CLIENT_ID" > build/oauth.json
       - run: flutter build windows --release --dart-define-from-file=build/oauth.json --obfuscate --split-debug-info=build/debug-info
       - name: Check the downloaded llama.cpp runtime
         shell: bash
