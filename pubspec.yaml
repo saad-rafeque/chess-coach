@@ -1,7 +1,7 @@
 name: chess_coach
 description: Personal offline chess coach for Android, Windows and Ubuntu.
 publish_to: none
-version: 1.0.1+14
+version: 1.0.2+15
 
 environment:
   sdk: ^3.11.0
@@ -23,6 +23,8 @@ dependencies:
   flutter_displaymode: ^0.7.0
   ota_update: ^7.1.0
   audioplayers: ^6.8.1
+  ed25519_edwards: ^0.3.2
+  flutter_secure_storage: ^11.2.0
 
 dev_dependencies:
   flutter_launcher_icons: ^0.14.4

@@ -1,9 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:chess_coach/app/updater.dart';
 import 'package:crypto/crypto.dart';
+import 'package:ed25519_edwards/ed25519_edwards.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+String _hex(List<int> bytes) => bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
 
 void main() {
   late HttpServer server;
@@ -13,10 +17,21 @@ void main() {
   var tag = 'v9.9.9';
   String base() => 'http://127.0.0.1:${server.port}';
 
+  // The "release key" for these tests: the server signs with the private half,
+  // the updater is given the public half.
+  final testKey = generateKey();
+  var signSums = true;
+  var serveSig = true;
+  var assetPath = 'ChessCoach-9.9.9-x86_64.AppImage';
+  String sumsBody() => '$sum  ChessCoach-9.9.9-x86_64.AppImage\nabc  other\n';
+
   setUp(() async {
     tmp = await Directory.systemTemp.createTemp('upd');
     sum = sha256.convert(appImage).toString();
     tag = 'v9.9.9';
+    signSums = true;
+    serveSig = true;
+    assetPath = 'ChessCoach-9.9.9-x86_64.AppImage';
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((req) async {
       final path = req.uri.path;
@@ -26,15 +41,27 @@ void main() {
           'tag_name': tag,
           'body': '## New\n- **Faster** start',
           'assets': [
-            {'name': 'ChessCoach-9.9.9-x86_64.AppImage', 'browser_download_url': '${base()}$dl/ChessCoach-9.9.9-x86_64.AppImage', 'size': appImage.length},
+            {'name': 'ChessCoach-9.9.9-x86_64.AppImage', 'browser_download_url': '${base()}$dl/$assetPath', 'size': appImage.length},
             {'name': 'ChessCoach-9.9.9-Setup.exe', 'browser_download_url': 'https://evil.example/ChessCoach-9.9.9-Setup.exe', 'size': 3},
             {'name': 'SHA256SUMS.txt', 'browser_download_url': '${base()}$dl/SHA256SUMS.txt', 'size': 100},
+            if (serveSig)
+              {'name': 'SHA256SUMS.txt.sig', 'browser_download_url': '${base()}$dl/SHA256SUMS.txt.sig', 'size': 64},
           ],
         }));
       } else if (path == '$dl/SHA256SUMS.txt') {
-        req.response.write('$sum  ChessCoach-9.9.9-x86_64.AppImage\nabc  other\n');
+        req.response.write(sumsBody());
+      } else if (path == '$dl/SHA256SUMS.txt.sig') {
+        final bytes = utf8.encode(sumsBody());
+        if (signSums) {
+          req.response.add(sign(testKey.privateKey, Uint8List.fromList(bytes)));
+        } else {
+          // A signature that does not match the served checksums.
+          req.response.add(sign(generateKey().privateKey, Uint8List.fromList(bytes)));
+        }
       } else if (path == '$dl/ChessCoach-9.9.9-x86_64.AppImage') {
         req.response.add(appImage);
+      } else if (path == '$dl/hop') {
+        await req.response.redirect(Uri.parse('${base()}$dl/ChessCoach-9.9.9-x86_64.AppImage'));
       } else {
         req.response.statusCode = 404;
       }
@@ -47,8 +74,14 @@ void main() {
     await tmp.delete(recursive: true);
   });
 
-  Updater updater(InstallKind kind, {String current = '0.9.2'}) =>
-      Updater(kind: kind, current: current, api: base(), web: base(), environment: const {}, tempDir: () async => tmp);
+  Updater updater(InstallKind kind, {String current = '0.9.2'}) => Updater(
+      kind: kind,
+      current: current,
+      api: base(),
+      web: base(),
+      environment: const {},
+      tempDir: () async => tmp,
+      releaseKeyHex: _hex(testKey.publicKey.bytes));
 
   test('versions compare by number', () {
     expect(compareVersions('v1.10.0', '1.9.9'), greaterThan(0));
@@ -87,5 +120,27 @@ void main() {
     u.available = ReleaseInfo(version: damaged.version, notes: '', pageUrl: '', asset: damaged.asset, sha256: sum);
     await expectLater(u.downloadVerified(), throwsFormatException);
     expect(tmp.listSync(), isEmpty);
+  });
+
+  test('a checksums file with a foreign signature is not trusted', () async {
+    signSums = false;
+    final u = updater(InstallKind.appImage);
+    await u.check();
+    expect(u.available!.asset, isNull, reason: 'the signature was not made by the pinned release key');
+  });
+
+  test('a checksums file without a signature is not trusted', () async {
+    serveSig = false;
+    final u = updater(InstallKind.appImage);
+    await u.check();
+    expect(u.available!.asset, isNull, reason: 'unsigned checksums are not proof of anything');
+  });
+
+  test('a download that redirects off GitHub is refused', () async {
+    assetPath = 'hop';
+    final u = updater(InstallKind.appImage);
+    await u.check();
+    expect(u.available!.asset, isNotNull);
+    await expectLater(u.downloadVerified(), throwsA(isA<HttpException>()));
   });
 }

@@ -74,7 +74,7 @@ void main() {
       final f = File('${dir.path}/${spec.fileName}').openSync(mode: FileMode.write)..truncateSync(spec.bytes);
       f.closeSync();
       settings = AppSettings.memory();
-      models = ModelStore(directory: () async => dir);
+      models = ModelStore(directory: () async => dir, verifyAtLoad: false); // sparse file, not the real model
       await models.markVerified(spec);
       await models.refresh();
       generator = _FakeGenerator((facts) => 'Oops! $facts');

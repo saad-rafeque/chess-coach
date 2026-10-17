@@ -1,8 +1,14 @@
-# Keeps the pinned GitHub Actions fresh; app packages are updated by hand so
-# Flutter SDK compatibility is always checked before a bump.
+# Keeps the pinned GitHub Actions fresh and proposes pub package bumps. Every
+# bump must pass the CI check job (analyze + tests) before it can land, so
+# Flutter SDK compatibility stays checked on each proposal.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+  - package-ecosystem: pub
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 1

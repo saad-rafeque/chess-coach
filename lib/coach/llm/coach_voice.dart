@@ -172,6 +172,7 @@ class CoachVoice extends ChangeNotifier {
     return _loading ??= () async {
       try {
         final spec = model;
+        await models.verifyForLoad(spec);
         final g = await _loader(await models.fileFor(spec));
         _generator = g;
         _loadedId = spec.id;

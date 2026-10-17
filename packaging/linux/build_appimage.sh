@@ -35,6 +35,20 @@ fi
 echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  $tool" | sha256sum -c - \
   || { rm -f "$tool"; exit 1; }
 chmod +x "$tool"
-ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 "$tool" --no-appstream "$work/AppDir" \
+
+# Pin the runtime too: appimagetool otherwise downloads an unpinned `continuous`
+# build, so the image could change without the project changing.
+runtime="$work/runtime-x86_64"
+if [ ! -f "$runtime" ]; then
+  curl -fsSL --retry 5 -o "$runtime" \
+    https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64
+fi
+echo "156f4bdbde9c52d01814600013e0a273f0118dc2de98975f3c8c63427ec79074  $runtime" | sha256sum -c - \
+  || { rm -f "$runtime"; exit 1; }
+
+# SOURCE_DATE_EPOCH makes mksquashfs store the same timestamps in every build;
+# -all-root stores uid/gid 0 so machines with different builder users match.
+ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 "$tool" --no-appstream --runtime-file "$runtime" \
+  --mksquashfs-opt -all-root "$work/AppDir" \
   "$root/build/ChessCoach-$version-x86_64.AppImage"
 echo "Built build/ChessCoach-$version-x86_64.AppImage"

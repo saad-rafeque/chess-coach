@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:chess_coach/app/board_style.dart';
 import 'package:chess_coach/app/settings.dart';
@@ -305,6 +306,43 @@ void main() {
       expect(store.status(m), ModelStatus.failed, reason: 'same size, wrong content');
       expect(store.error(m), contains('changed or damaged'));
     }, timeout: const Timeout(Duration(minutes: 2)));
+
+    test('a model file swapped after its check is refused at load', () async {
+      final m = explainerModels.first;
+      final f = File('${dir.path}/${m.fileName}').openSync(mode: FileMode.write)..truncateSync(m.bytes);
+      f.closeSync();
+      final marks = AppSettings.memory();
+      final store = ModelStore(directory: () async => dir, marks: marks);
+      await store.markVerified(m);
+      // Same-size replacement with the original date restored: the stamp
+      // check in refresh() is fooled...
+      final old = File('${dir.path}/${m.fileName}').statSync().modified;
+      final sink = File('${dir.path}/${m.fileName}').openSync(mode: FileMode.write);
+      final chunk = Uint8List(1 << 20)..fillRange(0, 1 << 20, 255);
+      var left = m.bytes;
+      while (left > 0) {
+        final n = left < chunk.length ? left : chunk.length;
+        sink.writeFromSync(chunk, 0, n);
+        left -= n;
+      }
+      sink.closeSync();
+      File('${dir.path}/${m.fileName}').setLastModifiedSync(old);
+      final again = ModelStore(directory: () async => dir, marks: marks);
+      await again.refresh();
+      expect(again.status(m), ModelStatus.ready, reason: 'the restored stamp is trusted');
+      // ...but the load-time hash is not.
+      await expectLater(again.verifyForLoad(m), throwsFormatException);
+      expect(again.status(m), ModelStatus.failed);
+    }, timeout: const Timeout(Duration(minutes: 3)));
+
+    test('the load-time check runs once per session', () async {
+      final m = spec('/model');
+      File('${dir.path}/${m.fileName}').writeAsBytesSync(body);
+      final store = ModelStore(directory: () async => dir);
+      await store.verifyForLoad(m);
+      File('${dir.path}/${m.fileName}').writeAsBytesSync(List<int>.filled(body.length, 255));
+      await store.verifyForLoad(m); // no throw: this session already hashed it
+    });
 
     test('the engine refuses a position that would smuggle in commands', () async {
       final uci = FakeUci({});

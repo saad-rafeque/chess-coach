@@ -8,6 +8,7 @@ import 'package:ota_update/ota_update.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'release_key.dart';
 import 'version.dart';
 
 /// A newer release on GitHub, with the file for this device and its checksum.
@@ -41,8 +42,9 @@ int compareVersions(String a, String b) {
 }
 
 /// Finds new releases on GitHub and installs them, after checking each file against the release's
-/// SHA256SUMS.txt. Android also refuses an APK signed with another key, so a tampered download can't
-/// replace the app.
+/// SHA256SUMS.txt — which itself must carry a valid signature by the release key pinned in
+/// [releaseSigningPublicKeyHex]. Android also refuses an APK signed with another key, so a tampered
+/// download can't replace the app.
 class Updater extends ChangeNotifier {
   Updater({
     this.repo = 'saad-rafeque/chess-coach',
@@ -53,6 +55,7 @@ class Updater extends ChangeNotifier {
     this.web = 'https://github.com',
     Map<String, String>? environment,
     Future<Directory> Function()? tempDir,
+    this.releaseKeyHex = releaseSigningPublicKeyHex,
   })  : _tempDir = tempDir ?? getTemporaryDirectory,
         kind = kind ?? detectInstallKind(environment ?? Platform.environment),
         _client = client ?? HttpClient.new,
@@ -66,6 +69,9 @@ class Updater extends ChangeNotifier {
   final HttpClient Function() _client;
   final Map<String, String> _env;
   final Future<Directory> Function() _tempDir;
+
+  /// The public half of the release signing key (hex), replaceable in tests.
+  final String releaseKeyHex;
 
   ReleaseInfo? available;
   UpdateStatus status = UpdateStatus.idle;
@@ -127,9 +133,22 @@ class Updater extends ChangeNotifier {
       String? sum;
       final sums = assets['SHA256SUMS.txt'];
       if (asset != null && sums != null) {
-        for (final line in const LineSplitter().convert(utf8.decode(await _get(Uri.parse(sums.url), 64 * 1024)))) {
-          final m = RegExp(r'^([0-9a-f]{64})\s+\*?(.+)$').firstMatch(line.trim());
-          if (m != null && m[2] == asset.name) sum = m[1];
+        final sumsBytes = await _get(Uri.parse(sums.url), 64 * 1024);
+        // Only checksums signed by the pinned release key are trusted (see
+        // release_key.dart); anything else gets the release page instead.
+        final sig = assets['SHA256SUMS.txt.sig'];
+        if (sig != null) {
+          try {
+            final sigBytes = await _get(Uri.parse(sig.url), 4 * 1024);
+            if (verifyReleaseSignature(sumsBytes, sigBytes, releaseKeyHex)) {
+              for (final line in const LineSplitter().convert(utf8.decode(sumsBytes))) {
+                final m = RegExp(r'^([0-9a-f]{64})\s+\*?(.+)$').firstMatch(line.trim());
+                if (m != null && m[2] == asset.name) sum = m[1];
+              }
+            }
+          } catch (_) {
+            // Missing or unreadable signature: not trusted, the release page is offered.
+          }
         }
       }
       available = ReleaseInfo(
@@ -269,22 +288,34 @@ class Updater extends ChangeNotifier {
     }
   }
 
-  /// GET over HTTPS, following redirects only to GitHub's own hosts.
+  /// GET over HTTPS, following redirects only to GitHub's own hosts. Every hop
+  /// is checked before the next request goes out, so no request ever reaches a
+  /// host that was not validated.
   Future<HttpClientResponse> _open(HttpClient client, Uri url) async {
-    final req = await client.getUrl(url);
-    req.headers
-      ..set(HttpHeaders.userAgentHeader, 'ChessCoach/$current')
-      ..set(HttpHeaders.acceptHeader, url.host == 'api.github.com' ? 'application/vnd.github+json' : '*/*');
-    final res = await req.close().timeout(const Duration(seconds: 60));
-    for (final r in res.redirects) {
-      final host = r.location.host;
-      final github = host.isEmpty || host == 'github.com' || host.endsWith('.githubusercontent.com');
-      if ((r.location.hasScheme && r.location.scheme != 'https') || !github) {
-        throw const HttpException('The update link left GitHub.');
+    var target = url;
+    for (var hops = 0; ; hops++) {
+      final req = await client.getUrl(target);
+      req.followRedirects = false;
+      req.headers
+        ..set(HttpHeaders.userAgentHeader, 'ChessCoach/$current')
+        ..set(HttpHeaders.acceptHeader, target.host == 'api.github.com' ? 'application/vnd.github+json' : '*/*');
+      final res = await req.close().timeout(const Duration(seconds: 60));
+      if (res.isRedirect) {
+        final location = res.headers.value(HttpHeaders.locationHeader);
+        await res.drain<void>();
+        if (location == null || hops >= 4) throw const HttpException('The update link redirected too much.');
+        final next = target.resolve(location);
+        final host = next.host;
+        final github = host.isEmpty || host == 'github.com' || host.endsWith('.githubusercontent.com');
+        if ((next.hasScheme && next.scheme != 'https') || !github) {
+          throw const HttpException('The update link left GitHub.');
+        }
+        target = next;
+        continue;
       }
+      if (res.statusCode != HttpStatus.ok) throw HttpException('GitHub answered ${res.statusCode}.');
+      return res;
     }
-    if (res.statusCode != HttpStatus.ok) throw HttpException('GitHub answered ${res.statusCode}.');
-    return res;
   }
 
   Future<List<int>> _get(Uri url, int limit) async {

@@ -48,9 +48,11 @@ built here: `sha256sum -c SHA256SUMS.txt --ignore-missing`.
 
 ## Build it yourself
 
-You need [Flutter](https://flutter.dev) 3.47.
+You need [Flutter](https://flutter.dev) 3.47, and on Linux the package `libsecret-1-dev` (the refresh
+token is kept in the desktop keychain).
 
 ```bash
+sudo apt install libsecret-1-dev   # Ubuntu / Debian
 bash tool/fetch_engines.sh linux
 flutter test
 flutter run -d linux

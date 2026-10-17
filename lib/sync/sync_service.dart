@@ -32,7 +32,7 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
     this.retryDelays = const [Duration(minutes: 1), Duration(minutes: 3), Duration(minutes: 10), Duration(minutes: 30)],
   })  : auth = auth ??
             (Platform.isAndroid && config.androidServerClientId.isNotEmpty ? PlayServicesAuth(config) : GoogleAuth(config)),
-        tokens = tokens ?? FileTokenStore(),
+        tokens = tokens ?? SecureTokenStore(),
         _folder = folder ?? ((token) => DriveAppFolder(token)),
         _openBrowser = openBrowser ?? ((url) => launchUrl(url, mode: LaunchMode.externalApplication));
 

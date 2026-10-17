@@ -65,10 +65,19 @@ enum ModelStatus { absent, downloading, verifying, ready, failed }
 /// the file's size or date differs from the last check (it lives in Documents on desktops,
 /// where other programs could replace it). The last check is remembered in [marks].
 class ModelStore extends ChangeNotifier {
-  ModelStore({Future<Directory> Function()? directory, HttpClient Function()? client, AppSettings? marks})
-      : _directory = directory ?? _defaultDirectory,
+  ModelStore({
+    Future<Directory> Function()? directory,
+    HttpClient Function()? client,
+    AppSettings? marks,
+    bool verifyAtLoad = true,
+  })  : _directory = directory ?? _defaultDirectory,
         _client = client ?? HttpClient.new,
-        _marks = marks ?? AppSettings.memory();
+        _marks = marks ?? AppSettings.memory(),
+        _verifyAtLoad = verifyAtLoad;
+
+  /// Whether [verifyForLoad] hashes before llama.cpp opens a file. Tests that
+  /// stand a sparse file in for the model turn this off.
+  final bool _verifyAtLoad;
 
   static Future<Directory> _defaultDirectory() async {
     final base = await dataFolder();
@@ -82,6 +91,7 @@ class ModelStore extends ChangeNotifier {
   final _status = <String, ModelStatus>{};
   final _received = <String, int>{};
   final _errors = <String, String>{};
+  final _sessionVerified = <String>{};
   HttpClient? _active;
   bool _cancelled = false;
 
@@ -100,6 +110,29 @@ class ModelStore extends ChangeNotifier {
 
   /// Records that [m]'s file on disk is the checked one.
   Future<void> markVerified(ModelSpec m) async => _marks.writeValue(_markKey(m), _stamp(await fileFor(m)));
+
+  /// Re-checks [m]'s file against its pinned sha256, once per app session,
+  /// right before llama.cpp opens it. The stamp check in [refresh] is fast but
+  /// can be faked by restoring a file's old size and date, so a load never
+  /// relies on the stamp alone.
+  Future<void> verifyForLoad(ModelSpec m) async {
+    if (!_verifyAtLoad || _sessionVerified.contains(m.id)) return;
+    final f = await fileFor(m);
+    if (!f.existsSync()) {
+      _status[m.id] = ModelStatus.absent;
+      notifyListeners();
+      throw const FormatException('The model file is missing. Download it again.');
+    }
+    final hash = await Isolate.run(() => _sha256(f.path));
+    if (hash != m.sha256) {
+      _marks.writeValue(_markKey(m), null);
+      _status[m.id] = ModelStatus.failed;
+      _errors[m.id] = 'The model file was changed or damaged. Download it again.';
+      notifyListeners();
+      throw const FormatException('The model file was changed or damaged. Download it again.');
+    }
+    _sessionVerified.add(m.id);
+  }
 
   /// Checks which models are already on disk, verifying any file that changed since its last check.
   Future<void> refresh() async {
@@ -147,13 +180,7 @@ class ModelStore extends ChangeNotifier {
       }
       _received[m.id] = have;
       final client = _active = _client()..connectionTimeout = const Duration(seconds: 30);
-      final request = await client.getUrl(Uri.parse(m.url));
-      if (have > 0) request.headers.set(HttpHeaders.rangeHeader, 'bytes=$have-');
-      final response = await request.close().timeout(const Duration(seconds: 60));
-      // The file is checked by its hash anyway, but never follow a link off HTTPS.
-      if (response.redirects.any((r) => r.location.hasScheme && r.location.scheme != 'https')) {
-        throw const HttpException('The download link is not secure.');
-      }
+      final response = await _openDownload(client, Uri.parse(m.url), resumeAt: have);
       if (response.statusCode == HttpStatus.ok) {
         have = 0; // The server ignored the range: start over.
       } else if (response.statusCode != HttpStatus.partialContent) {
@@ -187,6 +214,7 @@ class ModelStore extends ChangeNotifier {
       if (target.existsSync()) target.deleteSync();
       part.renameSync(target.path);
       await markVerified(m);
+      _sessionVerified.add(m.id); // just hashed it, no need to do it again this session
       _status[m.id] = ModelStatus.ready;
     } on _Cancelled {
       _status[m.id] = ModelStatus.absent;
@@ -200,6 +228,33 @@ class ModelStore extends ChangeNotifier {
       _active?.close(force: true);
       _active = null;
       notifyListeners();
+    }
+  }
+
+  /// Opens a model download, following redirects only to huggingface.co hosts
+  /// over HTTPS. Every hop is checked before the next request goes out, so no
+  /// request ever reaches a host that was not validated. The file is checked
+  /// by its hash anyway; this just keeps the download itself on Hugging Face.
+  Future<HttpClientResponse> _openDownload(HttpClient client, Uri url, {int resumeAt = 0}) async {
+    var target = url;
+    for (var hops = 0; ; hops++) {
+      final request = await client.getUrl(target);
+      request.followRedirects = false;
+      if (resumeAt > 0) request.headers.set(HttpHeaders.rangeHeader, 'bytes=$resumeAt-');
+      final res = await request.close().timeout(const Duration(seconds: 60));
+      if (res.isRedirect) {
+        final location = res.headers.value(HttpHeaders.locationHeader);
+        await res.drain<void>();
+        if (location == null || hops >= 4) throw const HttpException('The download link redirected too much.');
+        final next = target.resolve(location);
+        final allowed = next.host == 'huggingface.co' || next.host.endsWith('.huggingface.co');
+        if ((next.hasScheme && next.scheme != 'https') || !allowed) {
+          throw const HttpException('The download link is not secure.');
+        }
+        target = next;
+        continue;
+      }
+      return res;
     }
   }
 
@@ -218,6 +273,7 @@ class ModelStore extends ChangeNotifier {
     _errors.remove(m.id);
     _marks.writeValue(_markKey(m), null);
     _received.remove(m.id);
+    _sessionVerified.remove(m.id);
     notifyListeners();
   }
 }

@@ -15,6 +15,8 @@ cmake_policy(SET CMP0063 NEW)
 
 # Load bundled libraries from the lib/ directory relative to the binary.
 set(CMAKE_INSTALL_RPATH "$ORIGIN/lib")
+# Build-tree rpaths would embed the checkout path in the shipped binaries.
+set(CMAKE_SKIP_BUILD_RPATH ON)
 
 # Root filesystem for cross-building.
 if(FLUTTER_TARGET_PLATFORM_SYSROOT)
