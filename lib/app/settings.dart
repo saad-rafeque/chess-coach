@@ -32,6 +32,7 @@ class AppSettings extends ChangeNotifier {
         _autoStrength = _prefs?.getBool('autoStrength') ?? true,
         _friendlyVoice = _prefs?.getBool('friendlyVoice') ?? true,
         _panelUnderBoard = _prefs?.getBool('panelUnderBoard') ?? false,
+        _refreshRate = (_prefs?.getInt('refreshRate') ?? 0).clamp(0, 240),
         _voiceModel = _prefs?.getString('voiceModel'),
         _changedAt = DateTime.tryParse(_prefs?.getString('settingsChangedAt') ?? '');
 
@@ -161,6 +162,15 @@ class AppSettings extends ChangeNotifier {
   set panelUnderBoard(bool value) {
     _panelUnderBoard = value;
     _prefs?.setBool('panelUnderBoard', value);
+    notifyListeners();
+  }
+
+  /// Phones with fast screens: refresh rate in Hz, 0 = the smoothest the screen offers.
+  int _refreshRate;
+  int get refreshRate => _refreshRate;
+  set refreshRate(int value) {
+    _refreshRate = value;
+    _prefs?.setInt('refreshRate', value);
     notifyListeners();
   }
 

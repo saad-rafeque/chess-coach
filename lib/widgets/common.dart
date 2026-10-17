@@ -98,7 +98,9 @@ class PageFrame extends StatelessWidget {
       ),
       child: CustomPaint(
         painter: p.woodGrain ? const _GrainPainter() : null,
-        child: SafeArea(
+        isComplex: p.woodGrain,
+        child: RepaintBoundary(
+          child: SafeArea(
           bottom: false,
           child: scroll
               ? ListView(padding: EdgeInsets.zero, children: [header, body])
@@ -106,6 +108,7 @@ class PageFrame extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [header, Expanded(child: body)],
                 ),
+          ),
         ),
       ),
     );

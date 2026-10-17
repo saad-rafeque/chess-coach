@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
 import '../app/board_style.dart';
+import '../app/refresh_rate.dart';
 import '../app/settings.dart';
 import '../app/theme.dart';
 import '../app/version.dart';
@@ -58,6 +59,10 @@ class SettingsPage extends StatelessWidget {
                 onChanged: (v) => s.evalBar = v,
               ),
               Divider(style: DividerThemeData(decoration: BoxDecoration(color: p.border))),
+              if (RefreshRate.adjustable) ...[
+                const _RefreshRateRow(),
+                Divider(style: DividerThemeData(decoration: BoxDecoration(color: p.border))),
+              ],
               _SwitchRow(
                 icon: FluentIcons.side_panel,
                 title: 'Coach panel under the board',
@@ -212,6 +217,61 @@ class _SwitchRow extends StatelessWidget {
           ]),
         ),
         ToggleSwitch(checked: value, onChanged: onChanged),
+      ]),
+    );
+  }
+}
+
+/// Phones: choose between the smoothest refresh rate and battery-friendly 60 Hz.
+class _RefreshRateRow extends StatefulWidget {
+  const _RefreshRateRow();
+
+  @override
+  State<_RefreshRateRow> createState() => _RefreshRateRowState();
+}
+
+class _RefreshRateRowState extends State<_RefreshRateRow> {
+  List<int> _rates = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    RefreshRate.available().then((r) {
+      if (mounted) setState(() => _rates = r);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Palette.of(context);
+    final s = SettingsScope.of(context);
+    final top = _rates.isEmpty ? null : _rates.last;
+    String label(int hz) => hz == 0
+        ? 'Smoothest${top == null ? '' : ' ($top Hz)'}'
+        : hz <= 60
+            ? '$hz Hz (saves battery)'
+            : '$hz Hz';
+    final options = [0, for (final r in _rates.reversed) r];
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(children: [
+        Icon(FluentIcons.speed_high, color: p.muted, size: 18),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Screen refresh rate', style: TextStyle(color: p.text)),
+            Text('Higher is smoother, lower uses less battery', style: TextStyle(color: p.muted, fontSize: 12)),
+          ]),
+        ),
+        ComboBox<int>(
+          value: options.contains(s.refreshRate) ? s.refreshRate : 0,
+          items: [for (final hz in options) ComboBoxItem(value: hz, child: Text(label(hz)))],
+          onChanged: (hz) {
+            if (hz == null) return;
+            s.refreshRate = hz;
+            RefreshRate.apply(hz);
+          },
+        ),
       ]),
     );
   }
