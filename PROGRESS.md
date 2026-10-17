@@ -68,9 +68,9 @@
 
 ## Next step
 
-All eight milestones and the owner's feedback round are done (v1.0.0, 17 Oct 2026). The repo is private for now
-(owner's choice), so GitHub Pages, public downloads and the in-app updater only work for people with access
-until it's public again.
+All eight milestones are done, and the owner's feedback round shipped v1.0.0 (17 Oct 2026) and the look-and-feel
+update v1.0.1 (17 Oct 2026). The repo is public again, so GitHub Pages, public downloads and the in-app updater
+all work. Next: the owner's testing feedback on the v1.0.1 board layout, pieces and sounds.
 
 ## Decisions
 
@@ -150,6 +150,12 @@ until it's public again.
   and lessons (`lib/app/board_sound.dart`, `assets/sounds/`, audioplayers), phone vibrations for the player's
   own moves, both with Settings toggles (on by default); the square of a checked king pulses red on every
   board (`lib/widgets/check_pulse.dart`).
+- Look and feel (v1.0.1, the owner's second feedback round): the phone board sits centred on the screen with
+  the coach's latest message (or the puzzle's status) as a slim strip under it, tapping it slides up the full
+  panel (`BoardLayout.peek` + `PeekBubble`); the desktop side panel hides behind a dock button so the board
+  takes the whole window, centred; every theme starts with the classic clearly-shaped piece set (cburnett)
+  instead of the 3D renders; new synthesized sounds (crisp taps, soft bell, chime, calm drop —
+  `tool/synth_sounds.py`); the repo went public again so the in-app updater sees releases.
 
 ## How to resume
 
