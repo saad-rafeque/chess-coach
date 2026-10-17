@@ -31,3 +31,14 @@ engines/
 android/key.properties
 *.jks
 *.keystore
+
+# Local assistant settings (kept on this PC only)
+.claude/
+
+# Never commit secrets
+key.properties
+*.p12
+*.pem
+.env
+oauth.json
+google-sync-token

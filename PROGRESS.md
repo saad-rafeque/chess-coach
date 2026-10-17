@@ -62,7 +62,7 @@
   keyboard shortcuts in lessons and review cards; a large-text test walks every screen at 150% font size
   (`test/app_test.dart`); storage errors shown on Home; a calm `FriendlyError` replaces broken widgets in
   release builds; reviews and the card deck are cached so phones don't recompute them on every event.
-- Packaging: app icon, signed APK (key in `~/Documents/chess-coach-keys`, also in GitHub secrets),
+- Packaging: app icon, signed APK (the key is kept offline by the owner and in GitHub secrets, never in the repo),
   AppImage and .deb (`packaging/linux/build_deb.sh`, installs to /opt/chess-coach), Inno Setup installer with the VC++ runtime; pushing a `v*` tag publishes a GitHub Release.
 - GitHub Actions: analyze, test, screenshots, Linux tarball + AppImage, Android arm64 APK, Windows installer.
 

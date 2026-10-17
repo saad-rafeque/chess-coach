@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chess Coach</title>
+<meta name="description" content="A free, open-source chess coach for Android, Windows and Ubuntu that plays at your level and explains your mistakes.">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'unsafe-inline'">
+<meta name="referrer" content="no-referrer">
+<style>
+  :root { --bg: #f6f7f9; --card: #ffffff; --text: #1d2330; --muted: #5a6475; --accent: #2f6fde; --line: #e2e6ec; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #16191f; --card: #1f232b; --text: #e8ebf0; --muted: #a1aab8; --accent: #7aa7ff; --line: #2c313b; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 40px 16px 64px; }
+  h1 { font-size: 2.4rem; margin: 0 0 8px; }
+  h2 { margin-top: 40px; }
+  p.lead { font-size: 1.2rem; color: var(--muted); margin: 0 0 24px; }
+  a { color: var(--accent); }
+  .button { display: inline-block; background: var(--accent); color: #fff; text-decoration: none; padding: 12px 22px; border-radius: 10px; font-weight: 600; margin: 4px 8px 4px 0; }
+  .button.ghost { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+  .shots { display: flex; gap: 16px; align-items: flex-start; margin: 32px 0; }
+  .shots img { border-radius: 12px; border: 1px solid var(--line); max-width: 100%; height: auto; }
+  .shots .wide { flex: 3; min-width: 0; }
+  .shots .tall { flex: 1; min-width: 0; }
+  ul { padding-left: 1.2em; }
+  li { margin: 6px 0; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 4px 20px; }
+  footer { margin-top: 48px; color: var(--muted); font-size: 0.9rem; }
+  @media (max-width: 640px) { .shots { flex-direction: column; } h1 { font-size: 2rem; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Chess Coach</h1>
+  <p class="lead">A free, open-source chess coach for Android, Windows and Ubuntu. It plays you at your level like a
+    human would, explains your mistakes in plain English, and builds a training plan that adapts to you.</p>
+  <a class="button" href="https://github.com/saad-rafeque/chess-coach/releases/latest">Download</a>
+  <a class="button ghost" href="https://github.com/saad-rafeque/chess-coach">Source code</a>
+  <a class="button ghost" href="privacy.html">Privacy policy</a>
+
+  <div class="shots">
+    <img class="wide" src="images/desktop_dark_play.png" width="1440" height="900" alt="Playing the coach on a desktop">
+    <img class="tall" src="images/phone_dark_puzzles.png" width="780" height="1688" alt="Puzzles on a phone">
+  </div>
+
+  <h2>What it does</h2>
+  <ul>
+    <li><strong>A coach that plays like a person</strong> at any strength from 400 to 3200, and can pick the right strength for you.</li>
+    <li><strong>Training mode</strong> comments on every move, gives hints and shows the better move when you slip.</li>
+    <li><strong>Game review</strong> with accuracy, key moments and arrows for the best moves.</li>
+    <li><strong>30,000 puzzles</strong> rated to your level, plus puzzles made from your own mistakes.</li>
+    <li><strong>20 lessons</strong> on openings, middlegames and endgames, with exercises.</li>
+    <li><strong>A personal plan</strong>: skill ratings, spaced-repetition review cards and short training sessions.</li>
+    <li><strong>Friendly explanations</strong> from an optional small language model that runs on your device.</li>
+  </ul>
+
+  <h2>Your data stays yours</h2>
+  <div class="card">
+    <p>Everything is stored on your device. There is no account, no server, no ads and no tracking.</p>
+    <p>If you want your progress on several devices, connect <strong>your own Google account</strong>. Chess Coach then
+      keeps one small file in a hidden app folder of <em>your</em> Google Drive. It can't see any of your other files,
+      and nobody else, including the developer, can see your data. Read the <a href="privacy.html">privacy policy</a>.</p>
+  </div>
+
+  <h2>Install</h2>
+  <ul>
+    <li><strong>Android:</strong> download the <code>.apk</code>, open it and allow installing from this source.</li>
+    <li><strong>Windows:</strong> run the <code>Setup.exe</code>. On a SmartScreen warning choose <em>More info → Run anyway</em>.</li>
+    <li><strong>Ubuntu:</strong> <code>sudo apt install ./ChessCoach-&lt;version&gt;-amd64.deb</code>, or use the AppImage.</li>
+  </ul>
+
+  <footer>
+    Chess Coach is open source under the GPL-3.0 licence and builds on Stockfish, Maia and Lichess.
+    Questions: <a href="https://github.com/saad-rafeque/chess-coach/issues">GitHub issues</a> or
+    <a href="mailto:saadrafiique@gmail.com">saadrafiique@gmail.com</a>.
+  </footer>
+</main>
+</body>
+</html>

@@ -21,7 +21,7 @@ level (1800–2000). Open source, distributed via GitHub Releases (no app stores
 | Game import | No |
 | Sync | One file in your Google Drive hidden app folder, synced only when online, battery-friendly |
 | Design | Modern Fluent UI; Light / Dark / Wooden themes, switchable anytime |
-| Who builds | Claude codes and tests everything on your PC (Pro plan, no cloud); you test final builds |
+| Who builds | All coding and testing happens on the owner's PC (no cloud); the owner tests final builds |
 
 ## Architecture
 
@@ -92,7 +92,7 @@ All work runs on your PC under the Pro plan, so there's no extra cost. The pace 
 5-hour usage windows and weekly cap. Times can move with debugging, especially cross-compiling Lc0 and
 llama.cpp for Android.
 
-## Testing (done by Claude)
+## Testing
 
 - Unit tests: move generation, engine wrappers, detectors, skill model, sync merge
 - Widget tests for UI; the Linux build is run and checked on your PC, Android on an emulator or your phone over USB
@@ -101,9 +101,9 @@ llama.cpp for Android.
 
 ## What you need to do
 
-1. Run a few `sudo apt install` commands Claude gives you (build tools for Flutter on Linux)
-2. For sync (milestone 7): create a free Google Cloud project and OAuth client — Claude will give
-   click-by-click steps. Because it's a personal app, Google shows an "unverified app" warning once;
+1. Run a few `sudo apt install` commands (build tools for Flutter on Linux)
+2. For sync (milestone 7): create a free Google Cloud project and OAuth client — click-by-click steps are in
+   `docs/google-drive-sync.md`. Because it's a personal app, Google shows an "unverified app" warning once;
    you accept it for your own account.
 3. Test each milestone build on your devices and say what feels wrong
 

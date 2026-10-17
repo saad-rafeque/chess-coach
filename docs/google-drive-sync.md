@@ -59,12 +59,14 @@ The same Desktop client works on the phone too: the app signs in through your br
 
 ## 7. Give the client to the GitHub builds
 
-1. Open <https://github.com/saad-rafeque/chess-coach/settings/secrets/actions>.
+1. Open your repository's **Settings → Secrets and variables → Actions** (for this repo:
+   <https://github.com/saad-rafeque/chess-coach/settings/secrets/actions>).
 2. Click **New repository secret**. Name: `GOOGLE_OAUTH_CLIENT_ID`. Secret: paste the Client ID. Click
    **Add secret**.
 3. Click **New repository secret** again. Name: `GOOGLE_OAUTH_CLIENT_SECRET`. Secret: paste the Client secret.
    Click **Add secret**.
-4. Tell your coach (Claude) "sync secrets added". The next release includes sync.
+4. Push a new version tag (for example `v1.0.1`); that release includes sync. Forks never see these secrets:
+   a fork builds without sync until its owner adds their own client.
 
 ## 8. Connect each device
 
