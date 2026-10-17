@@ -126,9 +126,14 @@ all work. Next: the owner's testing feedback on the v1.0.1 board layout, pieces 
 
 - Open source (17 Oct 2026): repo public under GPL-3.0 (required anyway by Stockfish, Maia, chessground and
   dartchess). GitHub secret scanning with push protection, private vulnerability reporting (`SECURITY.md`),
-  Dependabot alerts, read-only default workflow token, rulesets that block force-pushes and deletion of `main`
-  and of `v*` tags. The workflow has no pull-request trigger, and forks never receive the repository secrets.
-  `.claude/` is local only (untracked).
+  Dependabot alerts and security updates (`dependabot.yml`), read-only default workflow token, rulesets that
+  block force-pushes and deletion of `main` and of `v*` tags (no bypass actors). The workflow has no
+  pull-request trigger, and forks never receive the repository secrets. `.claude/` is local only (untracked).
+- Public-repo audit (17 Oct 2026): full history scanned — no secrets, keys or personal files were ever
+  committed; the rulesets (created empty) were rebuilt with real rules; Dependabot weekly updates merged;
+  the git identity, the .deb maintainer and the website switched to the private GitHub noreply address;
+  the landing site (docs/, GitHub Pages) went live with fresh screenshots. Only the 2FA choice remains with
+  the owner.
 
 - 3D pieces: modelled and rendered in Blender 4.5 LTS by `tool/pieces/staunton.py` (lathe profiles, extruded
   knight, Cycles, AgX), packed to WebP at 1x/2x/3x by `tool/pieces/package.py` (about 3.8 MB for ten sets). The
