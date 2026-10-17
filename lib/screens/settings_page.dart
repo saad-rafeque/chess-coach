@@ -8,6 +8,7 @@ import '../app/version.dart';
 import '../widgets/board_picker.dart';
 import '../widgets/common.dart';
 import '../widgets/sync_settings.dart';
+import '../widgets/update_ui.dart';
 import '../widgets/voice_settings.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -82,6 +83,9 @@ class SettingsPage extends StatelessWidget {
           const SizedBox(height: 24),
           const SectionTitle('Sync'),
           const SyncSettings(),
+          const SizedBox(height: 24),
+          const SectionTitle('Updates'),
+          const UpdateSettings(),
           const SizedBox(height: 24),
           Center(
             child: Text('Chess Coach $appVersion · GPL-3.0 · Stockfish 19',

@@ -40,4 +40,4 @@ Name: "{group}\Chess Coach"; Filename: "{app}\chess_coach.exe"
 Name: "{autodesktop}\Chess Coach"; Filename: "{app}\chess_coach.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\chess_coach.exe"; Description: "{cm:LaunchProgram,Chess Coach}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\chess_coach.exe"; Description: "{cm:LaunchProgram,Chess Coach}"; Flags: nowait postinstall
