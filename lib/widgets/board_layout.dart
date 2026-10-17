@@ -6,9 +6,13 @@ import '../app/settings.dart';
 import '../app/theme.dart';
 import 'common.dart';
 
-/// Board with player bars on one side and a panel on the other. On phones the board spans the
-/// whole screen width and the panel waits behind a button (unless the player chose to keep it under
-/// the board, or the page needs it, like lessons).
+/// Board with player bars on one side and a panel on the other.
+///
+/// Phones: the board spans the whole screen width, centred on the free space, with the panel
+/// behind a slide-up sheet (a slim peek stays under the board when the player chose to keep it
+/// there; pages that need the panel, like lessons, keep it right under the board).
+/// Desktop: the panel sits beside the board and can be hidden with the dock button, so the
+/// board takes the whole window, centred.
 class BoardLayout extends StatefulWidget {
   const BoardLayout({
     super.key,
@@ -20,6 +24,7 @@ class BoardLayout extends StatefulWidget {
     this.overBoard,
     this.boardLabel,
     this.panelTitle,
+    this.peek,
   });
 
   final Widget Function(double size) board;
@@ -27,6 +32,10 @@ class BoardLayout extends StatefulWidget {
   final Widget? top;
   final Widget? bottom;
   final Widget? actions;
+
+  /// Phones: a compact strip under the board instead of the panel button
+  /// (e.g. the coach's latest message); tapping it opens the panel.
+  final Widget? peek;
 
   /// Slim strip directly above the board (the evaluation bar).
   final Widget? overBoard;
@@ -44,6 +53,9 @@ class BoardLayout extends StatefulWidget {
 class _BoardLayoutState extends State<BoardLayout> {
   bool _sheet = false;
 
+  /// Desktop: the side panel is hidden so the board gets the whole window.
+  bool _panelHidden = false;
+
   Widget get panel => widget.panel;
   Widget? get top => widget.top;
   Widget? get bottom => widget.bottom;
@@ -54,9 +66,9 @@ class _BoardLayoutState extends State<BoardLayout> {
       ? widget.board(size)
       : Semantics(container: true, label: widget.boardLabel, child: widget.board(size));
 
-  static const _barHeight = 52.0;
-  static const _overBoardHeight = 18.0;
-  static const _panelWidth = 380.0;
+  static const _barHeight = 44.0;
+  static const _overBoardHeight = 14.0;
+  static const _panelWidth = 340.0;
 
   @override
   Widget build(BuildContext context) {
@@ -69,19 +81,42 @@ class _BoardLayoutState extends State<BoardLayout> {
         child: Align(alignment: Alignment.topCenter, child: overBoard ?? const SizedBox.shrink()),
       );
       if (!mobile) {
-        final size = math.min(c.maxWidth - _panelWidth - 24, c.maxHeight - bars);
+        // The panel can be hidden so the board gets the whole window and stays centred.
+        // (The strip row with the dock button is 14 px taller than a plain strip.)
+        final size = _panelHidden
+            ? math.min(c.maxWidth - 24, c.maxHeight - bars - 14 - (actions != null ? 68 : 0))
+            : math.min(c.maxWidth - _panelWidth - 24, c.maxHeight - bars - 14);
+        final boardColumn = SizedBox(
+          width: size,
+          child: Column(children: [
+            if (top != null) SizedBox(height: _barHeight, child: top),
+            SizedBox(
+              height: 28,
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(child: strip),
+                SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: Center(
+                    child: Button(
+                      style: const ButtonStyle(padding: WidgetStatePropertyAll(EdgeInsets.all(4))),
+                      onPressed: () => setState(() => _panelHidden = !_panelHidden),
+                      child: Icon(_panelHidden ? FluentIcons.dock_right : FluentIcons.dock_left, size: 14),
+                    ),
+                  ),
+                ),
+              ]),
+            ),
+            _board(size),
+            if (bottom != null) SizedBox(height: _barHeight, child: bottom),
+            if (_panelHidden && actions != null) ...[const SizedBox(height: 12), actions!],
+          ]),
+        );
+        if (_panelHidden) return Center(child: boardColumn);
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(
-              width: size,
-              child: Column(children: [
-                if (top != null) SizedBox(height: _barHeight, child: top),
-                strip,
-                _board(size),
-                if (bottom != null) SizedBox(height: _barHeight, child: bottom),
-              ]),
-            ),
+            boardColumn,
             const SizedBox(width: 24),
             Expanded(
               child: Column(
@@ -92,13 +127,12 @@ class _BoardLayoutState extends State<BoardLayout> {
           ],
         );
       }
-      final p = Palette.of(context);
       // Board pages on phones get the full width from PageFrame; everything except the board keeps a margin.
       final inset = math.max(0.0, 16 - (MediaQuery.sizeOf(context).width - c.maxWidth) / 2);
       Widget padded(Widget w) => inset == 0 ? w : Padding(padding: EdgeInsets.symmetric(horizontal: inset), child: w);
       if (!underBoard) {
         // Phones: the board spans the screen, edge to edge; the panel slides up on request.
-        final size = math.max(160.0, math.min(c.maxWidth, c.maxHeight - bars - (actions != null ? 64 : 0) - 56));
+        final size = math.max(160.0, math.min(c.maxWidth, c.maxHeight - bars - (actions != null ? 64 : 0) - 48));
         final content = ListView(
           padding: EdgeInsets.zero,
           children: [
@@ -120,77 +154,124 @@ class _BoardLayoutState extends State<BoardLayout> {
             ),
           ],
         );
-        return Stack(children: [
-          Positioned.fill(child: content),
-          // The panel as a sheet; it stays part of this page, so it updates live.
-          IgnorePointer(
-            ignoring: !_sheet,
-            child: GestureDetector(
-              onTap: () => setState(() => _sheet = false),
-              child: AnimatedOpacity(
-                opacity: _sheet ? 1 : 0,
-                duration: motion(context, const Duration(milliseconds: 200)),
-                child: Container(color: const Color(0x66000000)),
-              ),
-            ),
-          ),
-          AnimatedPositioned(
-            duration: motion(context, const Duration(milliseconds: 260)),
-            curve: Curves.easeOutCubic,
-            left: inset - 16,
-            right: inset - 16,
-            bottom: _sheet ? -16 : -c.maxHeight,
-            height: c.maxHeight * 0.75,
-            child: GestureDetector(
-              onVerticalDragEnd: (d) {
-                if ((d.primaryVelocity ?? 0) > 200) setState(() => _sheet = false);
-              },
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                decoration: BoxDecoration(
-                  color: p.background,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-                  boxShadow: const [BoxShadow(color: Color(0x55000000), blurRadius: 24)],
-                ),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  Center(
-                    child: Semantics(
-                      button: true,
-                      label: 'Close ${widget.panelTitle}',
-                      child: GestureDetector(
-                        onTap: () => setState(() => _sheet = false),
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(vertical: 8),
-                          width: 44,
-                          height: 5,
-                          decoration: BoxDecoration(color: p.border, borderRadius: BorderRadius.circular(3)),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Expanded(child: panel),
-                ]),
-              ),
-            ),
-          ),
-        ]);
+        return Stack(children: [Positioned.fill(child: content), ..._sheetOverlay(inset, c.maxHeight)]);
       }
-      // Phones, panel kept under the board: everything below the board scrolls.
-      final size = math.min(c.maxWidth, c.maxHeight * 0.62 - bars);
-      final panelHeight = math.max(320.0, c.maxHeight - size - bars - 76);
-      return ListView(
+      if (widget.panelTitle == null) {
+        // Lessons and review cards need the panel right under the board, no matter the choice.
+        final size = math.min(c.maxWidth, c.maxHeight - bars - (actions != null ? 64 : 0) - 72);
+        // The panel's minimum grows with the font size, so large text never overflows it.
+        final minPanel = 230.0 * (MediaQuery.textScalerOf(context).scale(14) / 14);
+        final panelHeight = math.max(minPanel, c.maxHeight - size - bars - 76);
+        return ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            if (top != null) padded(SizedBox(height: _barHeight, child: top)),
+            padded(strip),
+            Center(child: _board(size)),
+            if (bottom != null) padded(SizedBox(height: _barHeight, child: bottom)),
+            if (actions != null) ...[const SizedBox(height: 4), padded(actions!)],
+            const SizedBox(height: 12),
+            padded(SizedBox(height: panelHeight, child: panel)),
+          ],
+        );
+      }
+      // Phones, panel kept under the board: the board sits exactly centred on the screen
+      // with a slim panel peek below; tapping the peek slides the full panel up.
+      final size = math.min(c.maxWidth, c.maxHeight - bars - (actions != null ? 60 : 0) - 112);
+      const peek = 96.0;
+      // The screen's bottom bar and page padding are taller than the page header, so the board
+      // would sit a little high; this shift puts it on the true centre of the phone screen.
+      final topGap = math.max(0.0, c.maxHeight / 2 - bars - size / 2 + 22);
+      final content = ListView(
         padding: EdgeInsets.zero,
         children: [
+          SizedBox(height: topGap),
           if (top != null) padded(SizedBox(height: _barHeight, child: top)),
           padded(strip),
           Center(child: _board(size)),
           if (bottom != null) padded(SizedBox(height: _barHeight, child: bottom)),
           if (actions != null) ...[const SizedBox(height: 4), padded(actions!)],
-          const SizedBox(height: 12),
-          padded(SizedBox(height: panelHeight, child: panel)),
+          const SizedBox(height: 10),
+          padded(SizedBox(
+            height: peek,
+            child: widget.peek == null
+                ? Center(
+                    child: Button(
+                      onPressed: () => setState(() => _sheet = true),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        const Icon(FluentIcons.chevron_up, size: 12),
+                        const SizedBox(width: 8),
+                        Text(widget.panelTitle!),
+                      ]),
+                    ),
+                  )
+                : GestureDetector(
+                    onTap: () => setState(() => _sheet = true),
+                    child: Center(child: widget.peek!),
+                  ),
+          )),
+          const SizedBox(height: 8),
         ],
       );
+      return Stack(children: [Positioned.fill(child: content), ..._sheetOverlay(inset, c.maxHeight)]);
     });
+  }
+
+  /// The panel as a bottom sheet (phones); it stays part of this page, so it updates live.
+  List<Widget> _sheetOverlay(double inset, double maxHeight) {
+    final p = Palette.of(context);
+    return [
+      IgnorePointer(
+        ignoring: !_sheet,
+        child: GestureDetector(
+          onTap: () => setState(() => _sheet = false),
+          child: AnimatedOpacity(
+            opacity: _sheet ? 1 : 0,
+            duration: motion(context, const Duration(milliseconds: 200)),
+            child: Container(color: const Color(0x66000000)),
+          ),
+        ),
+      ),
+      AnimatedPositioned(
+        duration: motion(context, const Duration(milliseconds: 260)),
+        curve: Curves.easeOutCubic,
+        left: inset - 16,
+        right: inset - 16,
+        bottom: _sheet ? -16 : -maxHeight,
+        height: maxHeight * 0.75,
+        child: GestureDetector(
+          onVerticalDragEnd: (d) {
+            if ((d.primaryVelocity ?? 0) > 200) setState(() => _sheet = false);
+          },
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            decoration: BoxDecoration(
+              color: p.background,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              boxShadow: const [BoxShadow(color: Color(0x55000000), blurRadius: 24)],
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Center(
+                child: Semantics(
+                  button: true,
+                  label: 'Close ${widget.panelTitle}',
+                  child: GestureDetector(
+                    onTap: () => setState(() => _sheet = false),
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(vertical: 8),
+                      width: 44,
+                      height: 5,
+                      decoration: BoxDecoration(color: p.border, borderRadius: BorderRadius.circular(3)),
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(child: panel),
+            ]),
+          ),
+        ),
+      ),
+    ];
   }
 }
 
@@ -229,6 +310,14 @@ class PlayerBar extends StatelessWidget {
   }
 }
 
+/// The colour and icon of a [CoachBubble] tone.
+(Color, IconData) bubbleStyle(Palette p, BubbleTone tone) => switch (tone) {
+      BubbleTone.info => (p.accent, FluentIcons.chat),
+      BubbleTone.good => (p.success, FluentIcons.like),
+      BubbleTone.warning => (p.warning, FluentIcons.warning),
+      BubbleTone.move => (p.muted, FluentIcons.robot),
+    };
+
 /// Chat bubble from the coach (or the system).
 class CoachBubble extends StatelessWidget {
   const CoachBubble({super.key, required this.text, this.tone = BubbleTone.info});
@@ -239,12 +328,7 @@ class CoachBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = Palette.of(context);
-    final (color, icon) = switch (tone) {
-      BubbleTone.info => (p.accent, FluentIcons.chat),
-      BubbleTone.good => (p.success, FluentIcons.like),
-      BubbleTone.warning => (p.warning, FluentIcons.warning),
-      BubbleTone.move => (p.muted, FluentIcons.robot),
-    };
+    final (color, icon) = bubbleStyle(p, tone);
     final bubble = Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -278,6 +362,33 @@ class CoachBubble extends StatelessWidget {
 }
 
 enum BubbleTone { info, good, warning, move }
+
+/// One compact chat line for the strip under the board on phones; the whole
+/// strip opens the full panel.
+class PeekBubble extends StatelessWidget {
+  const PeekBubble({super.key, required this.text, this.tone = BubbleTone.info});
+
+  final String text;
+  final BubbleTone tone;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Palette.of(context);
+    final (color, icon) = bubbleStyle(p, tone);
+    return Row(children: [
+      Icon(icon, size: 14, color: color),
+      const SizedBox(width: 8),
+      Expanded(
+        child: Text(text,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: p.text, fontSize: 13, height: 1.3)),
+      ),
+      const SizedBox(width: 8),
+      Icon(FluentIcons.chevron_up, size: 12, color: p.muted),
+    ]);
+  }
+}
 
 /// Thin horizontal bar: White's share of the winning chances.
 class EvalBar extends StatelessWidget {

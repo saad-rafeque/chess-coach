@@ -76,11 +76,12 @@ class BoardStyle {
   Color get lightSquare => colors.lightSquare;
   Color get darkSquare => colors.darkSquare;
 
-  /// Each theme's defaults: the 3D sets, wood for the wooden theme.
+  /// Each theme's defaults: the classic well-defined 2D pieces (like chess.com and Lichess),
+  /// on the theme's board colours.
   static BoardStyle forTheme(AppTheme theme) => switch (theme) {
-        AppTheme.light => BoardStyle(ChessboardColorScheme.blue, pieceChoices['studio-classic']!.assets),
-        AppTheme.dark => BoardStyle(ChessboardColorScheme.blue2, pieceChoices['studio-classic']!.assets),
-        AppTheme.wooden => BoardStyle(ChessboardColorScheme.wood4, pieceChoices['studio-wood']!.assets),
+        AppTheme.light => BoardStyle(ChessboardColorScheme.blue, pieceChoices[PieceSet.cburnett.name]!.assets),
+        AppTheme.dark => BoardStyle(ChessboardColorScheme.blue2, pieceChoices[PieceSet.cburnett.name]!.assets),
+        AppTheme.wooden => BoardStyle(ChessboardColorScheme.wood4, pieceChoices[PieceSet.cburnett.name]!.assets),
       };
 
   /// The style for [settings]: chosen board and pieces win over the theme's defaults.

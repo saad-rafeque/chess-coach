@@ -338,6 +338,10 @@ class _PlayPageState extends State<PlayPage> {
       compactOnPhone: true,
       child: BoardLayout(
         panelTitle: s.coachName,
+        // The coach's latest message stays visible under the board; tapping it opens the panel.
+        peek: g.chat.isEmpty
+            ? null
+            : PeekBubble(text: g.chat.last.text, tone: _bubbleTone(g.chat.last.tone)),
         boardLabel: 'Your game against the coach. ${g.playerToMove ? 'Your move' : 'The coach is thinking'}.',
         top: youAtBottom ? coachBar : youBar,
         bottom: youAtBottom ? youBar : coachBar,

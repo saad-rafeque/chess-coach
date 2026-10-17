@@ -77,7 +77,7 @@ class PageFrame extends StatelessWidget {
     final pad = mobile ? 16.0 : 32.0;
     final compact = mobile && compactOnPhone;
     final header = Padding(
-      padding: EdgeInsets.fromLTRB(pad, compact ? 8 : (mobile ? 16 : 28), pad, compact ? 6 : 16),
+      padding: EdgeInsets.fromLTRB(pad, compact ? 6 : (mobile ? 14 : 20), pad, compact ? 4 : 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
@@ -88,7 +88,7 @@ class PageFrame extends StatelessWidget {
               children: [
                 Text(title,
                     style: TextStyle(
-                        fontSize: compact ? 20 : (mobile ? 26 : 32),
+                        fontSize: compact ? 18 : (mobile ? 26 : 32),
                         fontWeight: FontWeight.w600,
                         color: p.text,
                         letterSpacing: -0.5)),

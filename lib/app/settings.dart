@@ -38,7 +38,7 @@ class AppSettings extends ChangeNotifier {
         _coachElo = clampCoachElo(_prefs?.getInt('coachElo') ?? 800),
         _autoStrength = _prefs?.getBool('autoStrength') ?? true,
         _friendlyVoice = _prefs?.getBool('friendlyVoice') ?? true,
-        _panelUnderBoard = _prefs?.getBool('panelUnderBoard') ?? false,
+        _panelUnderBoard = _prefs?.getBool('panelUnderBoard') ?? true,
         _boardSounds = _prefs?.getBool('boardSounds') ?? true,
         _haptics = _prefs?.getBool('haptics') ?? true,
         _boardScheme = _prefs?.getString('boardScheme'),

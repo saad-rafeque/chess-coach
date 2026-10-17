@@ -62,6 +62,8 @@ class _AppShellState extends State<AppShell> {
       pane: NavigationPane(
         selected: _index,
         onChanged: _go,
+        // The toggle does nothing while the pane is already expanded, so hide it there.
+        toggleButton: width >= 1200 ? null : const PaneToggleButton(),
         displayMode: width >= 1200 ? PaneDisplayMode.expanded : PaneDisplayMode.compact,
         header: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -98,7 +100,7 @@ class _BottomNav extends StatelessWidget {
         child: MediaQuery.withClampedTextScaling(
           maxScaleFactor: 1.15,
           child: SizedBox(
-            height: 64,
+            height: 56,
             child: Row(children: [
               for (final (i, d) in _dests.indexed)
                 Expanded(

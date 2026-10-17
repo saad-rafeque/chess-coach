@@ -223,6 +223,7 @@ class _PuzzlesPageState extends State<PuzzlesPage> {
     final stats = PuzzleStats.fromEvents(store.events);
     final style = BoardStyle.of(s);
     final session = _session;
+    final peekLine = session == null ? null : _peekLine(session);
     final mistakesCount = _bank == null ? 0 : mistakePuzzles(store).length;
 
     final ratingPill = Pill('Rating ${stats.rating.rating.round()}', color: p.accent);
@@ -240,9 +241,21 @@ class _PuzzlesPageState extends State<PuzzlesPage> {
       compactOnPhone: true,
       child: BoardLayout(
         panelTitle: 'Puzzle details',
+        // The puzzle's status stays visible under the board; tapping it opens the details.
+        peek: peekLine == null ? null : PeekBubble(text: peekLine.$1, tone: peekLine.$2),
         boardLabel: session == null
             ? 'Puzzle board'
             : 'Puzzle. ${session.playerSide == Side.white ? 'White' : 'Black'} to move.',
+        // Who plays and the puzzle's strength above the board; the rest of the
+        // details stay in the panel below it.
+        top: session == null
+            ? null
+            : PlayerBar(
+                name: session.playerSide == Side.white ? 'White' : 'Black',
+                detail: 'Puzzle ${session.puzzle.rating}',
+                icon: FluentIcons.puzzle,
+                active: session.state == PuzzleState.playerToMove || session.state == PuzzleState.wrongMove,
+              ),
         board: (size) => CheckPulse(
           size: size,
           orientation: session?.playerSide ?? Side.white,
@@ -331,6 +344,23 @@ class _PuzzlesPageState extends State<PuzzlesPage> {
     );
   }
 
+  /// The current puzzle state as one short line for the strip under the board.
+  (String, BubbleTone)? _peekLine(PuzzleSession s) {
+    final side = s.playerSide == Side.white ? 'White' : 'Black';
+    return switch (s.state) {
+      PuzzleState.opponentMoving => ('Watch your opponent\'s move…', BubbleTone.move),
+      PuzzleState.playerToMove => (
+          s.puzzle.setup
+              ? 'Your turn: find the best move for $side.'
+              : 'Find the best move for $side.',
+          BubbleTone.info
+        ),
+      PuzzleState.wrongMove => ('Not the best move. Look for checks, captures and threats.', BubbleTone.warning),
+      PuzzleState.solved => ('Solved!', BubbleTone.good),
+      PuzzleState.showingSolution => ('Here is the solution.', BubbleTone.move),
+    };
+  }
+
   List<Widget> _status(Palette p, PuzzleSession? session, PuzzleStats stats) {
     if (_loadError != null) return [CoachBubble(text: _loadError!, tone: BubbleTone.warning)];
     if (_bank == null) {
@@ -368,14 +398,13 @@ class _PuzzlesPageState extends State<PuzzlesPage> {
       PuzzleState.showingSolution => ('Here is the solution.$changeText', BubbleTone.move),
     };
     return [
-      Text('$side to move', style: TextStyle(color: p.text, fontSize: 20, fontWeight: FontWeight.w600)),
-      const SizedBox(height: 10),
       CoachBubble(text: text, tone: tone),
-      Wrap(spacing: 8, runSpacing: 8, children: [
-        Pill('Puzzle ${session.puzzle.rating}', color: p.muted),
-        if (session.finished)
+      if (session.finished && session.puzzle.namedThemes.isNotEmpty) ...[
+        const SizedBox(height: 8),
+        Wrap(spacing: 8, runSpacing: 8, children: [
           for (final t in session.puzzle.namedThemes.take(3)) Pill(t),
-      ]),
+        ]),
+      ],
     ];
   }
 }

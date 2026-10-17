@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:dartchess/dartchess.dart';
@@ -48,11 +49,31 @@ class CheckPulse extends StatefulWidget {
 class _CheckPulseState extends State<CheckPulse> with SingleTickerProviderStateMixin {
   late final AnimationController _pulse;
   bool _reducedMotion = false;
+  Timer? _stopAt;
+
+  /// A few cycles of attention, then the glow rests (still visible, just static).
+  static const _pulseRun = Duration(milliseconds: 3200);
 
   @override
   void initState() {
     super.initState();
     _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
+  }
+
+  void _startPulse() {
+    _stopAt?.cancel();
+    _pulse.repeat(reverse: true);
+    _stopAt = Timer(_pulseRun, () {
+      if (!mounted) return;
+      _pulse.stop();
+      _pulse.value = 0.5;
+    });
+  }
+
+  void _restPulse() {
+    _stopAt?.cancel();
+    _pulse.stop();
+    _pulse.value = 0.5;
   }
 
   @override
@@ -62,10 +83,9 @@ class _CheckPulseState extends State<CheckPulse> with SingleTickerProviderStateM
     if (reduced == _reducedMotion) return;
     _reducedMotion = reduced;
     if (reduced) {
-      _pulse.stop();
-      _pulse.value = 0.5;
+      _restPulse();
     } else if (widget.kingSquare != null) {
-      _pulse.repeat(reverse: true);
+      _startPulse();
     }
   }
 
@@ -74,14 +94,15 @@ class _CheckPulseState extends State<CheckPulse> with SingleTickerProviderStateM
     super.didUpdateWidget(oldWidget);
     if (widget.kingSquare == oldWidget.kingSquare) return;
     if (widget.kingSquare == null) {
-      _pulse.stop();
+      _restPulse();
     } else if (!_reducedMotion) {
-      _pulse.repeat(reverse: true);
+      _startPulse();
     }
   }
 
   @override
   void dispose() {
+    _stopAt?.cancel();
     _pulse.dispose();
     super.dispose();
   }
