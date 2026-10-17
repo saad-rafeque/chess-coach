@@ -1,10 +1,10 @@
 # Setting up Google Drive sync (one time, about 10 minutes)
 
-> **Status (16 Oct 2026):** done for this repo. Project `chess-coach-511811`, Desktop client "Chess Coach",
-> app in **Testing** with saadrafiique@gmail.com as test user, scope `drive.appdata` only, no billing account.
-> Both GitHub secrets are set. In Testing, Google expires the sign-in after about a week; the app then asks
-> you to tap Connect again. To avoid that, the app would need a public home page and privacy policy so it can
-> be published (step 5), which needs a public page (for example a public repo).
+> **Status (17 Oct 2026):** done for this repo. Project `chess-coach-511811`, Desktop client "Chess Coach",
+> scope `drive.appdata` only (non-sensitive, so Google needs no verification), no billing account. The app is
+> **In production**: anyone can connect their own Google account and the sign-in no longer expires weekly.
+> Home page and privacy policy: <https://saad-rafeque.github.io/chess-coach/> (GitHub Pages from `docs/`),
+> authorised domain `saad-rafeque.github.io`. Both GitHub secrets are set; forks don't receive them.
 
 Sync keeps your phone, Windows PC and Ubuntu PC in step. Each device stores your games, puzzles and lessons
 locally; the app merges them through **one small file in a hidden app folder of your Google Drive**. Only
@@ -72,8 +72,9 @@ The same Desktop client works on the phone too: the app signs in through your br
 
 1. Install the new build, open **Settings → Google Drive sync → Connect**.
 2. Your browser opens Google sign-in. Choose your account.
-3. Google shows **"Google hasn't verified this app"**. That's expected for a personal app: click
-   **Advanced**, then **Go to Chess Coach (unsafe)**, then **Continue**.
+3. Google asks you to allow Chess Coach to use its own folder in your Drive. Click **Continue** / **Allow**.
+   (If you set up your own client and left it in Testing, Google first shows "Google hasn't verified this app":
+   click **Advanced**, then **Go to Chess Coach**.)
 4. The page says "Signed in". Go back to Chess Coach: it syncs right away.
 
 Do this on each device with the same Google account. From then on the app syncs by itself when it opens and

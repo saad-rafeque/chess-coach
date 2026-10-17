@@ -68,9 +68,10 @@
 
 ## Next step
 
-All eight milestones are done; v0.8.1 switches sync on (Google Cloud project `chess-coach-511811`, free, no
-billing; OAuth app in Testing mode, so the sign-in expires weekly and the app asks to connect again).
-Waiting for the owner to test the builds on the phone, Windows and Ubuntu and report what feels wrong.
+All eight milestones are done and the project is open source (public repo since 17 Oct 2026, GPL-3.0). Google
+sign-in is **In production** (Google Cloud project `chess-coach-511811`, free, no billing; `drive.appdata` only,
+so no verification), with the website and privacy policy on GitHub Pages (`docs/`). Waiting for the owner to
+test sign-in and sync on the phone, Windows and Ubuntu and report what feels wrong.
 
 ## Decisions
 
@@ -122,6 +123,12 @@ Waiting for the owner to test the builds on the phone, Windows and Ubuntu and re
   - CI: actions pinned to commit SHAs, read-only token except for the release job, tag builds fail without the
     release key, appimagetool and the llama.cpp runtime (`tool/check_native_bundles.dart`) are checked against
     pinned SHA-256 digests, release builds are obfuscated, and releases carry `SHA256SUMS.txt`.
+
+- Open source (17 Oct 2026): repo public under GPL-3.0 (required anyway by Stockfish, Maia, chessground and
+  dartchess). GitHub secret scanning with push protection, private vulnerability reporting (`SECURITY.md`),
+  Dependabot alerts, read-only default workflow token, rulesets that block force-pushes and deletion of `main`
+  and of `v*` tags. The workflow has no pull-request trigger, and forks never receive the repository secrets.
+  `.claude/` is local only (untracked).
 
 ## How to resume
 
