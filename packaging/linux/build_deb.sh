@@ -12,14 +12,14 @@ out="$root/build/ChessCoach-$version-amd64.deb"
 
 rm -rf "$work"
 mkdir -p "$work/DEBIAN" "$work/opt/chess-coach" "$work/usr/bin" "$work/usr/share/applications" \
-  "$work/usr/share/icons/hicolor/256x256/apps"
+  "$work/usr/share/icons"
 cp -r "$bundle/." "$work/opt/chess-coach/"
 ln -s /opt/chess-coach/chess_coach "$work/usr/bin/chess-coach"
 
-# Named after the GTK application id, so the dock shows the right icon on Wayland.
-sed 's/^StartupWMClass=.*/StartupWMClass=chess_coach/' "$root/packaging/linux/chess-coach.desktop" \
-  > "$work/usr/share/applications/com.saadrafeque.chess_coach.desktop"
-cp "$root/assets/icon/icon.png" "$work/usr/share/icons/hicolor/256x256/apps/chess-coach.png"
+# Desktop file and icons are named after the GTK application id, so the dock and app grid find them on
+# Wayland.
+cp "$root/packaging/linux/com.saadrafeque.chess_coach.desktop" "$work/usr/share/applications/"
+cp -r "$root/packaging/linux/icons" "$work/usr/share/icons/hicolor"
 
 size=$(du -sk "$work/opt" "$work/usr" | awk '{s += $1} END {print s}')
 cat > "$work/DEBIAN/control" <<CONTROL

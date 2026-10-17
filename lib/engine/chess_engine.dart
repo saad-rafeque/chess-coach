@@ -12,30 +12,38 @@ class ChessEngine {
   Future<void> _queue = Future.value();
   bool _closed = false;
 
-  static Future<ChessEngine> start({UciProcess? process}) async {
+  static Future<ChessEngine> start({UciProcess? process, Duration startTimeout = const Duration(seconds: 90)}) async {
     final engine = ChessEngine(process ?? await UciProcess.start());
-    await engine._handshake();
+    try {
+      await engine._handshake(startTimeout);
+    } catch (_) {
+      // Don't leave a half-started engine running in the background.
+      await engine.dispose().catchError((Object _) {});
+      rethrow;
+    }
     return engine;
   }
 
-  Future<void> _handshake() async {
-    final ok = _waitFor('uciok');
+  /// The first start can be slow (a cold disk, or the AppImage unpacking the 100 MB engine), so the
+  /// handshake gets [timeout]; later commands answer within milliseconds.
+  Future<void> _handshake(Duration timeout) async {
+    final ok = _waitFor('uciok', timeout);
     _process.send('uci');
     await ok;
     final threads = (Platform.numberOfProcessors - 1).clamp(1, 4);
     _process.send('setoption name Threads value $threads');
     _process.send('setoption name Hash value 64');
-    await _ready();
+    await _ready(timeout);
   }
 
-  Future<void> _ready() async {
-    final ok = _waitFor('readyok');
+  Future<void> _ready([Duration timeout = const Duration(seconds: 15)]) async {
+    final ok = _waitFor('readyok', timeout);
     _process.send('isready');
     await ok;
   }
 
-  Future<String> _waitFor(String prefix) =>
-      _process.lines.firstWhere((l) => l.startsWith(prefix)).timeout(const Duration(seconds: 15));
+  Future<String> _waitFor(String prefix, Duration timeout) =>
+      _process.lines.firstWhere((l) => l.startsWith(prefix)).timeout(timeout);
 
   /// Analyses [fen]. Stops at [depth] or after [movetime], whichever is given.
   Future<Analysis> analyse(String fen, {int depth = 14, Duration? movetime, int multiPv = 1}) {

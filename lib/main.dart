@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart' show kReleaseMode;
 
+import 'app/desktop_integration.dart';
 import 'app/settings.dart';
 import 'app/shell.dart';
 import 'app/theme.dart';
@@ -20,7 +21,9 @@ Future<void> main() async {
   if (kReleaseMode) ErrorWidget.builder = (details) => const FriendlyError();
   final settings = await AppSettings.load();
   final engine = EngineHost();
-  unawaited(engine.engine); // warm up Stockfish in the background
+  // Warm up Stockfish once the window is up, so its start doesn't compete with the app's own.
+  WidgetsBinding.instance.addPostFrameCallback(
+      (_) => Timer(const Duration(seconds: 2), () => unawaited(engine.engine)));
   EventStore store;
   try {
     store = await EventStore.open(device: settings.deviceId);
@@ -35,6 +38,7 @@ Future<void> main() async {
   final voice = CoachVoice(settings: settings, models: models);
   final sync = SyncService(store: store, settings: settings)..start();
   runApp(ChessCoachApp(settings: settings, engine: engine, store: store, voice: voice, sync: sync));
+  unawaited(integrateAppImage());
 }
 
 class ChessCoachApp extends StatelessWidget {

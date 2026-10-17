@@ -10,8 +10,7 @@ work="$root/build/appimage"
 tool="$work/appimagetool"
 
 rm -rf "$work/AppDir"
-mkdir -p "$work/AppDir/usr/lib/chess-coach" "$work/AppDir/usr/share/applications" \
-  "$work/AppDir/usr/share/icons/hicolor/256x256/apps"
+mkdir -p "$work/AppDir/usr/lib/chess-coach" "$work/AppDir/usr/share/applications" "$work/AppDir/usr/share/icons"
 cp -r "$bundle/." "$work/AppDir/usr/lib/chess-coach/"
 
 cat > "$work/AppDir/AppRun" <<'RUN'
@@ -21,11 +20,12 @@ exec "$HERE/usr/lib/chess-coach/chess_coach" "$@"
 RUN
 chmod +x "$work/AppDir/AppRun"
 
-cp "$root/packaging/linux/chess-coach.desktop" "$work/AppDir/chess-coach.desktop"
-cp "$root/packaging/linux/chess-coach.desktop" "$work/AppDir/usr/share/applications/"
-cp "$root/assets/icon/icon.png" "$work/AppDir/chess-coach.png"
-cp "$root/assets/icon/icon.png" "$work/AppDir/usr/share/icons/hicolor/256x256/apps/chess-coach.png"
-ln -sf chess-coach.png "$work/AppDir/.DirIcon"
+desktop="$root/packaging/linux/com.saadrafeque.chess_coach.desktop"
+cp "$desktop" "$work/AppDir/"
+cp "$desktop" "$work/AppDir/usr/share/applications/"
+cp -r "$root/packaging/linux/icons" "$work/AppDir/usr/share/icons/hicolor"
+cp "$root/packaging/linux/icons/256x256/apps/com.saadrafeque.chess_coach.png" "$work/AppDir/com.saadrafeque.chess_coach.png"
+ln -sf com.saadrafeque.chess_coach.png "$work/AppDir/.DirIcon"
 
 if [ ! -x "$tool" ]; then
   curl -fsSL --retry 5 -o "$tool" \

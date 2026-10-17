@@ -132,5 +132,5 @@ install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/../engines/linux/stockfish"
   DESTINATION "${CMAKE_INSTALL_PREFIX}/engines" COMPONENT Runtime OPTIONAL)
 
 # Window and desktop icon.
-install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../assets/icon/icon.png"
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../packaging/linux/icons/512x512/apps/com.saadrafeque.chess_coach.png"
   DESTINATION "${INSTALL_BUNDLE_DATA_DIR}" RENAME "app_icon.png" COMPONENT Runtime)
