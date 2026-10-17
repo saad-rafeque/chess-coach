@@ -308,6 +308,34 @@ def textured(name, c1, c2, kind, scale, rough=0.35, coat=0.4, metal=0.0):
     return m
 
 
+def marble(name, base_color, vein_color, scale=2.2, rough=0.1, width=0.035):
+    """Marble: thin, wavy veins where a noise field crosses its middle value."""
+    m, b = principled(name, base_color, rough, coat=0.7)
+    nt = m.node_tree
+    coord = nt.nodes.new("ShaderNodeTexCoord")
+    noise = nt.nodes.new("ShaderNodeTexNoise")
+    noise.inputs["Scale"].default_value = scale
+    noise.inputs["Detail"].default_value = 9
+    noise.inputs["Roughness"].default_value = 0.6
+    noise.inputs["Distortion"].default_value = 1.6
+    sub = nt.nodes.new("ShaderNodeMath")
+    sub.operation = "SUBTRACT"
+    sub.inputs[1].default_value = 0.5
+    absn = nt.nodes.new("ShaderNodeMath")
+    absn.operation = "ABSOLUTE"
+    ramp = nt.nodes.new("ShaderNodeValToRGB")
+    ramp.color_ramp.elements[0].color = (*vein_color, 1)
+    ramp.color_ramp.elements[0].position = 0.0
+    ramp.color_ramp.elements[1].color = (*base_color, 1)
+    ramp.color_ramp.elements[1].position = width
+    nt.links.new(coord.outputs["Object"], noise.inputs["Vector"])
+    nt.links.new(noise.outputs["Fac"], sub.inputs[0])
+    nt.links.new(sub.outputs[0], absn.inputs[0])
+    nt.links.new(absn.outputs[0], ramp.inputs["Fac"])
+    nt.links.new(ramp.outputs["Color"], b.inputs["Base Color"])
+    return m
+
+
 def styles():
     """Each style: (white material, black material). Colours are linear RGB."""
     return {
@@ -321,8 +349,8 @@ def styles():
         "rosewood": (textured("wr", (0.8, 0.62, 0.38), (0.66, 0.46, 0.24), "wood", 7, 0.4, 0.4),
                      textured("br", (0.2, 0.045, 0.025), (0.09, 0.02, 0.012), "wood", 8, 0.35, 0.5)),
         # Carrara and Nero Marquina marble.
-        "marble": (textured("wm", (0.82, 0.82, 0.8), (0.42, 0.43, 0.45), "marble", 3.2, 0.12, 0.6),
-                   textured("bm", (0.025, 0.025, 0.028), (0.55, 0.55, 0.55), "marble", 3.2, 0.12, 0.6)),
+        "marble": (marble("wm", (0.8, 0.8, 0.78), (0.3, 0.31, 0.33)),
+                   marble("bm", (0.02, 0.02, 0.022), (0.38, 0.38, 0.4), scale=1.6, width=0.014)),
         # Gold and silver.
         "metal": (principled("wg", (0.95, 0.68, 0.28), 0.22, metal=1)[0],
                   principled("bg", (0.32, 0.33, 0.36), 0.25, metal=1)[0]),

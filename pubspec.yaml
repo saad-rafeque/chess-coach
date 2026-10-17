@@ -42,8 +42,19 @@ hooks:
 flutter:
   uses-material-design: true
   assets:
+    - assets/brand/
     - assets/maia/
     - assets/puzzles/
+    - assets/pieces/classic/
+    - assets/pieces/wood/
+    - assets/pieces/rosewood/
+    - assets/pieces/marble/
+    - assets/pieces/metal/
+    - assets/pieces/glass/
+    - assets/pieces/porcelain/
+    - assets/pieces/matte/
+    - assets/pieces/ivory/
+    - assets/pieces/brass/
 
 flutter_launcher_icons:
   android: true

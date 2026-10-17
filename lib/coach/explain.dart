@@ -10,12 +10,31 @@ String sanOf(Position pos, String uci) {
   return pos.makeSan(m).$2;
 }
 
+/// What kind of error a move was, which decides the advice for next time.
+enum ErrorKind { allowsMate, missedMate, losesPiece, missedWin, worse }
+
+/// Explains why the player's move was an error; see [explainErrorInsight].
+String explainError({
+  required MoveQuality quality,
+  required Position before,
+  required Analysis beforeAnalysis,
+  required Position after,
+  required Analysis afterAnalysis,
+}) =>
+    explainErrorInsight(
+      quality: quality,
+      before: before,
+      beforeAnalysis: beforeAnalysis,
+      after: after,
+      afterAnalysis: afterAnalysis,
+    ).text;
+
 /// Explains why the player's move was an error, using facts from the engine:
 /// what the opponent can now do, or what the player missed.
 ///
 /// [before] is the position before the move with its analysis, [after] the
 /// position after the move with its analysis (opponent to move).
-String explainError({
+({ErrorKind kind, String text}) explainErrorInsight({
   required MoveQuality quality,
   required Position before,
   required Analysis beforeAnalysis,
@@ -33,7 +52,7 @@ String explainError({
     final mateForOpponent = me == Side.white ? afterScore!.mate! < 0 : afterScore!.mate! > 0;
     if (mateForOpponent) {
       final n = afterScore.mate!.abs();
-      return 'This allows checkmate in $n.$better';
+      return (kind: ErrorKind.allowsMate, text: 'This allows checkmate in $n.$better');
     }
   }
 
@@ -41,7 +60,7 @@ String explainError({
   final beforeScore = beforeAnalysis.score;
   if (beforeScore?.mate != null && bestSan != null) {
     final mateForMe = me == Side.white ? beforeScore!.mate! > 0 : beforeScore!.mate! < 0;
-    if (mateForMe) return 'You missed a checkmate: $bestSan.';
+    if (mateForMe) return (kind: ErrorKind.missedMate, text: 'You missed a checkmate: $bestSan.');
   }
 
   // The opponent's best reply wins material.
@@ -49,8 +68,10 @@ String explainError({
   if (reply is NormalMove) {
     final victim = after.board.pieceAt(reply.to);
     if (victim != null && victim.color == me && victim.role != Role.pawn) {
-      return 'Now ${_side(me.opposite)} can take your ${victim.role.name} on '
-          '${reply.to.name}.$better';
+      return (
+        kind: ErrorKind.losesPiece,
+        text: 'Now ${_side(me.opposite)} can take your ${victim.role.name} on ${reply.to.name}.$better',
+      );
     }
   }
 
@@ -60,16 +81,19 @@ String explainError({
     if (m is NormalMove) {
       final target = before.board.pieceAt(m.to);
       if (target != null && target.color != me) {
-        return 'You missed $bestSan, which wins a ${target.role.name}.';
+        return (kind: ErrorKind.missedWin, text: 'You missed $bestSan, which wins a ${target.role.name}.');
       }
     }
   }
 
-  return switch (quality) {
-    MoveQuality.blunder => 'This loses a lot.$better',
-    MoveQuality.mistake => 'This makes your position clearly worse.$better',
-    _ => 'There was a stronger move.$better',
-  };
+  return (
+    kind: ErrorKind.worse,
+    text: switch (quality) {
+      MoveQuality.blunder => 'This loses a lot.$better',
+      MoveQuality.mistake => 'This makes your position clearly worse.$better',
+      _ => 'There was a stronger move.$better',
+    },
+  );
 }
 
 String _side(Side s) => s == Side.white ? 'White' : 'Black';

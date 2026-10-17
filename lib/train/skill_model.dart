@@ -14,6 +14,9 @@ import 'glicko2.dart';
 /// Event type for one flashcard review (see cards.dart).
 const cardEventType = 'card';
 
+/// The player's own estimate of their level (from setup or Settings): {level: 400..2600}.
+const profileEventType = 'profile';
+
 /// Ratings are "unknown" until the deviation drops below this.
 const _ratedDeviation = 300.0;
 
@@ -30,12 +33,22 @@ class SkillModel {
     required this.gamesPlayed,
     required this.streakDays,
     required this.activeToday,
+    this.startLevel,
   });
 
   factory SkillModel.fromEvents(Iterable<AppEvent> events, {DateTime? now}) {
-    final areas = {for (final a in Area.all) a: Rating.beginner};
+    // The level the player gave at setup (the latest one) is where every area starts.
+    var start = Rating.beginner;
+    int? startLevel;
+    for (final e in events) {
+      if (e.type == profileEventType && e.data['level'] is int) {
+        startLevel = e.data['level'] as int;
+        start = Rating(startLevel.toDouble(), Rating.beginner.deviation, Rating.beginner.volatility);
+      }
+    }
+    final areas = {for (final a in Area.all) a: start};
     final themes = <String, Rating>{};
-    var games = Rating.beginner;
+    var games = start;
     var gamesPlayed = 0;
     final days = <DateTime>{};
     final records = <String, GameRecord>{};
@@ -49,7 +62,7 @@ class SkillModel {
       var blunders = 0;
       for (final MapEntry(key: ply, value: q) in grades.entries) {
         if (ply >= positions.length - 1) continue;
-        final area = _phaseOf(positions[ply], ply);
+        final area = phaseOf(positions[ply], ply);
         counts[area] = (counts[area] ?? 0) + 1;
         if (q.index >= MoveQuality.mistake.index) errors[area] = (errors[area] ?? 0) + 1;
         if (q == MoveQuality.blunder) blunders++;
@@ -131,6 +144,7 @@ class SkillModel {
       gamesPlayed: gamesPlayed,
       streakDays: streak,
       activeToday: activeToday,
+      startLevel: startLevel,
     );
   }
 
@@ -159,6 +173,9 @@ class SkillModel {
   /// Consecutive days with any training, up to today.
   final int streakDays;
   final bool activeToday;
+
+  /// The level the player gave at setup, if any.
+  final int? startLevel;
 
   bool rated(String area) => areas[area]!.deviation < _ratedDeviation;
   bool get hasData => gamesPlayed > 0 || Area.all.any(rated);
@@ -204,7 +221,7 @@ class SkillModel {
 
   /// Coach strength that gives the player about a [targetScore] expected score.
   int get recommendedCoachElo {
-    final base = games.deviation < _ratedDeviation ? games.rating : (estimatedRating ?? 700).toDouble();
+    final base = games.deviation < _ratedDeviation ? games.rating : (estimatedRating ?? startLevel ?? 700).toDouble();
     final offset = 400 * math.log(1 / targetScore - 1) / math.ln10;
     return ((base + offset) / 50).round().clamp(8, 50) * 50;
   }
@@ -221,7 +238,8 @@ String levelName(int rating) => switch (rating) {
     };
 
 /// Opening for the first ten moves, endgame with six or fewer pieces besides kings and pawns.
-String _phaseOf(Position pos, int ply) {
+/// The skill area a position belongs to: opening, middlegame or endgame.
+String phaseOf(Position pos, int ply) {
   final b = pos.board;
   final pieces = (b.occupied.size - b.pawns.size - b.kings.size);
   if (pieces <= 6) return Area.endgames;

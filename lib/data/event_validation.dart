@@ -49,6 +49,7 @@ bool isValidEvent(AppEvent e) {
       'lesson' => _lesson(d),
       'card' => _card(d),
       'activity' => _activity(d),
+      'profile' => _int(d['level'], 400, 2600),
       _ => true,
     };
   } catch (_) {

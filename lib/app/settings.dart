@@ -19,6 +19,12 @@ class SettingsScope extends InheritedNotifier<AppSettings> {
 
 enum AppTheme { light, dark, wooden }
 
+/// A name as typed: one line, no control characters, at most 24 characters.
+String cleanName(String value) {
+  final s = value.replaceAll(RegExp(r'[\x00-\x1F\x7F]'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+  return s.length > 24 ? s.substring(0, 24).trim() : s;
+}
+
 /// The coach plays at 400 to 3200 (see `coachLevels`); anything else is brought into range.
 int clampCoachElo(int elo) => elo.clamp(400, 3200);
 
@@ -34,6 +40,10 @@ class AppSettings extends ChangeNotifier {
         _friendlyVoice = _prefs?.getBool('friendlyVoice') ?? true,
         _panelUnderBoard = _prefs?.getBool('panelUnderBoard') ?? false,
         _boardScheme = _prefs?.getString('boardScheme'),
+        _playerName = cleanName(_prefs?.getString('playerName') ?? ''),
+        _coachName = cleanName(_prefs?.getString('coachName') ?? ''),
+        // Tests start in memory and skip setup; a real install shows it once.
+        _onboarded = _prefs?.getBool('onboarded') ?? _prefs == null,
         _pieceSet = _prefs?.getString('pieceSet'),
         _refreshRate = (_prefs?.getInt('refreshRate') ?? 0).clamp(0, 240),
         _voiceModel = _prefs?.getString('voiceModel'),
@@ -67,6 +77,8 @@ class AppSettings extends ChangeNotifier {
         'autoStrength': _autoStrength,
         'coachElo': _coachElo,
         'boardScheme': ?_boardScheme,
+        'playerName': _playerName,
+        'coachName': _coachName,
         'pieceSet': ?_pieceSet,
       };
 
@@ -85,6 +97,8 @@ class AppSettings extends ChangeNotifier {
     String? choice(Object? v, bool Function(String) known, String? current) =>
         v == null ? null : (v is String && known(v) ? v : current);
     _boardScheme = choice(j['boardScheme'], boardChoices.containsKey, _boardScheme);
+    if (j['playerName'] is String) _playerName = cleanName(j['playerName'] as String);
+    if (j['coachName'] is String) _coachName = cleanName(j['coachName'] as String);
     _pieceSet = choice(j['pieceSet'], pieceChoices.containsKey, _pieceSet);
     _prefs
       ?..setString('theme', _theme.name)
@@ -95,6 +109,9 @@ class AppSettings extends ChangeNotifier {
       ..setInt('coachElo', _coachElo);
     _boardScheme == null ? _prefs?.remove('boardScheme') : _prefs?.setString('boardScheme', _boardScheme!);
     _pieceSet == null ? _prefs?.remove('pieceSet') : _prefs?.setString('pieceSet', _pieceSet!);
+    _prefs
+      ?..setString('playerName', _playerName)
+      ..setString('coachName', _coachName);
     _changedAt = changed;
     _prefs?.setString('settingsChangedAt', changed.toIso8601String());
     notifyListeners();
@@ -184,6 +201,35 @@ class AppSettings extends ChangeNotifier {
     _pieceSet = value;
     value == null ? _prefs?.remove('pieceSet') : _prefs?.setString('pieceSet', value);
     _touch();
+    notifyListeners();
+  }
+
+  /// What the coach calls the player ('' = not given).
+  String _playerName;
+  String get playerName => _playerName;
+  set playerName(String value) {
+    _playerName = cleanName(value);
+    _prefs?.setString('playerName', _playerName);
+    _touch();
+    notifyListeners();
+  }
+
+  /// The coach's name, chosen at setup.
+  String _coachName;
+  String get coachName => _coachName.isEmpty ? 'Coach' : _coachName;
+  set coachName(String value) {
+    _coachName = cleanName(value);
+    _prefs?.setString('coachName', _coachName);
+    _touch();
+    notifyListeners();
+  }
+
+  /// First-run setup finished on this device.
+  bool _onboarded;
+  bool get onboarded => _onboarded;
+  set onboarded(bool value) {
+    _onboarded = value;
+    _prefs?.setBool('onboarded', value);
     notifyListeners();
   }
 

@@ -39,8 +39,19 @@ const Map<String, BoardChoice> boardChoices = {
   'horsey': (label: 'Horsey', scheme: ChessboardColorScheme.horsey),
 };
 
-/// The app's own 3D Staunton sets (rendered by tool/pieces/staunton.py), by style name.
-const studioStyles = <String, String>{};
+/// The app's own 3D Staunton sets (modelled and rendered by tool/pieces/staunton.py), by style name.
+const studioStyles = <String, String>{
+  'classic': '3D Classic',
+  'wood': '3D Wood',
+  'rosewood': '3D Rosewood',
+  'marble': '3D Marble',
+  'metal': '3D Gold & silver',
+  'glass': '3D Glass',
+  'porcelain': '3D Porcelain',
+  'matte': '3D Matte',
+  'ivory': '3D Ivory & red',
+  'brass': '3D Brass',
+};
 
 PieceAssets _studio(String style) => {
       for (final kind in PieceKind.values)
@@ -65,10 +76,11 @@ class BoardStyle {
   Color get lightSquare => colors.lightSquare;
   Color get darkSquare => colors.darkSquare;
 
+  /// Each theme's defaults: the 3D sets, wood for the wooden theme.
   static BoardStyle forTheme(AppTheme theme) => switch (theme) {
-        AppTheme.light => const BoardStyle(ChessboardColorScheme.blue, PieceSet.cburnettAssets),
-        AppTheme.dark => const BoardStyle(ChessboardColorScheme.blue2, PieceSet.cburnettAssets),
-        AppTheme.wooden => const BoardStyle(ChessboardColorScheme.wood4, PieceSet.stauntyAssets),
+        AppTheme.light => BoardStyle(ChessboardColorScheme.blue, pieceChoices['studio-classic']!.assets),
+        AppTheme.dark => BoardStyle(ChessboardColorScheme.blue2, pieceChoices['studio-classic']!.assets),
+        AppTheme.wooden => BoardStyle(ChessboardColorScheme.wood4, pieceChoices['studio-wood']!.assets),
       };
 
   /// The style for [settings]: chosen board and pieces win over the theme's defaults.

@@ -15,6 +15,7 @@ import '../data/game_record.dart';
 import '../engine/engine_host.dart';
 import '../game/game_controller.dart';
 import '../maia/maia_player.dart';
+import '../review/guided_review.dart';
 import '../train/skill_model.dart';
 import '../widgets/board_layout.dart';
 import '../widgets/common.dart';
@@ -38,6 +39,9 @@ class _PlayPageState extends State<PlayPage> {
   String _shownFen = '';
   int _chatLength = 0;
 
+  /// Whether the game was over at the last change: the review is offered when a game ends.
+  bool _wasOver = false;
+
   @override
   void initState() {
     super.initState();
@@ -56,6 +60,7 @@ class _PlayPageState extends State<PlayPage> {
     }
     _board = ChessboardController(game: _gameData());
     _shownFen = _game.position.fen;
+    _wasOver = _game.isOver;
     _game.addListener(_onGameChanged);
   }
 
@@ -95,7 +100,58 @@ class _PlayPageState extends State<PlayPage> {
         }
       });
     }
+    final record = _game.lastRecord;
+    if (_game.isOver && !_wasOver && record != null && record.moves.length >= 2) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _offerReview(record));
+    }
+    _wasOver = _game.isOver;
     if (mounted) setState(() {});
+  }
+
+  /// When a game ends: what would the player like to go through with the coach?
+  Future<void> _offerReview(GameRecord record) async {
+    if (!mounted) return;
+    final coach = SettingsScope.read(context).coachName;
+    final focus = await showDialog<ReviewFocus>(
+      context: context,
+      builder: (context) {
+        final p = Palette.of(context);
+        return ContentDialog(
+          title: Text(switch (record.playerScore) {
+            1 => 'You won!',
+            0 => 'Game over',
+            _ => 'It\'s a draw',
+          }),
+          constraints: const BoxConstraints(maxWidth: 440),
+          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text('Go through the game with $coach? Pick what to look at.',
+                style: TextStyle(color: p.muted, height: 1.4)),
+            const SizedBox(height: 14),
+            for (final f in ReviewFocus.values)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Button(
+                  onPressed: () => Navigator.pop(context, f),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+                    child: Row(children: [
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(f.label, style: TextStyle(color: p.text, fontWeight: FontWeight.w600)),
+                          Text(f.detail, style: TextStyle(color: p.muted, fontSize: 12)),
+                        ]),
+                      ),
+                      Icon(FluentIcons.chevron_right, size: 12, color: p.muted),
+                    ]),
+                  ),
+                ),
+              ),
+          ]),
+          actions: [Button(onPressed: () => Navigator.pop(context), child: const Text('Not now'))],
+        );
+      },
+    );
+    if (focus != null && mounted) await openReview(context, record, focus: focus);
   }
 
   void _onMove(Move move, {bool? viaDragAndDrop}) {
@@ -191,9 +247,9 @@ class _PlayPageState extends State<PlayPage> {
     final orientation = _flipped ? g.playerSide.opposite : g.playerSide;
     final coachToMove = !g.isOver && g.position.turn != g.playerSide;
     final coachBar = PlayerBar(
-        name: 'Coach', detail: '~${g.coachElo}', icon: FluentIcons.robot, active: coachToMove);
+        name: s.coachName, detail: '~${g.coachElo}', icon: FluentIcons.robot, active: coachToMove);
     final youBar = PlayerBar(
-        name: 'You', detail: g.playerSide == Side.white ? 'White' : 'Black', icon: FluentIcons.contact,
+        name: s.playerName.isEmpty ? 'You' : s.playerName, detail: g.playerSide == Side.white ? 'White' : 'Black', icon: FluentIcons.contact,
         active: !g.isOver && !coachToMove);
     final youAtBottom = orientation == g.playerSide;
     final training = g.mode == PlayMode.training;
@@ -211,7 +267,7 @@ class _PlayPageState extends State<PlayPage> {
           ),
           const SizedBox(height: 14),
           Row(children: [
-            Text('Coach', style: TextStyle(color: p.text, fontWeight: FontWeight.w600)),
+            Text(s.coachName, style: TextStyle(color: p.text, fontWeight: FontWeight.w600)),
             const SizedBox(width: 8),
             if (g.thinking && coachToMove) const SizedBox(width: 14, height: 14, child: ProgressRing(strokeWidth: 2)),
             Expanded(
@@ -279,7 +335,7 @@ class _PlayPageState extends State<PlayPage> {
       scroll: false,
       compactOnPhone: true,
       child: BoardLayout(
-        panelTitle: 'Coach',
+        panelTitle: s.coachName,
         boardLabel: 'Your game against the coach. ${g.playerToMove ? 'Your move' : 'The coach is thinking'}.',
         top: youAtBottom ? coachBar : youBar,
         bottom: youAtBottom ? youBar : coachBar,

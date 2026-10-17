@@ -93,24 +93,20 @@ class _BoardLayoutState extends State<BoardLayout> {
         );
       }
       final p = Palette.of(context);
-      final screen = MediaQuery.sizeOf(context).width;
+      // Board pages on phones get the full width from PageFrame; everything except the board keeps a margin.
+      final inset = math.max(0.0, 16 - (MediaQuery.sizeOf(context).width - c.maxWidth) / 2);
+      Widget padded(Widget w) => inset == 0 ? w : Padding(padding: EdgeInsets.symmetric(horizontal: inset), child: w);
       if (!underBoard) {
         // Phones: the board spans the screen, edge to edge; the panel slides up on request.
-        final size = math.max(160.0, math.min(screen, c.maxHeight - bars - (actions != null ? 64 : 0) - 56));
+        final size = math.max(160.0, math.min(c.maxWidth, c.maxHeight - bars - (actions != null ? 64 : 0) - 56));
         final content = ListView(
           padding: EdgeInsets.zero,
           children: [
-            if (top != null) SizedBox(height: _barHeight, child: top),
-            strip,
-            SizedBox(
-              height: size,
-              child: OverflowBox(
-                maxWidth: screen,
-                child: SizedBox(width: size, height: size, child: _board(size)),
-              ),
-            ),
-            if (bottom != null) SizedBox(height: _barHeight, child: bottom),
-            if (actions != null) ...[const SizedBox(height: 4), actions!],
+            if (top != null) padded(SizedBox(height: _barHeight, child: top)),
+            padded(strip),
+            Center(child: SizedBox(width: size, height: size, child: _board(size))),
+            if (bottom != null) padded(SizedBox(height: _barHeight, child: bottom)),
+            if (actions != null) ...[const SizedBox(height: 4), padded(actions!)],
             const SizedBox(height: 8),
             Center(
               child: Button(
@@ -141,8 +137,8 @@ class _BoardLayoutState extends State<BoardLayout> {
           AnimatedPositioned(
             duration: motion(context, const Duration(milliseconds: 260)),
             curve: Curves.easeOutCubic,
-            left: -16,
-            right: -16,
+            left: inset - 16,
+            right: inset - 16,
             bottom: _sheet ? -16 : -c.maxHeight,
             height: c.maxHeight * 0.75,
             child: GestureDetector(
@@ -185,13 +181,13 @@ class _BoardLayoutState extends State<BoardLayout> {
       return ListView(
         padding: EdgeInsets.zero,
         children: [
-          if (top != null) SizedBox(height: _barHeight, child: top),
-          strip,
+          if (top != null) padded(SizedBox(height: _barHeight, child: top)),
+          padded(strip),
           Center(child: _board(size)),
-          if (bottom != null) SizedBox(height: _barHeight, child: bottom),
-          if (actions != null) ...[const SizedBox(height: 4), actions!],
+          if (bottom != null) padded(SizedBox(height: _barHeight, child: bottom)),
+          if (actions != null) ...[const SizedBox(height: 4), padded(actions!)],
           const SizedBox(height: 12),
-          SizedBox(height: panelHeight, child: panel),
+          padded(SizedBox(height: panelHeight, child: panel)),
         ],
       );
     });

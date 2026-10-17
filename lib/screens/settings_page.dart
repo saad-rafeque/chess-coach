@@ -24,6 +24,9 @@ class SettingsPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          const SectionTitle('Profile'),
+          const _ProfileCard(),
+          const SizedBox(height: 24),
           const SectionTitle('Theme'),
           ResponsiveGrid(
             minItemWidth: 200,
@@ -93,6 +96,52 @@ class SettingsPage extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The player's and the coach's names, and a way to run the first-run setup again.
+class _ProfileCard extends StatefulWidget {
+  const _ProfileCard();
+
+  @override
+  State<_ProfileCard> createState() => _ProfileCardState();
+}
+
+class _ProfileCardState extends State<_ProfileCard> {
+  late final _name = TextEditingController(text: SettingsScope.read(context).playerName);
+  late final _coach = TextEditingController(text: SettingsScope.read(context).coachName);
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _coach.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Palette.of(context);
+    final s = SettingsScope.read(context);
+    Widget field(String label, TextEditingController c, String placeholder, ValueChanged<String> onChanged) =>
+        InfoLabel(
+          label: label,
+          labelStyle: TextStyle(color: p.muted, fontSize: 12),
+          child: TextBox(controller: c, placeholder: placeholder, maxLength: 24, onChanged: onChanged),
+        );
+    return SurfaceCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        ResponsiveGrid(minItemWidth: 220, spacing: 12, children: [
+          field('Your name', _name, 'Your name', (v) => s.playerName = v),
+          field('Coach\'s name', _coach, 'Coach', (v) => s.coachName = v),
+        ]),
+        const SizedBox(height: 8),
+        HyperlinkButton(
+          onPressed: () => s.onboarded = false,
+          child: const Text('Run the first-start setup again'),
+        ),
+      ]),
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
+import '../app/settings.dart';
 import '../app/theme.dart';
 import '../data/curriculum.dart';
 import '../data/event_store.dart';
@@ -23,11 +24,10 @@ class HomePage extends StatelessWidget {
   /// Switches to another tab: 1 Play, 2 Puzzles, 3 Lessons.
   final ValueChanged<int> onNavigate;
 
-  String _greeting() {
+  String _greeting(String name) {
     final h = DateTime.now().hour;
-    if (h < 12) return 'Good morning';
-    if (h < 17) return 'Good afternoon';
-    return 'Good evening';
+    final hello = h < 12 ? 'Good morning' : (h < 17 ? 'Good afternoon' : 'Good evening');
+    return name.isEmpty ? hello : '$hello, $name';
   }
 
   @override
@@ -38,6 +38,7 @@ class HomePage extends StatelessWidget {
     final lessons = LessonProgress.fromEvents(store.events);
     final next = lessons.next();
     final skills = SkillModel.of(store);
+    final settings = SettingsScope.of(context);
     final due = CardDeck.of(store).due().length;
     final planner = Planner.forStore(store, dueCards: due);
 
@@ -207,7 +208,7 @@ class HomePage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Coach tip', style: TextStyle(fontWeight: FontWeight.w600, color: p.text)),
+                Text('Tip from ${settings.coachName}', style: TextStyle(fontWeight: FontWeight.w600, color: p.text)),
                 const SizedBox(height: 4),
                 Text(tips[DateTime.now().day % tips.length],
                     style: TextStyle(color: p.muted, height: 1.4)),
@@ -219,7 +220,7 @@ class HomePage extends StatelessWidget {
     );
 
     return PageFrame(
-      title: _greeting(),
+      title: _greeting(settings.playerName),
       subtitle: skills.hasData ? 'Your coach has today\'s plan ready' : 'Welcome! Pick how much time you have to start',
       trailing: const SyncChip(),
       child: Column(
@@ -372,7 +373,7 @@ class _GameRow extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'vs Coach ~${game.coachElo} · ${(game.moves.length + 1) ~/ 2} moves · ${game.date.day}/${game.date.month}',
+              'vs ${SettingsScope.of(context).coachName} ~${game.coachElo} · ${(game.moves.length + 1) ~/ 2} moves · ${game.date.day}/${game.date.month}',
               style: TextStyle(color: p.text),
               overflow: TextOverflow.ellipsis,
             ),

@@ -13,6 +13,7 @@ import 'coach/llm/coach_voice.dart';
 import 'coach/llm/model_store.dart';
 import 'data/event_store.dart';
 import 'engine/engine_host.dart';
+import 'screens/onboarding_page.dart';
 import 'sync/google_auth.dart';
 import 'sync/sync_service.dart';
 import 'widgets/friendly_error.dart';
@@ -117,7 +118,7 @@ class ChessCoachApp extends StatelessWidget {
                         title: 'Chess Coach',
                         debugShowCheckedModeBanner: false,
                         theme: buildFluentTheme(palette, fontFamily: fontFamily),
-                        home: const UpdatePrompt(child: AppShell()),
+                        home: const AppHome(),
                       ),
                     );
                   },
@@ -129,4 +130,14 @@ class ChessCoachApp extends StatelessWidget {
       ),
     );
   }
+}
+
+/// First run shows the setup; after that, the app itself.
+class AppHome extends StatelessWidget {
+  const AppHome({super.key});
+
+  @override
+  Widget build(BuildContext context) => SettingsScope.of(context).onboarded
+      ? const UpdatePrompt(child: AppShell())
+      : const OnboardingPage();
 }

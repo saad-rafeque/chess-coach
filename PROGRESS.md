@@ -68,15 +68,17 @@
 
 ## Next step
 
-All eight milestones are done and the project is open source (public repo since 17 Oct 2026, GPL-3.0). Google
-sign-in is **In production** (Google Cloud project `chess-coach-511811`, free, no billing; `drive.appdata` only,
-so no verification), with the website and privacy policy on GitHub Pages (`docs/`). Waiting for the owner to
-test sign-in and sync on the phone, Windows and Ubuntu and report what feels wrong.
+All eight milestones are done. The owner's feedback round (Oct 2026) is in progress: done so far are the Linux
+freeze and icon, phone layout, 120 Hz, board and piece choice with ten 3D sets, in-app updates, Play services
+sign-in on Android, the first-start setup and the guided post-game review. Still to do: board effects and sounds
+(move/capture/check), then a release (v1.0.0). The repo is private for now (owner's choice, 17 Oct 2026), so
+GitHub Pages, public downloads and the in-app updater only work for people with access until it's public again.
 
 ## Decisions
 
 - Flutter 3.47.7 with `fluent_ui` (Fluent design), `chessground` (Lichess board widget) and `dartchess` (rules).
-- Board per theme: Light = blue + cburnett pieces, Dark = blue2 + cburnett, Wooden = wood4 + staunty.
+- Board per theme: Light = blue + 3D Classic pieces, Dark = blue2 + 3D Classic, Wooden = wood4 + 3D Wood. Settings
+  (and the first-start setup) offer all 25 chessground boards and every piece set; the choice syncs.
 - Flutter SDK lives in `~/development/flutter`. Platform folders (android, linux, windows) are committed.
 - No web build: `dartchess` uses 64-bit integers that can't compile to JavaScript.
 - A pre-push hook (`tool/hooks/pre-push`, enabled with `git config core.hooksPath tool/hooks`) runs
@@ -129,6 +131,23 @@ test sign-in and sync on the phone, Windows and Ubuntu and report what feels wro
   Dependabot alerts, read-only default workflow token, rulesets that block force-pushes and deletion of `main`
   and of `v*` tags. The workflow has no pull-request trigger, and forks never receive the repository secrets.
   `.claude/` is local only (untracked).
+
+- 3D pieces: modelled and rendered in Blender 4.5 LTS by `tool/pieces/staunton.py` (lathe profiles, extruded
+  knight, Cycles, AgX), packed to WebP at 1x/2x/3x by `tool/pieces/package.py` (about 3.8 MB for ten sets). The
+  Lichess sets stay available; the owner found them too alike.
+- In-app updates (`lib/app/updater.dart`): checks GitHub Releases a few seconds after start and on resume (at most
+  every 4 hours), offers the update every start until installed ("Later" skips this run). Files are checked
+  against the release's `SHA256SUMS.txt`; Android installs the APK through `ota_update` (core library
+  desugaring on), Windows runs the Inno installer silently, AppImage replaces itself, .deb uses pkexec.
+- Android sign-in uses Google Play services (`google_sign_in` 7) with a Web client as server client ID, falling
+  back to the browser flow when Play services can't do it. Desktop keeps the loopback flow.
+- First start (`lib/screens/onboarding_page.dart`): name, coach's name, level, look, optional sync. The level is
+  stored as a `profile` event that sets every skill area's starting rating; the coach starts 100 below it.
+  Names sync with the settings. Settings > Profile can run the setup again.
+- Guided review (`lib/review/guided_review.dart`): after a game the coach asks whether to go through the
+  blunders, the mistakes (mistakes and inaccuracies) or the whole game, then shows per move what happened, the
+  better move with an engine line, where the played move leads (both can be played out on the board) and a
+  habit for next time, chosen by error kind and game phase.
 
 ## How to resume
 

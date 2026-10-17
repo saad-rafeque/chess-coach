@@ -12,6 +12,22 @@ bool isMobile(BuildContext context) => MediaQuery.sizeOf(context).width < mobile
 Duration motion(BuildContext context, Duration d) =>
     MediaQuery.maybeDisableAnimationsOf(context) ?? false ? Duration.zero : d;
 
+/// The app's icon: a golden knight on a dark board.
+class AppLogo extends StatelessWidget {
+  const AppLogo({super.key, required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => Image.asset(
+        'assets/brand/logo.webp',
+        width: size,
+        height: size,
+        filterQuality: FilterQuality.medium,
+        semanticLabel: 'Chess Coach',
+      );
+}
+
 /// Back arrow for pushed pages, with a tooltip for mouse and screen-reader users.
 class PageBackButton extends StatelessWidget {
   const PageBackButton({super.key, this.onPressed});
@@ -87,7 +103,9 @@ class PageFrame extends StatelessWidget {
         ],
       ),
     );
-    final body = Padding(padding: EdgeInsets.fromLTRB(pad, 0, pad, pad), child: child);
+    // Board pages on phones get no side padding: the board spans the screen and BoardLayout pads the rest.
+    final side = compact ? 0.0 : pad;
+    final body = Padding(padding: EdgeInsets.fromLTRB(side, 0, side, pad), child: child);
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(

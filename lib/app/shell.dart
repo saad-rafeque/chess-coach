@@ -1,5 +1,3 @@
-import 'package:chessground/chessground.dart';
-import 'package:dartchess/dartchess.dart' show PieceKind;
 import 'package:fluent_ui/fluent_ui.dart';
 
 import '../screens/home_page.dart';
@@ -68,7 +66,7 @@ class _AppShellState extends State<AppShell> {
         header: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
           child: Row(children: [
-            const _Logo(size: 26),
+            const AppLogo(size: 26),
             const SizedBox(width: 10),
             Text('Chess Coach', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: p.text)),
           ]),
@@ -136,28 +134,6 @@ class _BottomNav extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-/// Simple app mark: a rounded tile with a knight glyph.
-class _Logo extends StatelessWidget {
-  const _Logo({required this.size});
-
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = Palette.of(context);
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [p.accent, Color.lerp(p.accent, const Color(0xFF000000), 0.3)!]),
-        borderRadius: BorderRadius.circular(size * 0.28),
-      ),
-      padding: EdgeInsets.all(size * 0.12),
-      child: Image(image: PieceSet.cburnettAssets[PieceKind.whiteKnight]!),
     );
   }
 }

@@ -77,6 +77,7 @@ class ReviewedMove {
     required this.accuracy,
     required this.winDrop,
     required this.explanation,
+    this.errorKind,
   });
 
   final int ply;
@@ -97,6 +98,9 @@ class ReviewedMove {
 
   /// Why it was an error (null for good moves).
   final String? explanation;
+
+  /// What kind of error it was (null for good moves).
+  final ErrorKind? errorKind;
 }
 
 class GameReview {
@@ -145,11 +149,11 @@ GameReview buildReview(GameRecord game, GameAnalysis analysis) {
     final bestMove = bestUci == null ? null : Move.parse(bestUci);
     final playedBest = bestMove != null && before.isLegal(bestMove) && before.play(bestMove).fen == after.fen;
     final quality = classifyMove(before: sBefore, after: sAfter, moverIsWhite: mover == Side.white, playedBest: playedBest);
-    String? why;
+    ({ErrorKind kind, String text})? why;
     if (quality.isError && bestUci != null) {
       Analysis wrap(Position p, Score s, String? m) =>
           Analysis(fen: p.fen, bestMove: m, lines: [if (m != null) EngineLine(multipv: 1, depth: 0, score: s, pv: [m])]);
-      why = explainError(
+      why = explainErrorInsight(
         quality: quality,
         before: before,
         beforeAnalysis: wrap(before, sBefore, bestUci),
@@ -169,7 +173,8 @@ GameReview buildReview(GameRecord game, GameAnalysis analysis) {
       quality: quality,
       accuracy: playedBest ? 100 : moveAccuracy(drop),
       winDrop: drop,
-      explanation: why,
+      explanation: why?.text,
+      errorKind: why?.kind,
     ));
   }
   return GameReview(game, reviewed);

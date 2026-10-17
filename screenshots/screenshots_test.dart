@@ -98,16 +98,10 @@ Future<void> _shoot(
       await tester.pumpAndSettle();
       await tester.tap(find.text('Review').first);
       await _settle(tester, theme, dpr);
-      // Phones keep the review behind a button under the board.
-      if (find.textContaining('Move 3: Nf6').hitTestable().evaluate().isEmpty && find.text('Review').evaluate().isNotEmpty) {
-        await tester.tap(find.text('Review').last);
-        await tester.pumpAndSettle();
-      }
-      await tester.ensureVisible(find.textContaining('Move 3: Nf6'));
-      await tester.tap(find.textContaining('Move 3: Nf6'));
+      // The coach's walkthrough of the blunders (under the board on phones, beside it on desktop).
+      await tester.ensureVisible(find.text('Blunders'));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Show the better move'));
-      await tester.tap(find.text('Show the better move'));
+      await tester.tap(find.text('Blunders'));
     } else if (page == 'Session') {
       await tester.tap(find.text('Home').last);
       await tester.pumpAndSettle();
@@ -134,8 +128,44 @@ Future<void> _shoot(
   }
 }
 
+/// The first-start setup on a phone, one picture per step.
+Future<void> _shootSetup(WidgetTester tester) async {
+  const dpr = 2.0;
+  tester.view.physicalSize = const Size(390, 844) * dpr;
+  tester.view.devicePixelRatio = dpr;
+  addTearDown(tester.view.reset);
+  final settings = AppSettings.memory()..onboarded = false;
+  await tester.pumpWidget(RepaintBoundary(
+    key: _root,
+    child: ChessCoachApp(settings: settings, store: EventStore.memory(), fontFamily: 'Roboto'),
+  ));
+  Future<void> shot(String name) async {
+    await _settle(tester, settings.theme, dpr);
+    await _capture(tester, 'phone_setup_$name', dpr);
+  }
+
+  await shot('welcome');
+  await tester.tap(find.text('Get started'));
+  await tester.pumpAndSettle();
+  await tester.enterText(find.byType(EditableText), 'Saad');
+  await tester.tap(find.text('Continue'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Nova'));
+  await shot('coach');
+  await tester.tap(find.text('Continue'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Beginner'));
+  await shot('level');
+  await tester.tap(find.text('Continue'));
+  await shot('look');
+  await tester.tap(find.text('Continue'));
+  await shot('done');
+}
+
 void main() {
   setUpAll(_loadFonts);
+
+  testWidgets('phone setup', _shootSetup);
 
   const all = ['Home', 'Play', 'Puzzles', 'Lessons', 'Settings'];
   for (final theme in AppTheme.values) {
