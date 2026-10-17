@@ -14,6 +14,7 @@ import '../train/cards.dart';
 import '../train/fsrs.dart';
 import '../train/skill_model.dart';
 import '../widgets/board_layout.dart';
+import '../widgets/check_pulse.dart';
 import '../widgets/common.dart';
 
 /// Opens the flashcard review with the cards due now. Returns how many were reviewed.
@@ -163,15 +164,20 @@ class _CardsPageState extends State<CardsPage> {
       scroll: false,
       child: BoardLayout(
         boardLabel: s == null ? 'Review board' : 'Review card. ${s.playerSide == Side.white ? 'White' : 'Black'} to move.',
-        board: (size) => Chessboard(
+        board: (size) => CheckPulse(
           size: size,
-          controller: _board,
-          settings: style.settings(coordinates: settings.showCoordinates),
           orientation: s?.playerSide ?? Side.white,
-          onMove: _onMove,
-          shapes: {
-            if (s?.hintSquare != null) Circle(color: p.accent.withValues(alpha: 0.9), orig: s!.hintSquare!),
-          },
+          kingSquare: s == null || !s.position.isCheck ? null : s.position.board.kingOf(s.position.turn),
+          child: Chessboard(
+            size: size,
+            controller: _board,
+            settings: style.settings(coordinates: settings.showCoordinates),
+            orientation: s?.playerSide ?? Side.white,
+            onMove: _onMove,
+            shapes: {
+              if (s?.hintSquare != null) Circle(color: p.accent.withValues(alpha: 0.9), orig: s!.hintSquare!),
+            },
+          ),
         ),
         panel: SurfaceCard(
           padding: const EdgeInsets.all(16),

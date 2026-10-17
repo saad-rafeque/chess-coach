@@ -67,6 +67,22 @@ class SettingsPage extends StatelessWidget {
                 onChanged: (v) => s.evalBar = v,
               ),
               Divider(style: DividerThemeData(decoration: BoxDecoration(color: p.border))),
+              _SwitchRow(
+                icon: FluentIcons.volume2,
+                title: 'Board sounds',
+                subtitle: 'Wooden piece sounds for moves, captures, checks and game endings',
+                value: s.boardSounds,
+                onChanged: (v) => s.boardSounds = v,
+              ),
+              Divider(style: DividerThemeData(decoration: BoxDecoration(color: p.border))),
+              _SwitchRow(
+                icon: FluentIcons.cell_phone,
+                title: 'Phone vibration',
+                subtitle: 'A short buzz when you move, capture or give check',
+                value: s.haptics,
+                onChanged: (v) => s.haptics = v,
+              ),
+              Divider(style: DividerThemeData(decoration: BoxDecoration(color: p.border))),
               if (RefreshRate.adjustable) ...[
                 const _RefreshRateRow(),
                 Divider(style: DividerThemeData(decoration: BoxDecoration(color: p.border))),

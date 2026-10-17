@@ -18,6 +18,7 @@ import '../maia/maia_player.dart';
 import '../review/guided_review.dart';
 import '../train/skill_model.dart';
 import '../widgets/board_layout.dart';
+import '../widgets/check_pulse.dart';
 import '../widgets/common.dart';
 import 'review_page.dart';
 
@@ -53,6 +54,7 @@ class _PlayPageState extends State<PlayPage> {
       onSave: (json) => settings.savedGame = json,
       onFinished: (r) => store.add(GameRecord.eventType, r.toData(), id: r.id),
       polish: VoiceScope.read(context).polish,
+      settings: settings,
     )..hintsEnabled = settings.trainingHints;
     final saved = settings.savedGame;
     if (saved == null || !_game.restore(saved)) {
@@ -343,13 +345,18 @@ class _PlayPageState extends State<PlayPage> {
             ? EvalBar(whitePercent: eval.whiteWinPercent, label: eval.label, flipped: orientation == Side.black)
             : null,
         actions: actions,
-        board: (size) => Chessboard(
+        board: (size) => CheckPulse(
           size: size,
-          controller: _board,
-          settings: style.settings(coordinates: s.showCoordinates),
           orientation: orientation,
-          onMove: _onMove,
-          shapes: shapes,
+          kingSquare: g.position.isCheck ? g.position.board.kingOf(g.position.turn) : null,
+          child: Chessboard(
+            size: size,
+            controller: _board,
+            settings: style.settings(coordinates: s.showCoordinates),
+            orientation: orientation,
+            onMove: _onMove,
+            shapes: shapes,
+          ),
         ),
         panel: panel,
       ),

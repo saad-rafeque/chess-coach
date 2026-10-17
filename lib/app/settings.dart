@@ -39,6 +39,8 @@ class AppSettings extends ChangeNotifier {
         _autoStrength = _prefs?.getBool('autoStrength') ?? true,
         _friendlyVoice = _prefs?.getBool('friendlyVoice') ?? true,
         _panelUnderBoard = _prefs?.getBool('panelUnderBoard') ?? false,
+        _boardSounds = _prefs?.getBool('boardSounds') ?? true,
+        _haptics = _prefs?.getBool('haptics') ?? true,
         _boardScheme = _prefs?.getString('boardScheme'),
         _playerName = cleanName(_prefs?.getString('playerName') ?? ''),
         _coachName = cleanName(_prefs?.getString('coachName') ?? ''),
@@ -239,6 +241,24 @@ class AppSettings extends ChangeNotifier {
   set panelUnderBoard(bool value) {
     _panelUnderBoard = value;
     _prefs?.setBool('panelUnderBoard', value);
+    notifyListeners();
+  }
+
+  /// Wooden piece sounds for moves, captures, checks and game endings.
+  bool _boardSounds;
+  bool get boardSounds => _boardSounds;
+  set boardSounds(bool value) {
+    _boardSounds = value;
+    _prefs?.setBool('boardSounds', value);
+    notifyListeners();
+  }
+
+  /// Phone vibrations for the player's moves, captures and checks.
+  bool _haptics;
+  bool get haptics => _haptics;
+  set haptics(bool value) {
+    _haptics = value;
+    _prefs?.setBool('haptics', value);
     notifyListeners();
   }
 

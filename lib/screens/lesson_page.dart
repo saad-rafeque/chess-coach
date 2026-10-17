@@ -5,6 +5,7 @@ import 'package:dartchess/dartchess.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 
+import '../app/board_sound.dart';
 import '../app/board_style.dart';
 import '../app/settings.dart';
 import '../app/theme.dart';
@@ -14,6 +15,7 @@ import '../lessons/lesson.dart';
 import '../lessons/progress.dart';
 import '../puzzles/puzzle.dart';
 import '../widgets/board_layout.dart';
+import '../widgets/check_pulse.dart';
 import '../widgets/common.dart';
 
 /// Opens [lesson] where the player left off.
@@ -105,6 +107,7 @@ class _LessonPageState extends State<LessonPage> {
     _session?.removeListener(_onSession);
     _session?.dispose();
     _session = null;
+    _lastState = null;
     _index = i;
     _firstTry = null;
     _hintShown = false;
@@ -151,13 +154,56 @@ class _LessonPageState extends State<LessonPage> {
       }
       setState(() => _demoPly++);
       _refreshBoard(animate: true);
+      final settings = SettingsScope.read(context);
+      BoardSound.instance.play(_demo[_demoPly].isCheck ? BoardSoundKind.check : BoardSoundKind.move,
+          soundOn: settings.boardSounds);
       if (_demoPly >= _demo.length - 1) t.cancel();
     });
   }
 
   void _onSession() {
+    final s = _session;
+    if (s != null) _playStateSound(s);
     _refreshBoard(animate: true);
     if (mounted) setState(() {});
+  }
+
+  /// The state at the last exercise change, for detecting transitions.
+  PuzzleState? _lastState;
+
+  /// Sounds for exercise transitions: right move, wrong move, check, solved.
+  void _playStateSound(PuzzleSession s) {
+    final state = s.state;
+    final last = _lastState;
+    _lastState = state;
+    if (last == null) return;
+    if (state == PuzzleState.wrongMove) {
+      // Also on a repeated wrong try, where the state doesn't change.
+      _exerciseSound(BoardSoundKind.capture, buzz: BuzzKind.thud);
+      return;
+    }
+    if (state == last) return;
+    switch (state) {
+      case PuzzleState.solved:
+        _exerciseSound(BoardSoundKind.victory);
+      case PuzzleState.opponentMoving:
+        // The player's move was correct.
+        _exerciseSound(s.position.isCheck ? BoardSoundKind.check : BoardSoundKind.move,
+            buzz: s.position.isCheck ? BuzzKind.alarm : BuzzKind.tap);
+      case PuzzleState.playerToMove:
+        // The opponent's reply to the player's correct move.
+        if (last == PuzzleState.opponentMoving) {
+          _exerciseSound(s.position.isCheck ? BoardSoundKind.check : BoardSoundKind.move);
+        }
+      case PuzzleState.wrongMove || PuzzleState.showingSolution:
+        break;
+    }
+  }
+
+  void _exerciseSound(BoardSoundKind kind, {BuzzKind? buzz}) {
+    final settings = SettingsScope.read(context);
+    BoardSound.instance.play(kind, soundOn: settings.boardSounds);
+    if (buzz != null) BoardSound.instance.buzz(buzz, buzzOn: settings.haptics);
   }
 
   GameData _gameData() {
@@ -190,6 +236,13 @@ class _LessonPageState extends State<LessonPage> {
     final data = _gameData();
     _board.updatePosition(data, animate: animate && data.fen != _shownFen, resetPremove: true);
     _shownFen = data.fen;
+  }
+
+  /// The position the board shows right now (exercise or demo).
+  Position get _shownPosition {
+    final s = _session;
+    if (s != null) return s.position;
+    return _demo.isEmpty ? Chess.initial : _demo[_demoPly];
   }
 
   void _onMove(Move move, {bool? viaDragAndDrop}) {
@@ -283,13 +336,18 @@ class _LessonPageState extends State<LessonPage> {
         boardLabel: _isFind
             ? 'Find the move. ${_orientation == Side.white ? 'White' : 'Black'} to play.'
             : 'Lesson board.',
-        board: (size) => Chessboard(
+        board: (size) => CheckPulse(
           size: size,
-          controller: _board,
-          settings: style.settings(coordinates: settings.showCoordinates),
           orientation: _orientation,
-          onMove: _onMove,
-          shapes: _shapes(p),
+          kingSquare: _shownPosition.isCheck ? _shownPosition.board.kingOf(_shownPosition.turn) : null,
+          child: Chessboard(
+            size: size,
+            controller: _board,
+            settings: style.settings(coordinates: settings.showCoordinates),
+            orientation: _orientation,
+            onMove: _onMove,
+            shapes: _shapes(p),
+          ),
         ),
         panel: SurfaceCard(
           padding: const EdgeInsets.all(16),

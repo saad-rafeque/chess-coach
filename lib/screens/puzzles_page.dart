@@ -5,6 +5,7 @@ import 'package:chessground/chessground.dart';
 import 'package:dartchess/dartchess.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 
+import '../app/board_sound.dart';
 import '../app/board_style.dart';
 import '../app/settings.dart';
 import '../app/theme.dart';
@@ -12,6 +13,7 @@ import '../data/event_store.dart';
 import '../puzzles/mistakes.dart';
 import '../puzzles/puzzle.dart';
 import '../widgets/board_layout.dart';
+import '../widgets/check_pulse.dart';
 import '../widgets/common.dart';
 
 enum PuzzleMode { rated, themes, mistakes }
@@ -109,10 +111,49 @@ class _PuzzlesPageState extends State<PuzzlesPage> {
 
   void _onSession() {
     final s = _session!;
+    _playStateSound(s);
     final fen = s.position.fen;
     _board.updatePosition(_gameData(s), animate: fen != _shownFen);
     _shownFen = fen;
     if (mounted) setState(() {});
+  }
+
+  /// The state at the last [PuzzleSession] change, for detecting transitions.
+  PuzzleState? _lastState;
+
+  /// Sounds for puzzle transitions: right move, wrong move, check, solved.
+  void _playStateSound(PuzzleSession s) {
+    final state = s.state;
+    final last = _lastState;
+    _lastState = state;
+    if (last == null) return;
+    if (state == PuzzleState.wrongMove) {
+      // Also on a repeated wrong try, where the state doesn't change.
+      _puzzleSound(BoardSoundKind.capture, buzz: BuzzKind.thud);
+      return;
+    }
+    if (state == last) return;
+    switch (state) {
+      case PuzzleState.solved:
+        _puzzleSound(BoardSoundKind.victory);
+      case PuzzleState.opponentMoving:
+        // The player's move was correct.
+        _puzzleSound(s.position.isCheck ? BoardSoundKind.check : BoardSoundKind.move,
+            buzz: s.position.isCheck ? BuzzKind.alarm : BuzzKind.tap);
+      case PuzzleState.playerToMove:
+        // The opponent's reply (the setup move or the answer to the player's move).
+        if (last == PuzzleState.opponentMoving) {
+          _puzzleSound(s.position.isCheck ? BoardSoundKind.check : BoardSoundKind.move);
+        }
+      case PuzzleState.wrongMove || PuzzleState.showingSolution:
+        break;
+    }
+  }
+
+  void _puzzleSound(BoardSoundKind kind, {BuzzKind? buzz}) {
+    final settings = SettingsScope.read(context);
+    BoardSound.instance.play(kind, soundOn: settings.boardSounds);
+    if (buzz != null) BoardSound.instance.buzz(buzz, buzzOn: settings.haptics);
   }
 
   void _nextPuzzle() {
@@ -137,6 +178,7 @@ class _PuzzlesPageState extends State<PuzzlesPage> {
     _session?.removeListener(_onSession);
     _session?.dispose();
     _session = null;
+    _lastState = null;
     _ratingBefore = stats.rating.rating;
     if (next == null) {
       _board.updatePosition(_emptyGame(), animate: false);
@@ -201,15 +243,22 @@ class _PuzzlesPageState extends State<PuzzlesPage> {
         boardLabel: session == null
             ? 'Puzzle board'
             : 'Puzzle. ${session.playerSide == Side.white ? 'White' : 'Black'} to move.',
-        board: (size) => Chessboard(
+        board: (size) => CheckPulse(
           size: size,
-          controller: _board,
-          settings: style.settings(coordinates: s.showCoordinates),
           orientation: session?.playerSide ?? Side.white,
-          onMove: _onMove,
-          shapes: {
-            if (session?.hintSquare != null) Circle(color: p.accent.withValues(alpha: 0.9), orig: session!.hintSquare!),
-          },
+          kingSquare: session == null || !session.position.isCheck
+              ? null
+              : session.position.board.kingOf(session.position.turn),
+          child: Chessboard(
+            size: size,
+            controller: _board,
+            settings: style.settings(coordinates: s.showCoordinates),
+            orientation: session?.playerSide ?? Side.white,
+            onMove: _onMove,
+            shapes: {
+              if (session?.hintSquare != null) Circle(color: p.accent.withValues(alpha: 0.9), orig: session!.hintSquare!),
+            },
+          ),
         ),
         panel: SurfaceCard(
           padding: const EdgeInsets.all(16),

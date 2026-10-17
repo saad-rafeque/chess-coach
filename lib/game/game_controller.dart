@@ -5,6 +5,8 @@ import 'dart:math' as math;
 import 'package:dartchess/dartchess.dart';
 import 'package:flutter/foundation.dart';
 
+import '../app/board_sound.dart';
+import '../app/settings.dart';
 import '../coach/coach_player.dart';
 import '../coach/explain.dart';
 import '../coach/preview_bot.dart';
@@ -38,12 +40,22 @@ const _praise = [
 
 /// A game against the coach: moves, engine feedback, hints and saving.
 class GameController extends ChangeNotifier {
-  GameController({required this.host, this.maia, this.onSave, this.onFinished, this.polish, math.Random? random})
-      : _rnd = random ?? math.Random();
+  GameController({
+    required this.host,
+    this.maia,
+    this.onSave,
+    this.onFinished,
+    this.polish,
+    this.settings,
+    math.Random? random,
+  }) : _rnd = random ?? math.Random();
 
   /// Optional friendlier rewording of an explanation (the local language model);
   /// null keeps the template text.
   final Future<String?> Function(String text)? polish;
+
+  /// The player's preferences; null (tests) keeps sounds and haptics on.
+  final AppSettings? settings;
 
   final EngineHost host;
 
@@ -189,6 +201,10 @@ class GameController extends ChangeNotifier {
     final before = position;
     final beforeAnalysis = _analysis?.fen == before.fen ? _analysis : null;
     _push(move);
+    final captured = before.board.pieceAt(move.to);
+    _sound(captured != null ? BoardSoundKind.capture : BoardSoundKind.move,
+        buzz: captured != null ? BuzzKind.thud : BuzzKind.tap);
+    if (position.isCheck && !position.isGameOver) _sound(BoardSoundKind.check, buzz: BuzzKind.alarm);
     _clearMarks();
     thinking = true;
     _save();
@@ -280,6 +296,8 @@ class GameController extends ChangeNotifier {
     if (token != _token) return;
     final captured = position.board.pieceAt(move.to);
     _push(move);
+    _sound(captured != null ? BoardSoundKind.capture : BoardSoundKind.move);
+    if (position.isCheck && !position.isGameOver) _sound(BoardSoundKind.check);
     _clearMarks();
     if (mode == PlayMode.training) {
       final took = captured != null && captured.color == playerSide ? ', taking your ${captured.role.name}' : '';
@@ -383,6 +401,13 @@ class GameController extends ChangeNotifier {
 
   void _announce() {
     final p = position;
+    final playerWon = !resigned && p.isCheckmate && p.turn != playerSide;
+    final playerLost = resigned || p.isCheckmate && p.turn == playerSide;
+    if (playerWon) {
+      _sound(BoardSoundKind.victory);
+    } else if (playerLost) {
+      _sound(BoardSoundKind.defeat);
+    }
     if (resigned) {
       _say('You resigned. Every lost game is a lesson.', CoachTone.info);
     } else if (p.isCheckmate) {
@@ -431,6 +456,13 @@ class GameController extends ChangeNotifier {
   }
 
   void _say(String text, CoachTone tone) => chat.add(CoachMessage(text, tone));
+
+  /// Plays a board sound, and the matching phone buzz for the player's own moves.
+  void _sound(BoardSoundKind kind, {BuzzKind? buzz}) {
+    final s = settings;
+    BoardSound.instance.play(kind, soundOn: s?.boardSounds ?? true);
+    if (buzz != null) BoardSound.instance.buzz(buzz, buzzOn: s?.haptics ?? true);
+  }
 
   /// Replaces the last chat message with the language model's wording when it arrives.
   void _polishLast(String facts, String Function(String) wrap, CoachTone tone, int token) {
