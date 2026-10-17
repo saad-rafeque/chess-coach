@@ -195,7 +195,9 @@ class _PuzzlesPageState extends State<PuzzlesPage> {
           : null,
       trailing: ratingPill,
       scroll: false,
+      compactOnPhone: true,
       child: BoardLayout(
+        panelTitle: 'Puzzle details',
         boardLabel: session == null
             ? 'Puzzle board'
             : 'Puzzle. ${session.playerSide == Side.white ? 'White' : 'Black'} to move.',

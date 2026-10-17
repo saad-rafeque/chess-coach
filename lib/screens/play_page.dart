@@ -277,7 +277,9 @@ class _PlayPageState extends State<PlayPage> {
       title: 'Play',
       subtitle: isMobile(context) ? null : 'Play the coach and learn from every move',
       scroll: false,
+      compactOnPhone: true,
       child: BoardLayout(
+        panelTitle: 'Coach',
         boardLabel: 'Your game against the coach. ${g.playerToMove ? 'Your move' : 'The coach is thinking'}.',
         top: youAtBottom ? coachBar : youBar,
         bottom: youAtBottom ? youBar : coachBar,

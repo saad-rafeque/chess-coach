@@ -130,7 +130,9 @@ class _ReviewPageState extends State<ReviewPage> {
             'vs Coach ~${game.coachElo} · $when',
         leading: const PageBackButton(),
         scroll: false,
+      compactOnPhone: true,
         child: BoardLayout(
+        panelTitle: 'Review',
           boardLabel: 'Game review, after ${_ply ~/ 2 + _ply % 2} moves.',
           overBoard: evalScore == null
               ? null
@@ -318,11 +320,13 @@ class _MoveCard extends StatelessWidget {
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Text('${move.ply ~/ 2 + 1}${move.mover == Side.white ? '.' : '…'} ${move.san}',
-              style: TextStyle(color: p.text, fontSize: 18, fontWeight: FontWeight.w700)),
-          const SizedBox(width: 10),
-          Pill(move.quality.label, color: c),
-          const Spacer(),
+          Expanded(
+            child: Wrap(spacing: 10, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
+              Text('${move.ply ~/ 2 + 1}${move.mover == Side.white ? '.' : '…'} ${move.san}',
+                  style: TextStyle(color: p.text, fontSize: 18, fontWeight: FontWeight.w700)),
+              Pill(move.quality.label, color: c),
+            ]),
+          ),
           Text(move.after.label, style: TextStyle(color: p.muted, fontSize: 12)),
         ]),
         if (move.explanation != null) ...[

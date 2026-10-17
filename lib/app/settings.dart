@@ -31,6 +31,7 @@ class AppSettings extends ChangeNotifier {
         _coachElo = clampCoachElo(_prefs?.getInt('coachElo') ?? 800),
         _autoStrength = _prefs?.getBool('autoStrength') ?? true,
         _friendlyVoice = _prefs?.getBool('friendlyVoice') ?? true,
+        _panelUnderBoard = _prefs?.getBool('panelUnderBoard') ?? false,
         _voiceModel = _prefs?.getString('voiceModel'),
         _changedAt = DateTime.tryParse(_prefs?.getString('settingsChangedAt') ?? '');
 
@@ -151,6 +152,15 @@ class AppSettings extends ChangeNotifier {
   set friendlyVoice(bool value) {
     _friendlyVoice = value;
     _prefs?.setBool('friendlyVoice', value);
+    notifyListeners();
+  }
+
+  /// Phones: keep the coach and puzzle panels under the board instead of behind a button.
+  bool _panelUnderBoard;
+  bool get panelUnderBoard => _panelUnderBoard;
+  set panelUnderBoard(bool value) {
+    _panelUnderBoard = value;
+    _prefs?.setBool('panelUnderBoard', value);
     notifyListeners();
   }
 

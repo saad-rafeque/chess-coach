@@ -2,11 +2,14 @@ import 'dart:math' as math;
 
 import 'package:fluent_ui/fluent_ui.dart';
 
+import '../app/settings.dart';
 import '../app/theme.dart';
 import 'common.dart';
 
-/// Board with player bars on one side and a panel on the other (or below on phones).
-class BoardLayout extends StatelessWidget {
+/// Board with player bars on one side and a panel on the other. On phones the board spans the
+/// whole screen width and the panel waits behind a button (unless the player chose to keep it under
+/// the board, or the page needs it, like lessons).
+class BoardLayout extends StatefulWidget {
   const BoardLayout({
     super.key,
     required this.board,
@@ -16,6 +19,7 @@ class BoardLayout extends StatelessWidget {
     this.actions,
     this.overBoard,
     this.boardLabel,
+    this.panelTitle,
   });
 
   final Widget Function(double size) board;
@@ -30,8 +34,25 @@ class BoardLayout extends StatelessWidget {
   /// What screen readers announce for the board, e.g. "Puzzle. White to move."
   final String? boardLabel;
 
-  Widget _board(double size) =>
-      boardLabel == null ? board(size) : Semantics(container: true, label: boardLabel, child: board(size));
+  /// Name of the panel's button on phones (e.g. "Coach"). Null keeps the panel under the board.
+  final String? panelTitle;
+
+  @override
+  State<BoardLayout> createState() => _BoardLayoutState();
+}
+
+class _BoardLayoutState extends State<BoardLayout> {
+  bool _sheet = false;
+
+  Widget get panel => widget.panel;
+  Widget? get top => widget.top;
+  Widget? get bottom => widget.bottom;
+  Widget? get actions => widget.actions;
+  Widget? get overBoard => widget.overBoard;
+
+  Widget _board(double size) => widget.boardLabel == null
+      ? widget.board(size)
+      : Semantics(container: true, label: widget.boardLabel, child: widget.board(size));
 
   static const _barHeight = 52.0;
   static const _overBoardHeight = 18.0;
@@ -39,6 +60,7 @@ class BoardLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final underBoard = widget.panelTitle == null || SettingsScope.of(context).panelUnderBoard;
     return LayoutBuilder(builder: (context, c) {
       final mobile = c.maxWidth < mobileBreakpoint || c.maxWidth < c.maxHeight * 0.9;
       final bars = (top != null ? _barHeight : 0) + (bottom != null ? _barHeight : 0) + _overBoardHeight;
@@ -70,7 +92,94 @@ class BoardLayout extends StatelessWidget {
           ],
         );
       }
-      // Phones: board fills the width, everything below scrolls.
+      final p = Palette.of(context);
+      final screen = MediaQuery.sizeOf(context).width;
+      if (!underBoard) {
+        // Phones: the board spans the screen, edge to edge; the panel slides up on request.
+        final size = math.max(160.0, math.min(screen, c.maxHeight - bars - (actions != null ? 64 : 0) - 56));
+        final content = ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            if (top != null) SizedBox(height: _barHeight, child: top),
+            strip,
+            SizedBox(
+              height: size,
+              child: OverflowBox(
+                maxWidth: screen,
+                child: SizedBox(width: size, height: size, child: _board(size)),
+              ),
+            ),
+            if (bottom != null) SizedBox(height: _barHeight, child: bottom),
+            if (actions != null) ...[const SizedBox(height: 4), actions!],
+            const SizedBox(height: 8),
+            Center(
+              child: Button(
+                onPressed: () => setState(() => _sheet = true),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(FluentIcons.chevron_up, size: 12),
+                  const SizedBox(width: 8),
+                  Text(widget.panelTitle!),
+                ]),
+              ),
+            ),
+          ],
+        );
+        return Stack(children: [
+          Positioned.fill(child: content),
+          // The panel as a sheet; it stays part of this page, so it updates live.
+          IgnorePointer(
+            ignoring: !_sheet,
+            child: GestureDetector(
+              onTap: () => setState(() => _sheet = false),
+              child: AnimatedOpacity(
+                opacity: _sheet ? 1 : 0,
+                duration: motion(context, const Duration(milliseconds: 200)),
+                child: Container(color: const Color(0x66000000)),
+              ),
+            ),
+          ),
+          AnimatedPositioned(
+            duration: motion(context, const Duration(milliseconds: 260)),
+            curve: Curves.easeOutCubic,
+            left: -16,
+            right: -16,
+            bottom: _sheet ? -16 : -c.maxHeight,
+            height: c.maxHeight * 0.75,
+            child: GestureDetector(
+              onVerticalDragEnd: (d) {
+                if ((d.primaryVelocity ?? 0) > 200) setState(() => _sheet = false);
+              },
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                decoration: BoxDecoration(
+                  color: p.background,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                  boxShadow: const [BoxShadow(color: Color(0x55000000), blurRadius: 24)],
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Center(
+                    child: Semantics(
+                      button: true,
+                      label: 'Close ${widget.panelTitle}',
+                      child: GestureDetector(
+                        onTap: () => setState(() => _sheet = false),
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(vertical: 8),
+                          width: 44,
+                          height: 5,
+                          decoration: BoxDecoration(color: p.border, borderRadius: BorderRadius.circular(3)),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(child: panel),
+                ]),
+              ),
+            ),
+          ),
+        ]);
+      }
+      // Phones, panel kept under the board: everything below the board scrolls.
       final size = math.min(c.maxWidth, c.maxHeight * 0.62 - bars);
       final panelHeight = math.max(320.0, c.maxHeight - size - bars - 76);
       return ListView(
