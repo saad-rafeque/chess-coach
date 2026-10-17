@@ -136,7 +136,7 @@ class _CardsPageState extends State<CardsPage> {
   Widget build(BuildContext context) {
     final p = Palette.of(context);
     final settings = SettingsScope.of(context);
-    final style = BoardStyle.forTheme(settings.theme);
+    final style = BoardStyle.of(settings);
     final s = _session;
     final card = _card;
     final done = card == null;

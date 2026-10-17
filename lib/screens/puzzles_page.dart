@@ -179,7 +179,7 @@ class _PuzzlesPageState extends State<PuzzlesPage> {
     final s = SettingsScope.of(context);
     final store = StoreScope.of(context);
     final stats = PuzzleStats.fromEvents(store.events);
-    final style = BoardStyle.forTheme(s.theme);
+    final style = BoardStyle.of(s);
     final session = _session;
     final mistakesCount = _bank == null ? 0 : mistakePuzzles(store).length;
 

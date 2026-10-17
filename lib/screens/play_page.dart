@@ -186,7 +186,7 @@ class _PlayPageState extends State<PlayPage> {
   Widget build(BuildContext context) {
     final p = Palette.of(context);
     final s = SettingsScope.of(context);
-    final style = BoardStyle.forTheme(s.theme);
+    final style = BoardStyle.of(s);
     final g = _game;
     final orientation = _flipped ? g.playerSide.opposite : g.playerSide;
     final coachToMove = !g.isOver && g.position.turn != g.playerSide;

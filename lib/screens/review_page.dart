@@ -95,7 +95,7 @@ class _ReviewPageState extends State<ReviewPage> {
   Widget build(BuildContext context) {
     final p = Palette.of(context);
     final s = SettingsScope.of(context);
-    final style = BoardStyle.forTheme(s.theme);
+    final style = BoardStyle.of(s);
     final game = widget.game;
     final cur = _current;
     final showBetter = _showBetter && cur != null && cur.bestUci != null;

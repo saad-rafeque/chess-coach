@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/event_store.dart';
+import 'board_style.dart';
 
 /// Gives widgets access to [AppSettings] and rebuilds them when it changes.
 class SettingsScope extends InheritedNotifier<AppSettings> {
@@ -32,6 +33,8 @@ class AppSettings extends ChangeNotifier {
         _autoStrength = _prefs?.getBool('autoStrength') ?? true,
         _friendlyVoice = _prefs?.getBool('friendlyVoice') ?? true,
         _panelUnderBoard = _prefs?.getBool('panelUnderBoard') ?? false,
+        _boardScheme = _prefs?.getString('boardScheme'),
+        _pieceSet = _prefs?.getString('pieceSet'),
         _refreshRate = (_prefs?.getInt('refreshRate') ?? 0).clamp(0, 240),
         _voiceModel = _prefs?.getString('voiceModel'),
         _changedAt = DateTime.tryParse(_prefs?.getString('settingsChangedAt') ?? '');
@@ -63,6 +66,8 @@ class AppSettings extends ChangeNotifier {
         'evalBar': _evalBar,
         'autoStrength': _autoStrength,
         'coachElo': _coachElo,
+        'boardScheme': ?_boardScheme,
+        'pieceSet': ?_pieceSet,
       };
 
   /// Takes the settings from another device if they changed later than ours.
@@ -76,6 +81,11 @@ class AppSettings extends ChangeNotifier {
     _evalBar = flag('evalBar', _evalBar);
     _autoStrength = flag('autoStrength', _autoStrength);
     if (j['coachElo'] is int) _coachElo = clampCoachElo(j['coachElo'] as int);
+    // Only names this version knows (a newer version may offer more; keep ours then).
+    String? choice(Object? v, bool Function(String) known, String? current) =>
+        v == null ? null : (v is String && known(v) ? v : current);
+    _boardScheme = choice(j['boardScheme'], boardChoices.containsKey, _boardScheme);
+    _pieceSet = choice(j['pieceSet'], pieceChoices.containsKey, _pieceSet);
     _prefs
       ?..setString('theme', _theme.name)
       ..setBool('coords', _showCoordinates)
@@ -83,6 +93,8 @@ class AppSettings extends ChangeNotifier {
       ..setBool('evalBar', _evalBar)
       ..setBool('autoStrength', _autoStrength)
       ..setInt('coachElo', _coachElo);
+    _boardScheme == null ? _prefs?.remove('boardScheme') : _prefs?.setString('boardScheme', _boardScheme!);
+    _pieceSet == null ? _prefs?.remove('pieceSet') : _prefs?.setString('pieceSet', _pieceSet!);
     _changedAt = changed;
     _prefs?.setString('settingsChangedAt', changed.toIso8601String());
     notifyListeners();
@@ -153,6 +165,25 @@ class AppSettings extends ChangeNotifier {
   set friendlyVoice(bool value) {
     _friendlyVoice = value;
     _prefs?.setBool('friendlyVoice', value);
+    notifyListeners();
+  }
+
+  /// Chosen board colours and piece set (ids from board_style.dart); null = the theme's default.
+  String? _boardScheme;
+  String? get boardScheme => _boardScheme;
+  set boardScheme(String? value) {
+    _boardScheme = value;
+    value == null ? _prefs?.remove('boardScheme') : _prefs?.setString('boardScheme', value);
+    _touch();
+    notifyListeners();
+  }
+
+  String? _pieceSet;
+  String? get pieceSet => _pieceSet;
+  set pieceSet(String? value) {
+    _pieceSet = value;
+    value == null ? _prefs?.remove('pieceSet') : _prefs?.setString('pieceSet', value);
+    _touch();
     notifyListeners();
   }
 

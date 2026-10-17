@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:chess_coach/app/board_style.dart';
 import 'package:chess_coach/app/settings.dart';
 import 'package:chess_coach/coach/llm/model_store.dart';
 import 'package:chess_coach/data/event_store.dart';
@@ -141,6 +142,18 @@ void main() {
       final bomb = gzip.encode(List<int>.filled(2 << 20, 32));
       expect(bomb.length, lessThan(64 * 1024));
       expect(() => SyncPayload.decode(bomb, maxJson: 1 << 20), throwsFormatException);
+    });
+
+    test('board and piece picks sync, unknown names are ignored', () {
+      final s = AppSettings.memory();
+      s.applySync({'boardScheme': 'marble', 'pieceSet': 'maestro'}, DateTime.now().toUtc());
+      expect(s.boardScheme, 'marble');
+      expect(BoardStyle.of(s).colors, boardChoices['marble']!.scheme);
+      s.applySync({'boardScheme': 'lava', 'pieceSet': 42}, DateTime.now().toUtc().add(const Duration(seconds: 1)));
+      expect((s.boardScheme, s.pieceSet), ('marble', 'maestro'));
+      s.applySync({}, DateTime.now().toUtc().add(const Duration(seconds: 2)));
+      expect((s.boardScheme, s.pieceSet), (null, null), reason: 'back to the theme defaults');
+      expect(s.toSyncJson().containsKey('pieceSet'), isFalse);
     });
 
     test('settings from another device are checked', () {

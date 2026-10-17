@@ -5,6 +5,7 @@ import '../app/refresh_rate.dart';
 import '../app/settings.dart';
 import '../app/theme.dart';
 import '../app/version.dart';
+import '../widgets/board_picker.dart';
 import '../widgets/common.dart';
 import '../widgets/sync_settings.dart';
 import '../widgets/voice_settings.dart';
@@ -30,6 +31,9 @@ class SettingsPage extends StatelessWidget {
                 _ThemeCard(theme: t, selected: s.theme == t, onTap: () => s.theme = t),
             ],
           ),
+          const SizedBox(height: 24),
+          const SectionTitle('Board and pieces'),
+          const BoardPicker(),
           const SizedBox(height: 24),
           const SectionTitle('Board and coach'),
           SurfaceCard(

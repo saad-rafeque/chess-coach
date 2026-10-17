@@ -254,7 +254,7 @@ class _LessonPageState extends State<LessonPage> {
   Widget build(BuildContext context) {
     final p = Palette.of(context);
     final settings = SettingsScope.of(context);
-    final style = BoardStyle.forTheme(settings.theme);
+    final style = BoardStyle.of(settings);
     final n = lesson.steps.length;
     // Keyboard: right arrow or Enter = Next, left arrow = Back.
     return CallbackShortcuts(
