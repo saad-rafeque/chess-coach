@@ -26,7 +26,7 @@ cat > "$work/DEBIAN/control" <<CONTROL
 Package: chess-coach
 Version: $version
 Architecture: amd64
-Maintainer: Saad Rafique <saadrafiique@gmail.com>
+Maintainer: Saad Rafique <126379716+saad-rafeque@users.noreply.github.com>
 Installed-Size: $size
 Depends: libgtk-3-0 | libgtk-3-0t64, libc6 (>= 2.31)
 Section: games
