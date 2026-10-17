@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 
 import 'data_folder.dart';
+import 'event_validation.dart';
 
 /// One immutable record: a finished game, a puzzle attempt, a lesson step...
 /// Events are only ever added, so copies from different devices merge by id.
@@ -77,14 +78,20 @@ class EventStore extends ChangeNotifier {
   Future<void> _load() async {
     final f = _file;
     if (f == null || !f.existsSync()) return;
+    var skipped = 0;
     for (final line in await f.readAsLines()) {
       if (line.trim().isEmpty) continue;
+      AppEvent? e;
       try {
-        _insert(AppEvent.fromJson(jsonDecode(line) as Map<String, dynamic>));
-      } catch (e) {
-        debugPrint('Skipping bad event line: $e');
+        e = parseEvent(jsonDecode(line));
+      } catch (_) {}
+      if (e == null) {
+        skipped++;
+      } else {
+        _insert(e);
       }
     }
+    if (skipped > 0) debugPrint('Skipped $skipped damaged event lines');
   }
 
   bool _insert(AppEvent e) {
@@ -109,8 +116,9 @@ class EventStore extends ChangeNotifier {
   }
 
   /// Adds events from another copy of the log (sync). Returns how many were new.
+  /// Events that fail [isValidEvent] are left out.
   Future<int> merge(Iterable<AppEvent> incoming) async {
-    final fresh = [for (final e in incoming) if (_insert(e)) e];
+    final fresh = [for (final e in incoming) if (isValidEvent(e) && _insert(e)) e];
     if (fresh.isNotEmpty) {
       await _append(fresh.map((e) => '${jsonEncode(e.toJson())}\n').join());
       notifyListeners();

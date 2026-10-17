@@ -5,6 +5,7 @@ import 'dart:isolate';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../app/settings.dart';
 import '../../data/data_folder.dart';
 
 /// A small instruction-tuned language model in GGUF format (run by llama.cpp).
@@ -59,10 +60,15 @@ enum ModelStatus { absent, downloading, verifying, ready, failed }
 
 /// Downloads, verifies and deletes explainer models. Nothing is downloaded unless the
 /// player asks for it in Settings; downloads resume after an interruption.
+///
+/// llama.cpp only ever opens a file whose sha256 matched: after a download, and again whenever
+/// the file's size or date differs from the last check (it lives in Documents on desktops,
+/// where other programs could replace it). The last check is remembered in [marks].
 class ModelStore extends ChangeNotifier {
-  ModelStore({Future<Directory> Function()? directory, HttpClient Function()? client})
+  ModelStore({Future<Directory> Function()? directory, HttpClient Function()? client, AppSettings? marks})
       : _directory = directory ?? _defaultDirectory,
-        _client = client ?? HttpClient.new;
+        _client = client ?? HttpClient.new,
+        _marks = marks ?? AppSettings.memory();
 
   static Future<Directory> _defaultDirectory() async {
     final base = await dataFolder();
@@ -71,6 +77,7 @@ class ModelStore extends ChangeNotifier {
 
   final Future<Directory> Function() _directory;
   final HttpClient Function() _client;
+  final AppSettings _marks;
 
   final _status = <String, ModelStatus>{};
   final _received = <String, int>{};
@@ -85,12 +92,40 @@ class ModelStore extends ChangeNotifier {
 
   Future<File> fileFor(ModelSpec m) async => File('${(await _directory()).path}${Platform.pathSeparator}${m.fileName}');
 
-  /// Checks which models are already on disk.
+  static String _markKey(ModelSpec m) => 'modelVerified.${m.id}';
+  static String _stamp(File f) {
+    final s = f.statSync();
+    return '${s.size}:${s.modified.microsecondsSinceEpoch}';
+  }
+
+  /// Records that [m]'s file on disk is the checked one.
+  Future<void> markVerified(ModelSpec m) async => _marks.writeValue(_markKey(m), _stamp(await fileFor(m)));
+
+  /// Checks which models are already on disk, verifying any file that changed since its last check.
   Future<void> refresh() async {
     for (final m in explainerModels) {
       if (_status[m.id] == ModelStatus.downloading || _status[m.id] == ModelStatus.verifying) continue;
       final f = await fileFor(m);
-      _status[m.id] = f.existsSync() && f.lengthSync() == m.bytes ? ModelStatus.ready : ModelStatus.absent;
+      if (!f.existsSync() || f.lengthSync() != m.bytes) {
+        _status[m.id] = ModelStatus.absent;
+        continue;
+      }
+      if (_marks.readValue(_markKey(m)) == _stamp(f)) {
+        _status[m.id] = ModelStatus.ready;
+        continue;
+      }
+      _status[m.id] = ModelStatus.verifying;
+      notifyListeners();
+      final path = f.path;
+      final hash = await Isolate.run(() => _sha256(path));
+      if (hash == m.sha256) {
+        await markVerified(m);
+        _status[m.id] = ModelStatus.ready;
+      } else {
+        _marks.writeValue(_markKey(m), null);
+        _status[m.id] = ModelStatus.failed;
+        _errors[m.id] = 'The model file was changed or damaged. Download it again.';
+      }
     }
     notifyListeners();
   }
@@ -111,10 +146,14 @@ class ModelStore extends ChangeNotifier {
         have = 0;
       }
       _received[m.id] = have;
-      final client = _active = _client();
+      final client = _active = _client()..connectionTimeout = const Duration(seconds: 30);
       final request = await client.getUrl(Uri.parse(m.url));
       if (have > 0) request.headers.set(HttpHeaders.rangeHeader, 'bytes=$have-');
-      final response = await request.close();
+      final response = await request.close().timeout(const Duration(seconds: 60));
+      // The file is checked by its hash anyway, but never follow a link off HTTPS.
+      if (response.redirects.any((r) => r.location.hasScheme && r.location.scheme != 'https')) {
+        throw const HttpException('The download link is not secure.');
+      }
       if (response.statusCode == HttpStatus.ok) {
         have = 0; // The server ignored the range: start over.
       } else if (response.statusCode != HttpStatus.partialContent) {
@@ -124,8 +163,9 @@ class ModelStore extends ChangeNotifier {
       final sink = part.openWrite(mode: have > 0 ? FileMode.append : FileMode.write);
       var lastNotify = DateTime.now();
       try {
-        await for (final chunk in response) {
+        await for (final chunk in response.timeout(const Duration(seconds: 60))) {
           if (_cancelled) throw const _Cancelled();
+          if (_received[m.id]! + chunk.length > m.bytes) throw const HttpException('The download was too large.');
           sink.add(chunk);
           _received[m.id] = _received[m.id]! + chunk.length;
           if (DateTime.now().difference(lastNotify) > const Duration(milliseconds: 250)) {
@@ -146,9 +186,13 @@ class ModelStore extends ChangeNotifier {
       }
       if (target.existsSync()) target.deleteSync();
       part.renameSync(target.path);
+      await markVerified(m);
       _status[m.id] = ModelStatus.ready;
     } on _Cancelled {
       _status[m.id] = ModelStatus.absent;
+    } on TimeoutException {
+      _status[m.id] = ModelStatus.failed;
+      _errors[m.id] = 'The download stalled. Check the connection and try again.';
     } catch (e) {
       _status[m.id] = ModelStatus.failed;
       _errors[m.id] = e is HttpException || e is FormatException ? _message(e) : 'Download failed: $e';
@@ -171,6 +215,8 @@ class ModelStore extends ChangeNotifier {
       if (file.existsSync()) file.deleteSync();
     }
     _status[m.id] = ModelStatus.absent;
+    _errors.remove(m.id);
+    _marks.writeValue(_markKey(m), null);
     _received.remove(m.id);
     notifyListeners();
   }

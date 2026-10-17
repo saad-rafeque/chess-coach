@@ -30,8 +30,11 @@ ln -sf chess-coach.png "$work/AppDir/.DirIcon"
 if [ ! -x "$tool" ]; then
   curl -fsSL --retry 5 -o "$tool" \
     https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
-  chmod +x "$tool"
 fi
+# Only run the exact appimagetool release we checked.
+echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  $tool" | sha256sum -c - \
+  || { rm -f "$tool"; exit 1; }
+chmod +x "$tool"
 ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 "$tool" --no-appstream "$work/AppDir" \
   "$root/build/ChessCoach-$version-x86_64.AppImage"
 echo "Built build/ChessCoach-$version-x86_64.AppImage"

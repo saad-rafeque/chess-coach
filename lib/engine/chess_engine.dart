@@ -46,6 +46,8 @@ class ChessEngine {
 
   Future<Analysis> _search(String fen, {required int depth, Duration? movetime, required int multiPv}) async {
     if (_closed) throw StateError('Engine is closed');
+    // One UCI command per line: a line break would let the text run engine commands.
+    if (fen.contains('\n') || fen.contains('\r')) throw ArgumentError.value(fen, 'fen', 'must be one line');
     final whiteToMove = fen.split(' ')[1] == 'w';
     final best = <int, EngineLine>{};
     final done = Completer<String?>();

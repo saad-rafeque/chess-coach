@@ -18,6 +18,9 @@ class SettingsScope extends InheritedNotifier<AppSettings> {
 
 enum AppTheme { light, dark, wooden }
 
+/// The coach plays at 400 to 3200 (see `coachLevels`); anything else is brought into range.
+int clampCoachElo(int elo) => elo.clamp(400, 3200);
+
 /// User preferences, persisted locally.
 class AppSettings extends ChangeNotifier {
   AppSettings._(this._prefs)
@@ -25,7 +28,7 @@ class AppSettings extends ChangeNotifier {
         _showCoordinates = _prefs?.getBool('coords') ?? true,
         _trainingHints = _prefs?.getBool('hints') ?? true,
         _evalBar = _prefs?.getBool('evalBar') ?? true,
-        _coachElo = _prefs?.getInt('coachElo') ?? 800,
+        _coachElo = clampCoachElo(_prefs?.getInt('coachElo') ?? 800),
         _autoStrength = _prefs?.getBool('autoStrength') ?? true,
         _friendlyVoice = _prefs?.getBool('friendlyVoice') ?? true,
         _voiceModel = _prefs?.getString('voiceModel'),
@@ -63,12 +66,14 @@ class AppSettings extends ChangeNotifier {
   /// Takes the settings from another device if they changed later than ours.
   bool applySync(Map<String, dynamic> j, DateTime changed) {
     if (_changedAt != null && !changed.isAfter(_changedAt!)) return false;
+    // Values of the wrong type or out of range (a damaged file) keep what this device has.
+    bool flag(String key, bool current) => j[key] is bool ? j[key] as bool : current;
     _theme = AppTheme.values.asNameMap()[j['theme']] ?? _theme;
-    _showCoordinates = j['coords'] as bool? ?? _showCoordinates;
-    _trainingHints = j['hints'] as bool? ?? _trainingHints;
-    _evalBar = j['evalBar'] as bool? ?? _evalBar;
-    _autoStrength = j['autoStrength'] as bool? ?? _autoStrength;
-    _coachElo = j['coachElo'] as int? ?? _coachElo;
+    _showCoordinates = flag('coords', _showCoordinates);
+    _trainingHints = flag('hints', _trainingHints);
+    _evalBar = flag('evalBar', _evalBar);
+    _autoStrength = flag('autoStrength', _autoStrength);
+    if (j['coachElo'] is int) _coachElo = clampCoachElo(j['coachElo'] as int);
     _prefs
       ?..setString('theme', _theme.name)
       ..setBool('coords', _showCoordinates)
@@ -162,8 +167,8 @@ class AppSettings extends ChangeNotifier {
   int _coachElo;
   int get coachElo => _coachElo;
   set coachElo(int value) {
-    _coachElo = value;
-    _prefs?.setInt('coachElo', value);
+    _coachElo = clampCoachElo(value);
+    _prefs?.setInt('coachElo', _coachElo);
     _touch();
     notifyListeners();
   }

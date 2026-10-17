@@ -25,9 +25,9 @@ void main() {
       addTearDown(() => dir.deleteSync(recursive: true));
       final file = io.File('${dir.path}/events.jsonl');
       final a = await EventStore.openFile(file, device: 'pc');
-      final e = await a.add('game', {'x': 1});
+      final e = await a.add('game', {'moves': <String>[]});
       expect(await a.merge([e]), 0);
-      final other = AppEvent(id: 'remote', type: 'game', time: DateTime.utc(2020), device: 'phone', data: const {'y': 2});
+      final other = AppEvent(id: 'remote', type: 'game', time: DateTime.utc(2020), device: 'phone', data: const {'moves': ['e2e4']});
       expect(await a.merge([other]), 1);
       expect(a.events.first.id, 'remote', reason: 'events stay sorted by time');
 

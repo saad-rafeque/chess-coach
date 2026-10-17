@@ -30,7 +30,7 @@ Future<void> main() async {
       ..storageError = 'Your progress can\'t be saved on this device right now, so it will be lost when the app '
           'closes.';
   }
-  final models = ModelStore();
+  final models = ModelStore(marks: settings);
   unawaited(models.refresh());
   final voice = CoachVoice(settings: settings, models: models);
   final sync = SyncService(store: store, settings: settings)..start();

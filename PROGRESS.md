@@ -95,7 +95,10 @@ Waiting for the owner to test the builds on the phone, Windows and Ubuntu and re
   lessons. Training sessions live in memory only (not synced).
 - New review cards are limited to 10 per day.
 - Sync uses a "Desktop app" OAuth client with the loopback flow on all platforms (no Google Play services or
-  extra SDK); the refresh token is kept in the app's local preferences, and the only scope is drive.appdata.
+  extra SDK); the only scope is drive.appdata. Since v0.9.2 the refresh token lives in its own file in the
+  app-private folder (`lib/sync/token_store.dart`, mode 600 on Linux), moved there from the preferences once.
+  The client secret ships inside the app by design: Google treats installed-app secrets as public, and PKCE
+  plus the random `state` protect the sign-in.
   "When the network returns" is handled with a few backed-off retries after a failed sync, instead of a
   connectivity plugin that would keep listening.
 - The project must stay 100% free: no billing account on the Google Cloud project, only free APIs.
@@ -106,6 +109,19 @@ Waiting for the owner to test the builds on the phone, Windows and Ubuntu and re
 - The model never sees the board and never chooses moves: it only rewords a sentence built from engine facts.
   With Qwen2.5 0.5B about half of the answers pass the safety check on this PC (0.5–1 s each after a 3 s load);
   the rest fall back to the template. The 1.5B model writes nicer English at 1–2 s per answer on this PC.
+
+- Security review (v0.9.2):
+  - Every event from disk or Drive passes `lib/data/event_validation.dart` (legal moves, field types and
+    ranges, 64 KB per event); bad ones are skipped, unknown types from newer versions are kept.
+  - The sync file is limited to 32 MB packed / 128 MB unpacked; settings dates far in the future are ignored.
+  - The loopback sign-in ignores requests without the right `state` and sends strict headers.
+  - Synced settings are type-checked and the coach Elo is clamped to 400–3200.
+  - Model files are re-hashed whenever their size or date changes (marker in the preferences, not in
+    Documents), and downloads refuse redirects off HTTPS.
+  - Android: `allowBackup=false`, data extraction rules exclude everything, no cleartext traffic.
+  - CI: actions pinned to commit SHAs, read-only token except for the release job, tag builds fail without the
+    release key, appimagetool and the llama.cpp runtime (`tool/check_native_bundles.dart`) are checked against
+    pinned SHA-256 digests, release builds are obfuscated, and releases carry `SHA256SUMS.txt`.
 
 ## How to resume
 

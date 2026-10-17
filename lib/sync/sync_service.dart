@@ -8,6 +8,7 @@ import '../app/settings.dart';
 import '../data/event_store.dart';
 import 'drive.dart';
 import 'google_auth.dart';
+import 'token_store.dart';
 
 enum SyncStatus { notSetUp, signedOut, signingIn, idle, syncing, offline, error }
 
@@ -26,8 +27,10 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
     GoogleAuth? auth,
     SyncFolder Function(Future<String> Function() token)? folder,
     Future<bool> Function(Uri url)? openBrowser,
+    TokenStore? tokens,
     this.retryDelays = const [Duration(minutes: 1), Duration(minutes: 3), Duration(minutes: 10), Duration(minutes: 30)],
   })  : auth = auth ?? GoogleAuth(config),
+        tokens = tokens ?? FileTokenStore(),
         _folder = folder ?? ((token) => DriveAppFolder(token)),
         _openBrowser = openBrowser ?? ((url) => launchUrl(url, mode: LaunchMode.externalApplication));
 
@@ -35,11 +38,13 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
   final AppSettings settings;
   final OAuthConfig config;
   final GoogleAuth auth;
+  final TokenStore tokens;
   final SyncFolder Function(Future<String> Function() token) _folder;
   final Future<bool> Function(Uri url) _openBrowser;
   final List<Duration> retryDelays;
 
-  static const _tokenKey = 'syncRefreshToken';
+  /// Where versions before 0.9.2 kept the token (moved to [tokens] on start).
+  static const _legacyTokenKey = 'syncRefreshToken';
   static const _lastKey = 'syncLast';
   static const _fileKey = 'syncFileId';
 
@@ -54,8 +59,10 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
   Timer? _retryTimer;
   int _syncedCount = -1;
   Future<bool>? _running;
+  String? _refreshToken;
+  Future<void>? _loaded;
+  bool _isLoaded = false;
 
-  String? get _refreshToken => settings.readValue(_tokenKey);
   bool get connected => _refreshToken != null;
   DateTime? get lastSync => DateTime.tryParse(settings.readValue(_lastKey) ?? '');
   String? get error => _error;
@@ -90,14 +97,48 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  /// Reads the saved sign-in once (and moves it out of the preferences of older versions).
+  Future<void> _load() async {
+    if (_isLoaded) return;
+    await (_loaded ??= _readSaved());
+  }
+
+  Future<void> _readSaved() async {
+    try {
+      _refreshToken = await tokens.read();
+    } catch (e) {
+      debugPrint('Sync sign-in unreadable: $e');
+    }
+    final legacy = settings.readValue(_legacyTokenKey);
+    if (legacy != null) {
+      _refreshToken ??= legacy;
+      if (await _save(_refreshToken)) settings.writeValue(_legacyTokenKey, null);
+    }
+    _isLoaded = true;
+    notifyListeners();
+  }
+
+  /// Stores the token; returns false when it could only be kept in memory.
+  Future<bool> _save(String? token) async {
+    try {
+      await tokens.write(token);
+      return true;
+    } catch (e) {
+      debugPrint('Sync sign-in not saved: $e');
+      return false;
+    }
+  }
+
   Future<void> connect() async {
     if (!config.isSet || _signingIn) return;
     _signingIn = true;
     _error = null;
     notifyListeners();
     try {
+      await _load();
       final refresh = await auth.signIn(_openBrowser);
-      settings.writeValue(_tokenKey, refresh);
+      _refreshToken = refresh;
+      await _save(refresh);
     } on AuthException catch (e) {
       _error = e.message;
     } catch (e) {
@@ -113,10 +154,13 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Forgets the Google account on this device. Data already in Drive stays there.
   Future<void> disconnect() async {
+    await _load();
     final token = _refreshToken;
+    _refreshToken = null;
     _retryTimer?.cancel();
+    await _save(null);
     settings
-      ..writeValue(_tokenKey, null)
+      ..writeValue(_legacyTokenKey, null)
       ..writeValue(_lastKey, null)
       ..writeValue(_fileKey, null);
     _error = null;
@@ -129,8 +173,10 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
   Future<bool> sync() => _running ??= _sync().whenComplete(() => _running = null);
 
   Future<bool> _sync() async {
+    if (!config.isSet) return false;
+    await _load();
     final refresh = _refreshToken;
-    if (!config.isSet || refresh == null) return false;
+    if (refresh == null) return false;
     _retryTimer?.cancel();
     _syncing = true;
     notifyListeners();
@@ -190,7 +236,10 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
       return true;
     } on AuthException catch (e) {
       _error = e.signInAgain ? 'Google sign-in expired. Connect again.' : e.message;
-      if (e.signInAgain) settings.writeValue(_tokenKey, null);
+      if (e.signInAgain) {
+        _refreshToken = null;
+        await _save(null);
+      }
       return false;
     } on SocketException {
       _goOffline();
@@ -202,7 +251,9 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
       _goOffline();
       return false;
     } catch (e) {
-      _error = e is DriveException && e.status >= 500 ? 'Google Drive is busy. Will try again later.' : 'Sync failed: $e';
+      _error = e is DriveException && e.status >= 500
+          ? 'Google Drive is busy. Will try again later.'
+          : 'Sync failed: $e';
       if (e is DriveException && e.status >= 500) _scheduleRetry();
       return false;
     } finally {

@@ -96,16 +96,21 @@ class GoogleAuth {
       String? code;
       await for (final req in server.timeout(timeout)) {
         final q = req.uri.queryParameters;
-        if (!q.containsKey('code') && !q.containsKey('error')) {
-          req.response.statusCode = HttpStatus.notFound;
+        _secureHeaders(req.response);
+        // Only Google's redirect for this sign-in counts (it carries our random state). Anything
+        // else, such as a favicon request or another program or web page poking the port, is
+        // turned away and we keep waiting, so it can neither slip in its own code nor cancel.
+        if (req.method != 'GET' || req.uri.path != '/' || q['state'] != state ||
+            !(q.containsKey('code') || q.containsKey('error'))) {
+          req.response.statusCode = HttpStatus.badRequest;
           await req.response.close();
           continue;
         }
-        final ok = q['state'] == state && q['code'] != null;
+        final ok = (q['code'] ?? '').isNotEmpty;
         req.response
           ..statusCode = HttpStatus.ok
           ..headers.contentType = ContentType.html
-          ..write('<html><body style="font-family:sans-serif;text-align:center;padding-top:60px">'
+          ..write('<!doctype html><html><body style="font-family:sans-serif;text-align:center;padding-top:60px">'
               '<h2>${ok ? 'Signed in' : 'Sign-in cancelled'}</h2>'
               '<p>You can close this tab and go back to Chess Coach.</p></body></html>');
         await req.response.close();
@@ -123,8 +128,16 @@ class GoogleAuth {
         'code_verifier': verifier,
       });
       _remember(tokens);
-      final refresh = tokens['refresh_token'] as String?;
-      if (refresh == null) throw const AuthException('Google did not allow offline access. Try again.');
+      // Google lets people untick the Drive box on the consent page; sync can't work without it.
+      final scope = tokens['scope'];
+      if (scope is String && !scope.split(' ').contains(driveAppDataScope)) {
+        throw const AuthException('Chess Coach needs access to its own Google Drive folder. Connect again and '
+            'tick the box for it.');
+      }
+      final refresh = tokens['refresh_token'];
+      if (refresh is! String || refresh.isEmpty) {
+        throw const AuthException('Google did not allow offline access. Try again.');
+      }
       return refresh;
     } on TimeoutException {
       throw const AuthException('Sign-in took too long. Try again.');
@@ -162,28 +175,54 @@ class GoogleAuth {
   }
 
   void _remember(Map<String, dynamic> tokens) {
-    _access = tokens['access_token'] as String?;
-    final seconds = (tokens['expires_in'] as num?)?.toInt() ?? 3600;
+    final access = tokens['access_token'];
+    if (access is! String || access.isEmpty) throw const AuthException('Google sent no access token.');
+    _access = access;
+    final seconds = (tokens['expires_in'] is num ? (tokens['expires_in'] as num).toInt() : 3600).clamp(60, 86400);
     _expires = DateTime.now().add(Duration(seconds: seconds - 60));
-    if (_access == null) throw const AuthException('Google sent no access token.');
   }
 
   Future<Map<String, dynamic>> _post(String url, Map<String, String> form) async {
-    final client = _client();
+    final client = _client()..connectionTimeout = const Duration(seconds: 20);
     try {
       final req = await client.postUrl(Uri.parse(url));
       req.headers.contentType = ContentType('application', 'x-www-form-urlencoded', charset: 'utf-8');
       req.write(Uri(queryParameters: form).query);
-      final res = await req.close();
-      final text = await res.transform(utf8.decoder).join();
-      final body = text.isEmpty ? <String, dynamic>{} : jsonDecode(text) as Map<String, dynamic>;
+      final res = await req.close().timeout(const Duration(seconds: 60));
+      final text = utf8.decode(await _readSmall(res), allowMalformed: true);
+      Object? json;
+      try {
+        json = text.isEmpty ? <String, dynamic>{} : jsonDecode(text);
+      } on FormatException {
+        json = null;
+      }
+      // Not JSON: a captive portal or proxy answered instead of Google. Treat it as no network.
+      if (json is! Map<String, dynamic>) throw const HttpException('Unexpected answer from the network.');
       if (res.statusCode != HttpStatus.ok) {
-        final error = body['error'] as String? ?? 'http ${res.statusCode}';
+        final error = json['error'] is String ? json['error'] as String : 'http ${res.statusCode}';
         throw AuthException('Google sign-in error: $error', signInAgain: error == 'invalid_grant');
       }
-      return body;
+      return json;
     } finally {
       client.close();
     }
   }
+
+  /// Token answers are tiny; refuse anything big or stalled.
+  static Future<List<int>> _readSmall(Stream<List<int>> response) async {
+    final bytes = <int>[];
+    await for (final chunk in response.timeout(const Duration(seconds: 60))) {
+      bytes.addAll(chunk);
+      if (bytes.length > 64 * 1024) throw const HttpException('Unexpected answer from the network.');
+    }
+    return bytes;
+  }
 }
+
+/// Headers for the little page the browser shows after sign-in: nothing cached, loaded or leaked.
+void _secureHeaders(HttpResponse response) => response.headers
+  ..set(HttpHeaders.cacheControlHeader, 'no-store')
+  ..set('Referrer-Policy', 'no-referrer')
+  ..set('X-Content-Type-Options', 'nosniff')
+  ..set('X-Frame-Options', 'DENY')
+  ..set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'");

@@ -1,7 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
+import 'dart:typed_data';
 
 import '../data/event_store.dart';
+import '../data/event_validation.dart';
 
 /// A file in the remote folder.
 class RemoteFile {
@@ -27,7 +31,20 @@ class DriveException implements Exception {
   final String message;
 
   @override
-  String toString() => 'Google Drive error $status: $message';
+  String toString() => 'Google Drive error $status: ${message.length > 200 ? message.substring(0, 200) : message}';
+}
+
+/// Drive file ids are short URL-safe strings; anything else never reaches a request path.
+final _fileId = RegExp(r'^[A-Za-z0-9_-]{1,200}$');
+
+/// Reads a whole HTTP answer, giving up when it is larger than [limit] bytes or stalls.
+Future<List<int>> readLimited(Stream<List<int>> response, int limit) async {
+  final bytes = BytesBuilder(copy: false);
+  await for (final chunk in response.timeout(const Duration(seconds: 60))) {
+    if (bytes.length + chunk.length > limit) throw const DriveException(413, 'The answer was too large.');
+    bytes.add(chunk);
+  }
+  return bytes.takeBytes();
 }
 
 /// The app's hidden folder in Google Drive (Drive API v3 over plain HTTPS).
@@ -42,7 +59,7 @@ class DriveAppFolder implements SyncFolder {
 
   Future<(int, List<int>)> _send(String method, String path,
       {Map<String, String>? query, List<int>? body, String? contentType}) async {
-    final client = _client();
+    final client = _client()..connectionTimeout = const Duration(seconds: 20);
     try {
       final uri = Uri.parse('$base$path').replace(queryParameters: query);
       final req = await client.openUrl(method, uri);
@@ -52,8 +69,8 @@ class DriveAppFolder implements SyncFolder {
         req.contentLength = body.length;
         req.add(body);
       }
-      final res = await req.close();
-      final bytes = await res.fold<List<int>>([], (a, b) => a..addAll(b));
+      final res = await req.close().timeout(const Duration(seconds: 60));
+      final bytes = await readLimited(res, SyncPayload.maxCompressedBytes);
       if (res.statusCode >= 400) {
         throw DriveException(res.statusCode, utf8.decode(bytes, allowMalformed: true));
       }
@@ -74,11 +91,24 @@ class DriveAppFolder implements SyncFolder {
     final files = (jsonDecode(utf8.decode(body)) as Map<String, dynamic>)['files'] as List<dynamic>;
     if (files.isEmpty) return null;
     final f = files.first as Map<String, dynamic>;
-    return RemoteFile(f['id'] as String, DateTime.tryParse(f['modifiedTime'] as String? ?? ''));
+    return RemoteFile(_checkId(f['id']), DateTime.tryParse(f['modifiedTime'] as String? ?? ''));
+  }
+
+  static String _checkId(Object? id) {
+    if (id is String && _fileId.hasMatch(id)) return id;
+    throw const FormatException('Google Drive sent an unexpected file id.');
+  }
+
+  /// A stored id that isn't a Drive id counts as a missing file (sync then looks it up again).
+  static void _requireId(String id) {
+    if (!_fileId.hasMatch(id)) throw const DriveException(HttpStatus.notFound, 'Unknown file id.');
   }
 
   @override
-  Future<List<int>> read(String id) async => (await _send('GET', '/drive/v3/files/$id', query: {'alt': 'media'})).$2;
+  Future<List<int>> read(String id) async {
+    _requireId(id);
+    return (await _send('GET', '/drive/v3/files/$id', query: {'alt': 'media'})).$2;
+  }
 
   @override
   Future<String> create(String name, List<int> bytes) async {
@@ -97,11 +127,12 @@ class DriveAppFolder implements SyncFolder {
         query: {'uploadType': 'multipart', 'fields': 'id'},
         body: body,
         contentType: 'multipart/related; boundary=$boundary');
-    return (jsonDecode(utf8.decode(res)) as Map<String, dynamic>)['id'] as String;
+    return _checkId((jsonDecode(utf8.decode(res)) as Map<String, dynamic>)['id']);
   }
 
   @override
   Future<void> write(String id, List<int> bytes) async {
+    _requireId(id);
     await _send('PATCH', '/upload/drive/v3/files/$id', query: {'uploadType': 'media'}, body: bytes);
   }
 }
@@ -110,21 +141,36 @@ class DriveAppFolder implements SyncFolder {
 class SyncPayload {
   const SyncPayload({required this.events, this.settings, this.settingsChanged});
 
-  factory SyncPayload.decode(List<int> bytes) {
-    final j = jsonDecode(utf8.decode(gzip.decode(bytes))) as Map<String, dynamic>;
-    final version = j['version'] as int? ?? 1;
+  /// Reads a sync file. Damaged events are skipped one by one (see [parseEvent]); a file that
+  /// isn't a sync file at all, or would unpack to more than [maxJsonBytes], is rejected.
+  factory SyncPayload.decode(List<int> bytes, {int maxJson = maxJsonBytes}) {
+    if (bytes.length > maxCompressedBytes) throw const FormatException('The sync file is too large.');
+    final j = jsonDecode(utf8.decode(_gunzip(bytes, maxJson)));
+    if (j is! Map) throw const FormatException('The sync file is damaged.');
+    final version = j['version'] is int ? j['version'] as int : 1;
     if (version > formatVersion) throw FormatException('Sync file is from a newer app version ($version).');
+    final events = j['events'] is List ? j['events'] as List : const [];
+    final settings = j['settings'];
+    var changed = j['settingsChanged'] is String ? DateTime.tryParse(j['settingsChanged'] as String) : null;
+    // A date far in the future would make these settings win forever: ignore it, so this
+    // device's settings are uploaded instead.
+    if (changed != null && changed.isAfter(DateTime.now().add(const Duration(days: 1)))) changed = null;
     return SyncPayload(
       events: [
-        for (final e in (j['events'] as List<dynamic>? ?? const [])) AppEvent.fromJson((e as Map).cast<String, dynamic>()),
+        for (final e in events)
+          if (parseEvent(e) case final event?) event,
       ],
-      settings: (j['settings'] as Map?)?.cast<String, dynamic>(),
-      settingsChanged: DateTime.tryParse(j['settingsChanged'] as String? ?? ''),
+      settings: settings is Map ? settings.cast<String, dynamic>() : null,
+      settingsChanged: changed,
     );
   }
 
   static const formatVersion = 1;
   static const fileName = 'chess-coach-sync.json.gz';
+
+  /// Size limits for the sync file (years of daily play are a few megabytes).
+  static const maxCompressedBytes = 32 << 20;
+  static const maxJsonBytes = 128 << 20;
 
   final List<AppEvent> events;
   final Map<String, dynamic>? settings;
@@ -136,4 +182,32 @@ class SyncPayload {
         'settings': ?settings,
         if (settingsChanged != null) 'settingsChanged': settingsChanged!.toUtc().toIso8601String(),
       })));
+}
+
+/// Unpacks gzip data, stopping as soon as the output would pass [limit] bytes (so a tiny
+/// crafted file can't fill the memory).
+List<int> _gunzip(List<int> bytes, int limit) {
+  final out = _LimitedSink(limit);
+  final input = gzip.decoder.startChunkedConversion(out);
+  for (var i = 0; i < bytes.length; i += 1 << 16) {
+    input.add(bytes.sublist(i, math.min(i + (1 << 16), bytes.length)));
+  }
+  input.close();
+  return out.bytes.takeBytes();
+}
+
+class _LimitedSink implements Sink<List<int>> {
+  _LimitedSink(this.limit);
+
+  final int limit;
+  final bytes = BytesBuilder(copy: false);
+
+  @override
+  void add(List<int> chunk) {
+    if (bytes.length + chunk.length > limit) throw const FormatException('The sync file is too large.');
+    bytes.add(chunk);
+  }
+
+  @override
+  void close() {}
 }

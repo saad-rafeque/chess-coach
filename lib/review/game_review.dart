@@ -131,7 +131,9 @@ GameReview buildReview(GameRecord game, GameAnalysis analysis) {
   final positions = game.positions();
   final sans = game.sans();
   final reviewed = <ReviewedMove>[];
-  for (var i = 0; i < game.moves.length; i++) {
+  // An analysis from a damaged copy may be shorter than the game: review what it covers.
+  final n = math.min(game.moves.length, math.min(analysis.scores.length, analysis.best.length) - 1);
+  for (var i = 0; i < n; i++) {
     final before = positions[i];
     final after = positions[i + 1];
     final mover = before.turn;

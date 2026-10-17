@@ -8,6 +8,7 @@ import 'package:chess_coach/data/event_store.dart';
 import 'package:chess_coach/sync/drive.dart';
 import 'package:chess_coach/sync/google_auth.dart';
 import 'package:chess_coach/sync/sync_service.dart';
+import 'package:chess_coach/sync/token_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Drive app folder in memory, shared by several "devices".
@@ -83,6 +84,7 @@ SyncService _device(EventStore store, AppSettings settings, _MemoryFolder folder
       auth: auth ?? _FakeAuth(),
       folder: (token) => folder..token = token,
       openBrowser: (_) async => true,
+      tokens: MemoryTokenStore(),
       retryDelays: const [Duration(milliseconds: 10)],
     );
 
@@ -96,7 +98,7 @@ void main() {
 
       await phoneStore.add('puzzle', {'id': 'a'});
       await pcStore.add('puzzle', {'id': 'b'});
-      await pcStore.add('game', {'id': 'c'});
+      await pcStore.add('game', {'id': 'c', 'moves': <String>[]});
 
       await phone.connect();
       expect(phone.status, SyncStatus.idle);
@@ -161,7 +163,7 @@ void main() {
     });
 
     test('payload round trip', () {
-      final e = AppEvent(id: '1', type: 'puzzle', time: DateTime.utc(2026), device: 'd', data: const {'solved': true});
+      final e = AppEvent(id: '1', type: 'puzzle', time: DateTime.utc(2026), device: 'd', data: const {'id': 'p1', 'solved': true});
       final p = SyncPayload.decode(
           SyncPayload(events: [e], settings: const {'theme': 'dark'}, settingsChanged: DateTime.utc(2026, 2)).encode());
       expect(p.events.single.toJson(), e.toJson());

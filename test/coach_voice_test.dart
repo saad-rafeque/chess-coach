@@ -75,6 +75,7 @@ void main() {
       f.closeSync();
       settings = AppSettings.memory();
       models = ModelStore(directory: () async => dir);
+      await models.markVerified(spec);
       await models.refresh();
       generator = _FakeGenerator((facts) => 'Oops! $facts');
       loads = 0;

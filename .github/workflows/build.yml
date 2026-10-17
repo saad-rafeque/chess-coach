@@ -11,8 +11,9 @@ concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
 
+# Least privilege: only the release job may write (it publishes the GitHub Release).
 permissions:
-  contents: write
+  contents: read
 
 env:
   FLUTTER_VERSION: 3.47.7
@@ -24,10 +25,10 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - id: version
         run: echo "version=$(grep '^version:' pubspec.yaml | cut -d' ' -f2 | cut -d+ -f1)" >> "$GITHUB_OUTPUT"
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
@@ -38,7 +39,7 @@ jobs:
       - run: flutter test
       - name: Render screenshots
         run: flutter test screenshots/screenshots_test.dart
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: screenshots
           path: screenshots/out
@@ -48,9 +49,9 @@ jobs:
     needs: check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - run: sudo apt-get update && sudo apt-get install -y ninja-build libgtk-3-dev clang cmake pkg-config liblzma-dev
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
@@ -65,11 +66,13 @@ jobs:
           mkdir -p build
           printf '{"GOOGLE_OAUTH_CLIENT_ID":"%s","GOOGLE_OAUTH_CLIENT_SECRET":"%s"}' \
             "$GOOGLE_OAUTH_CLIENT_ID" "$GOOGLE_OAUTH_CLIENT_SECRET" > build/oauth.json
-      - run: flutter build linux --release --dart-define-from-file=build/oauth.json
+      - run: flutter build linux --release --dart-define-from-file=build/oauth.json --obfuscate --split-debug-info=build/debug-info
+      - name: Check the downloaded llama.cpp runtime
+        run: dart run tool/check_native_bundles.dart linux-x64
       - run: bash packaging/linux/build_appimage.sh ${{ needs.check.outputs.version }}
       - run: bash packaging/linux/build_deb.sh ${{ needs.check.outputs.version }}
       - run: tar -czf build/ChessCoach-${{ needs.check.outputs.version }}-linux-x64.tar.gz -C build/linux/x64/release/bundle .
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: linux
           path: |
@@ -82,12 +85,12 @@ jobs:
     needs: check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
           distribution: temurin
           java-version: 17
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
@@ -96,6 +99,11 @@ jobs:
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
+          # A release must never ship with the debug key (it could not update over earlier versions).
+          if [ -z "$KEYSTORE_BASE64" ] && [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            echo "::error::The Android release signing key secret is missing."
+            exit 1
+          fi
           if [ -n "$KEYSTORE_BASE64" ]; then
             echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
             echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
@@ -109,13 +117,15 @@ jobs:
           mkdir -p build
           printf '{"GOOGLE_OAUTH_CLIENT_ID":"%s","GOOGLE_OAUTH_CLIENT_SECRET":"%s"}' \
             "$GOOGLE_OAUTH_CLIENT_ID" "$GOOGLE_OAUTH_CLIENT_SECRET" > build/oauth.json
-      - run: flutter build apk --release --split-per-abi --dart-define-from-file=build/oauth.json
+      - run: flutter build apk --release --split-per-abi --dart-define-from-file=build/oauth.json --obfuscate --split-debug-info=build/debug-info
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      - name: Check the downloaded llama.cpp runtime
+        run: dart run tool/check_native_bundles.dart android-arm64
       - run: cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk build/ChessCoach-${{ needs.check.outputs.version }}-android-arm64.apk
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: android
           path: build/ChessCoach-*-android-arm64.apk
@@ -125,8 +135,8 @@ jobs:
     needs: check
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
@@ -142,7 +152,10 @@ jobs:
           mkdir -p build
           printf '{"GOOGLE_OAUTH_CLIENT_ID":"%s","GOOGLE_OAUTH_CLIENT_SECRET":"%s"}' \
             "$GOOGLE_OAUTH_CLIENT_ID" "$GOOGLE_OAUTH_CLIENT_SECRET" > build/oauth.json
-      - run: flutter build windows --release --dart-define-from-file=build/oauth.json
+      - run: flutter build windows --release --dart-define-from-file=build/oauth.json --obfuscate --split-debug-info=build/debug-info
+      - name: Check the downloaded llama.cpp runtime
+        shell: bash
+        run: dart run tool/check_native_bundles.dart windows-x64
       - name: Bundle the Visual C++ runtime
         shell: pwsh
         run: |
@@ -159,7 +172,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Copy-Item "build\installer\ChessCoach-$v-Setup.exe" build\
           Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath "build\ChessCoach-$v-windows-x64.zip"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: windows
           path: |
@@ -171,9 +184,11 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [check, linux, android, windows]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: dist
           pattern: '{linux,android,windows}'
@@ -184,4 +199,6 @@ jobs:
         run: |
           notes="packaging/release-notes/${GITHUB_REF_NAME}.md"
           [ -f "$notes" ] || notes=/dev/null
+          # Checksums, so anyone can confirm a download is exactly what CI built.
+          (cd dist && sha256sum -- * > SHA256SUMS.txt)
           gh release create "$GITHUB_REF_NAME" dist/* --title "Chess Coach ${GITHUB_REF_NAME#v}" --notes-file "$notes"

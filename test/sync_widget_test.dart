@@ -6,6 +6,7 @@ import 'package:chess_coach/main.dart';
 import 'package:chess_coach/sync/drive.dart';
 import 'package:chess_coach/sync/google_auth.dart';
 import 'package:chess_coach/sync/sync_service.dart';
+import 'package:chess_coach/sync/token_store.dart';
 import 'package:fluent_ui/fluent_ui.dart' show Size;
 import 'package:flutter_test/flutter_test.dart';
 
@@ -82,6 +83,7 @@ SyncService _device(EventStore store, AppSettings settings, _MemoryFolder folder
       auth: auth ?? _FakeAuth(),
       folder: (token) => folder..token = token,
       openBrowser: (_) async => true,
+      tokens: MemoryTokenStore(),
       retryDelays: const [Duration(milliseconds: 10)],
     );
 
