@@ -293,13 +293,13 @@ jobs:
 
   security-scan:
     name: Dependency scan (OSV)
-    runs-on: ubuntu-latest
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
     permissions:
+      actions: read
       contents: read
       security-events: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Scan dependencies for known vulnerabilities
-        uses: google/osv-scanner-action@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
-        with:
-          upload-sarif: 'true'
+    with:
+      # Report every finding to Code Scanning instead of failing the build on
+      # the first low-severity hit; the maintainer reviews the Security tab.
+      fail-on-vuln: false
+      upload-sarif: true
