@@ -67,12 +67,14 @@ jobs:
             "$GOOGLE_OAUTH_CLIENT_ID" "$GOOGLE_OAUTH_CLIENT_SECRET" > build/oauth.json
       - run: flutter build linux --release --dart-define-from-file=build/oauth.json
       - run: bash packaging/linux/build_appimage.sh ${{ needs.check.outputs.version }}
+      - run: bash packaging/linux/build_deb.sh ${{ needs.check.outputs.version }}
       - run: tar -czf build/ChessCoach-${{ needs.check.outputs.version }}-linux-x64.tar.gz -C build/linux/x64/release/bundle .
       - uses: actions/upload-artifact@v4
         with:
           name: linux
           path: |
             build/ChessCoach-*.AppImage
+            build/ChessCoach-*-amd64.deb
             build/ChessCoach-*-linux-x64.tar.gz
 
   android:
