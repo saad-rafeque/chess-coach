@@ -159,25 +159,26 @@ class UpdateSettings extends StatelessWidget {
     };
     return SurfaceCard(
       padding: const EdgeInsets.all(16),
-      child: Row(children: [
-        Icon(FluentIcons.download, color: p.muted, size: 18),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Padding(padding: const EdgeInsets.only(top: 2), child: Icon(FluentIcons.download, color: p.muted, size: 18)),
         const SizedBox(width: 14),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('Chess Coach $appVersion', style: TextStyle(color: p.text)),
             Text(u.error ?? status, style: TextStyle(color: u.error != null ? p.danger : p.muted, fontSize: 12)),
+            const SizedBox(height: 10),
+            if (r != null)
+              FilledButton(
+                onPressed: () => showDialog<void>(context: context, builder: (_) => UpdateDialog(updater: u)),
+                child: const Text('Update'),
+              )
+            else
+              Button(
+                onPressed: u.status == UpdateStatus.checking ? null : () => u.check(force: true),
+                child: const Text('Check for updates'),
+              ),
           ]),
         ),
-        if (r != null)
-          FilledButton(
-            onPressed: () => showDialog<void>(context: context, builder: (_) => UpdateDialog(updater: u)),
-            child: const Text('Update'),
-          )
-        else
-          Button(
-            onPressed: u.status == UpdateStatus.checking ? null : () => u.check(force: true),
-            child: const Text('Check for updates'),
-          ),
       ]),
     );
   }
