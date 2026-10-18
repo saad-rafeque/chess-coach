@@ -32,6 +32,11 @@ set(CMAKE_CXX_FLAGS_PROFILE "${CMAKE_CXX_FLAGS_RELEASE}")
 # Use Unicode for all projects.
 add_definitions(-DUNICODE -D_UNICODE)
 
+# Reproducible builds: no link timestamp in PE headers, so every build of the
+# same source produces identical binaries (CI rebuilds and compares them).
+add_link_options("$<$<CONFIG:Release>:/Brepro>")
+add_link_options("$<$<CONFIG:Profile>:/Brepro>")
+
 # Compilation settings that should be applied to most targets.
 #
 # Be cautious about adding new options here, as plugins use this function by
