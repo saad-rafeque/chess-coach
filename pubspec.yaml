@@ -1,7 +1,7 @@
 name: chess_coach
 description: Personal offline chess coach for Android, Windows and Ubuntu.
 publish_to: none
-version: 1.0.6+19
+version: 1.0.7+20
 
 environment:
   sdk: ^3.11.0
