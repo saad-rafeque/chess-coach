@@ -218,9 +218,18 @@ class Updater extends ChangeNotifier {
 
   Future<void> _installAndroid(({String name, String url, int size}) asset, String sum) async {
     final done = Completer<void>();
+    var interrupted = false;
+    void fail(String message) {
+      if (done.isCompleted) return;
+      status = UpdateStatus.failed;
+      error = message;
+      done.complete();
+    }
+
     OtaUpdate()
         .execute(asset.url, destinationFilename: asset.name, sha256checksum: sum)
         .listen((event) {
+      if (interrupted) return; // the timeout below already put up the retry offer
       switch (event.status) {
         case OtaStatus.DOWNLOADING:
           progress = (double.tryParse(event.value ?? '') ?? 0) / 100;
@@ -228,23 +237,28 @@ class Updater extends ChangeNotifier {
           status = UpdateStatus.installing;
           if (!done.isCompleted) done.complete();
         case OtaStatus.CHECKSUM_ERROR:
-          status = UpdateStatus.failed;
-          error = 'The download was damaged, so it was not installed. Try again.';
-          if (!done.isCompleted) done.complete();
+          fail('The download was damaged, so it was not installed. Try again.');
         case OtaStatus.PERMISSION_NOT_GRANTED_ERROR:
-          status = UpdateStatus.failed;
-          error = 'Allow Chess Coach to install apps (Android asks once), then try again.';
-          if (!done.isCompleted) done.complete();
+          fail('Allow Chess Coach to install apps (Android asks once), then try again.');
         default:
-          status = UpdateStatus.failed;
-          error = 'The update could not be downloaded (${event.value ?? event.status.name}).';
-          if (!done.isCompleted) done.complete();
+          fail('The update could not be downloaded (${event.value ?? event.status.name}).');
       }
       notifyListeners();
     }, onDone: () {
       if (!done.isCompleted) done.complete();
     });
-    await done.future;
+    try {
+      await done.future.timeout(const Duration(minutes: 2));
+    } on TimeoutException {
+      // The install screen was interrupted (for example the player switched
+      // away and Android never finished): stop waiting, keep the update on
+      // offer, and let one tap start a fresh download instead of a stuck
+      // spinner that only a cache clear could end.
+      interrupted = true;
+      status = UpdateStatus.failed;
+      error = 'The installation did not finish. Tap Update now to try again.';
+      notifyListeners();
+    }
   }
 
   /// Downloads the update for this device and checks it against the release's checksum.

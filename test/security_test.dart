@@ -290,6 +290,16 @@ void main() {
         bytes: body.length,
         sha256: sha256.convert(body).toString());
 
+    test('Hugging Face redirect hosts are recognised', () {
+      expect(isHuggingFaceHost('huggingface.co'), isTrue);
+      expect(isHuggingFaceHost('cdn-lfs.huggingface.co'), isTrue);
+      expect(isHuggingFaceHost('cas-bridge.xethub.hf.co'), isTrue, reason: 'Xet-backed downloads use the short domain');
+      expect(isHuggingFaceHost('hf.co'), isTrue);
+      expect(isHuggingFaceHost('evil.example'), isFalse);
+      expect(isHuggingFaceHost('not-hf.co'), isFalse);
+      expect(isHuggingFaceHost('huggingface.co.evil.example'), isFalse);
+    });
+
     test('a model download never follows a link off HTTPS', () async {
       final store = ModelStore(directory: () async => dir);
       await store.download(spec('/hop'));

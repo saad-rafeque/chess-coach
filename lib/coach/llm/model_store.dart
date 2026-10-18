@@ -56,6 +56,13 @@ const explainerModels = [
 ModelSpec modelById(String? id) =>
     explainerModels.firstWhere((m) => m.id == id, orElse: () => explainerModels.first);
 
+/// Whether [host] is one of Hugging Face's download hosts. Resolve links
+/// redirect to the LFS CDN (`cdn-lfs.huggingface.co`) or to the Xet-backed
+/// store on the short domain (`cas-bridge.xethub.hf.co`), so both domains and
+/// their subdomains count.
+bool isHuggingFaceHost(String host) =>
+    host == 'huggingface.co' || host.endsWith('.huggingface.co') || host == 'hf.co' || host.endsWith('.hf.co');
+
 enum ModelStatus { absent, downloading, verifying, ready, failed }
 
 /// Downloads, verifies and deletes explainer models. Nothing is downloaded unless the
@@ -247,8 +254,7 @@ class ModelStore extends ChangeNotifier {
         await res.drain<void>();
         if (location == null || hops >= 4) throw const HttpException('The download link redirected too much.');
         final next = target.resolve(location);
-        final allowed = next.host == 'huggingface.co' || next.host.endsWith('.huggingface.co');
-        if ((next.hasScheme && next.scheme != 'https') || !allowed) {
+        if ((next.hasScheme && next.scheme != 'https') || !isHuggingFaceHost(next.host)) {
           throw const HttpException('The download link is not secure.');
         }
         target = next;

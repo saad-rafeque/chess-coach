@@ -13,6 +13,7 @@ import '../train/skill_model.dart';
 import '../widgets/board_layout.dart';
 import '../widgets/common.dart';
 import '../widgets/sync_settings.dart';
+import '../widgets/update_ui.dart';
 import 'cards_page.dart';
 import 'lesson_page.dart';
 import 'review_page.dart';
@@ -228,6 +229,10 @@ class HomePage extends StatelessWidget {
         children: [
           if (store.storageError != null) ...[
             CoachBubble(text: store.storageError!, tone: BubbleTone.warning),
+            const SizedBox(height: 8),
+          ],
+          if (UpdateScope.of(context).available != null) ...[
+            const UpdateBanner(),
             const SizedBox(height: 8),
           ],
           active,

@@ -60,6 +60,40 @@ class _UpdatePromptState extends State<UpdatePrompt> {
   Widget build(BuildContext context) => widget.child;
 }
 
+/// A banner on the home page: stays visible until the update is installed,
+/// even after the player dismissed the automatic prompt, so an update is never
+/// something a player has to go and look for.
+class UpdateBanner extends StatelessWidget {
+  const UpdateBanner({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Palette.of(context);
+    final u = UpdateScope.of(context);
+    final r = u.available;
+    if (r == null) return const SizedBox.shrink();
+    final busy = u.status == UpdateStatus.downloading || u.status == UpdateStatus.installing;
+    return SurfaceCard(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      child: Row(children: [
+        Icon(FluentIcons.download, color: p.accent, size: 16),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            'Chess Coach ${r.version} is available — you have $appVersion.',
+            style: TextStyle(color: p.text),
+          ),
+        ),
+        const SizedBox(width: 10),
+        FilledButton(
+          onPressed: busy ? null : () => showDialog<void>(context: context, builder: (_) => UpdateDialog(updater: u)),
+          child: const Text('Update'),
+        ),
+      ]),
+    );
+  }
+}
+
 /// "Update available" with what's new, the download progress and any error.
 class UpdateDialog extends StatelessWidget {
   const UpdateDialog({super.key, required this.updater});
