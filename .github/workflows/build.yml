@@ -357,9 +357,11 @@ jobs:
           done
           test -s published-sums.txt || { echo "::error::Could not fetch the published checksums."; exit 1; }
           (cd build && sha256sum "ChessCoach-$v-Setup.exe" "ChessCoach-$v-windows-x64.zip" > ../rebuild-sums.txt)
+          # Match the name at the end of the line: Windows sha256sum marks
+          # files as binary and puts a '*' between hash and name.
           for f in "ChessCoach-$v-Setup.exe" "ChessCoach-$v-windows-x64.zip"; do
-            want="$(grep -F "  $f" published-sums.txt | cut -d' ' -f1)"
-            got="$(grep -F "  $f" rebuild-sums.txt | cut -d' ' -f1)"
+            want="$(grep -F "$f" published-sums.txt | head -1 | cut -d' ' -f1)"
+            got="$(grep -F "$f" rebuild-sums.txt | head -1 | cut -d' ' -f1)"
             if [ -z "$want" ] || [ "$want" != "$got" ]; then
               echo "::error::$f is not reproducible: release=${want:-missing}, rebuild=${got:-missing}"
               exit 1
