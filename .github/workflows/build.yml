@@ -345,11 +345,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           v=${{ needs.check.outputs.version }}
-          gh release download "$GITHUB_REF_NAME" --pattern SHA256SUMS.txt --output /tmp/published-sums.txt
-          (cd build && sha256sum "ChessCoach-$v-Setup.exe" "ChessCoach-$v-windows-x64.zip" > /tmp/rebuild-sums.txt)
+          # Plain relative paths: Windows gh does not understand git-bash's /tmp.
+          gh release download "$GITHUB_REF_NAME" --pattern SHA256SUMS.txt --output published-sums.txt
+          (cd build && sha256sum "ChessCoach-$v-Setup.exe" "ChessCoach-$v-windows-x64.zip" > ../rebuild-sums.txt)
           for f in "ChessCoach-$v-Setup.exe" "ChessCoach-$v-windows-x64.zip"; do
-            want="$(grep -F "  $f" /tmp/published-sums.txt | cut -d' ' -f1)"
-            got="$(grep -F "  $f" /tmp/rebuild-sums.txt | cut -d' ' -f1)"
+            want="$(grep -F "  $f" published-sums.txt | cut -d' ' -f1)"
+            got="$(grep -F "  $f" rebuild-sums.txt | cut -d' ' -f1)"
             if [ -z "$want" ] || [ "$want" != "$got" ]; then
               echo "::error::$f is not reproducible: release=${want:-missing}, rebuild=${got:-missing}"
               exit 1

@@ -65,6 +65,13 @@ kotlin {
     }
 }
 
+// Reproducible APKs: fixed zip entry timestamps and a stable file order, so a
+// rebuild from the same commit produces a bit-identical APK (CI verifies it).
+tasks.withType<AbstractArchiveTask>().configureEach {
+    isPreserveFileTimestamps = false
+    isReproducibleFileOrder = true
+}
+
 flutter {
     source = "../.."
 }
