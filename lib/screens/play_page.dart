@@ -77,11 +77,13 @@ class _PlayPageState extends State<PlayPage> {
 
   GameData _gameData() {
     final pos = _game.position;
+    // In a two-player game the side to move is always the "player".
+    final side = _game.twoPlayers ? pos.turn : _game.playerSide;
     return GameData(
       fen: pos.fen,
       lastMove: _game.lastMove,
       playerSide: _game.playerToMove
-          ? (_game.playerSide == Side.white ? PlayerSide.white : PlayerSide.black)
+          ? (side == Side.white ? PlayerSide.white : PlayerSide.black)
           : PlayerSide.none,
       sideToMove: pos.turn,
       validMoves: makeLegalMoves(pos),
@@ -170,6 +172,7 @@ class _PlayPageState extends State<PlayPage> {
   Future<void> _newGameDialog() async {
     final settings = SettingsScope.read(context);
     final recommended = SkillModel.of(StoreScope.read(context)).recommendedCoachElo;
+    var kind = 'coach';
     var side = 'white';
     var auto = settings.autoStrength;
     var elo = settings.coachElo;
@@ -179,47 +182,60 @@ class _PlayPageState extends State<PlayPage> {
         builder: (context, setDialog) => ContentDialog(
           title: const Text('New game'),
           content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Play as'),
+            const Text('Opponent'),
             const SizedBox(height: 8),
             Segmented<String>(
-              options: const {'white': 'White', 'black': 'Black', 'random': 'Random'},
-              value: side,
-              onChanged: (v) => setDialog(() => side = v),
+              options: const {'coach': 'The coach', 'two': 'Two players'},
+              value: kind,
+              onChanged: (v) => setDialog(() => kind = v),
             ),
             const SizedBox(height: 16),
-            const Text('Coach strength'),
-            const SizedBox(height: 8),
-            ToggleSwitch(
-              checked: auto,
-              onChanged: (v) => setDialog(() => auto = v),
-              content: const Text('Match my level automatically'),
-            ),
-            const SizedBox(height: 8),
-            if (auto)
-              Text('Your coach plays at about $recommended, so you win a bit less than half of your games. '
-                  'It follows your results.',
-                  style: TextStyle(fontSize: 12, color: Palette.of(context).muted))
-            else ...[
-              ComboBox<int>(
-                value: elo,
-                isExpanded: true,
-                items: [
-                  for (final l in coachLevels)
-                    ComboBoxItem(
-                      value: l,
-                      child: Text(l >= 3200
-                          ? 'Maximum (Stockfish)'
-                          : l <= MaiaPlayer.maxElo
-                              ? 'About $l · plays like a human'
-                              : 'About $l · Stockfish'),
-                    ),
-                ],
-                onChanged: (v) => setDialog(() => elo = v ?? elo),
+            if (kind == 'coach') ...[
+              const Text('Play as'),
+              const SizedBox(height: 8),
+              Segmented<String>(
+                options: const {'white': 'White', 'black': 'Black', 'random': 'Random'},
+                value: side,
+                onChanged: (v) => setDialog(() => side = v),
+              ),
+              const SizedBox(height: 16),
+              const Text('Coach strength'),
+              const SizedBox(height: 8),
+              ToggleSwitch(
+                checked: auto,
+                onChanged: (v) => setDialog(() => auto = v),
+                content: const Text('Match my level automatically'),
               ),
               const SizedBox(height: 8),
-              Text('Beginners: start around 600–800. Move up when you win most games.',
+              if (auto)
+                Text('Your coach plays at about $recommended, so you win a bit less than half of your games. '
+                    'It follows your results.',
+                    style: TextStyle(fontSize: 12, color: Palette.of(context).muted))
+              else ...[
+                ComboBox<int>(
+                  value: elo,
+                  isExpanded: true,
+                  items: [
+                    for (final l in coachLevels)
+                      ComboBoxItem(
+                        value: l,
+                        child: Text(l >= 3200
+                            ? 'Maximum (Stockfish)'
+                            : l <= MaiaPlayer.maxElo
+                                ? 'About $l · plays like a human'
+                                : 'About $l · Stockfish'),
+                      ),
+                  ],
+                  onChanged: (v) => setDialog(() => elo = v ?? elo),
+                ),
+                const SizedBox(height: 8),
+                Text('Beginners: start around 600–800. Move up when you win most games.',
+                    style: TextStyle(fontSize: 12, color: Palette.of(context).muted)),
+              ],
+            ] else
+              Text('Two people play each other on this device. Pass it over after each move — and '
+                  'either player can tap Hint to ask the coach what to play.',
                   style: TextStyle(fontSize: 12, color: Palette.of(context).muted)),
-            ],
           ]),
           actions: [
             Button(child: const Text('Cancel'), onPressed: () => Navigator.pop(context, false)),
@@ -229,6 +245,11 @@ class _PlayPageState extends State<PlayPage> {
       ),
     );
     if (start != true || !mounted) return;
+    if (kind == 'two') {
+      setState(() => _flipped = false);
+      _game.newGame(side: Side.white, elo: settings.coachElo, twoPlayers: true);
+      return;
+    }
     settings.autoStrength = auto;
     if (auto) {
       elo = recommended;
@@ -247,13 +268,18 @@ class _PlayPageState extends State<PlayPage> {
     final style = BoardStyle.of(s);
     final g = _game;
     final orientation = _flipped ? g.playerSide.opposite : g.playerSide;
-    final coachToMove = !g.isOver && g.position.turn != g.playerSide;
-    final coachBar = PlayerBar(
-        name: s.coachName, detail: '~${g.coachElo}', icon: FluentIcons.robot, active: coachToMove);
-    final youBar = PlayerBar(
-        name: s.playerName.isEmpty ? 'You' : s.playerName, detail: g.playerSide == Side.white ? 'White' : 'Black', icon: FluentIcons.contact,
-        active: !g.isOver && !coachToMove);
-    final youAtBottom = orientation == g.playerSide;
+    final coachToMove = !g.twoPlayers && !g.isOver && g.position.turn != g.playerSide;
+    final whiteBar = PlayerBar(
+        name: g.twoPlayers ? 'White' : s.coachName,
+        detail: g.twoPlayers ? 'Player 1' : '~${g.coachElo}',
+        icon: g.twoPlayers ? FluentIcons.contact : FluentIcons.robot,
+        active: !g.isOver && (g.twoPlayers ? g.position.turn == Side.white : coachToMove));
+    final blackBar = PlayerBar(
+        name: g.twoPlayers ? 'Black' : (s.playerName.isEmpty ? 'You' : s.playerName),
+        detail: g.twoPlayers ? 'Player 2' : (g.playerSide == Side.white ? 'White' : 'Black'),
+        icon: FluentIcons.contact,
+        active: !g.isOver && (g.twoPlayers ? g.position.turn == Side.black : !coachToMove));
+    final whiteAtBottom = g.twoPlayers ? orientation == Side.white : orientation == g.playerSide;
     final training = g.mode == PlayMode.training;
     final eval = g.evaluation;
 
@@ -262,14 +288,20 @@ class _PlayPageState extends State<PlayPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Segmented<PlayMode>(
-            options: const {PlayMode.training: 'Training', PlayMode.real: 'Real game'},
-            value: g.mode,
-            onChanged: g.setMode,
-          ),
+          if (g.twoPlayers)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Pill('Two players', color: p.accent),
+            )
+          else
+            Segmented<PlayMode>(
+              options: const {PlayMode.training: 'Training', PlayMode.real: 'Real game'},
+              value: g.mode,
+              onChanged: g.setMode,
+            ),
           const SizedBox(height: 14),
           Row(children: [
-            Text(s.coachName, style: TextStyle(color: p.text, fontWeight: FontWeight.w600)),
+            Text(g.twoPlayers ? 'Two players' : s.coachName, style: TextStyle(color: p.text, fontWeight: FontWeight.w600)),
             const SizedBox(width: 8),
             if (g.thinking && coachToMove) const SizedBox(width: 14, height: 14, child: ProgressRing(strokeWidth: 2)),
             Expanded(
@@ -318,7 +350,8 @@ class _PlayPageState extends State<PlayPage> {
         for (final a in [
           _Action(icon: FluentIcons.add, label: 'New', onPressed: _newGameDialog),
           _Action(icon: FluentIcons.undo, label: 'Undo', onPressed: g.canUndo ? g.undo : null),
-          _Action(icon: FluentIcons.lightbulb, label: 'Hint', onPressed: training && g.playerToMove ? g.hint : null),
+          _Action(icon: FluentIcons.lightbulb, label: 'Hint',
+              onPressed: (training || g.twoPlayers) && g.playerToMove ? g.hint : null),
           _Action(icon: FluentIcons.sync, label: 'Flip', onPressed: () => setState(() => _flipped = !_flipped)),
           _Action(icon: FluentIcons.flag, label: 'Resign', onPressed: g.isOver || g.moves.isEmpty ? null : g.resign),
         ])
@@ -337,15 +370,17 @@ class _PlayPageState extends State<PlayPage> {
       scroll: false,
       compactOnPhone: true,
       child: BoardLayout(
-        panelTitle: s.coachName,
+        panelTitle: g.twoPlayers ? 'Two players' : s.coachName,
         // The coach's latest message stays visible under the board; tapping it opens the panel.
         peek: g.chat.isEmpty
             ? null
             : PeekBubble(text: g.chat.last.text, tone: _bubbleTone(g.chat.last.tone)),
-        boardLabel: 'Your game against the coach. ${g.playerToMove ? 'Your move' : 'The coach is thinking'}.',
-        top: youAtBottom ? coachBar : youBar,
-        bottom: youAtBottom ? youBar : coachBar,
-        overBoard: training && s.evalBar && eval != null
+        boardLabel: g.twoPlayers
+            ? 'Two players: pass the device after each move. ${g.position.turn == Side.white ? 'White' : 'Black'} to move.'
+            : 'Your game against the coach. ${g.playerToMove ? 'Your move' : 'The coach is thinking'}.',
+        top: whiteAtBottom ? blackBar : whiteBar,
+        bottom: whiteAtBottom ? whiteBar : blackBar,
+        overBoard: training && !g.twoPlayers && s.evalBar && eval != null
             ? EvalBar(whitePercent: eval.whiteWinPercent, label: eval.label, flipped: orientation == Side.black)
             : null,
         actions: actions,

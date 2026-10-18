@@ -87,6 +87,10 @@ class GameController extends ChangeNotifier {
   bool thinking = false;
   bool resigned = false;
 
+  /// Two humans on one device: no coach moves, no grading, and [hint] gives
+  /// guidance to whichever side is to move. Games are not archived.
+  bool twoPlayers = false;
+
   /// Latest known evaluation (White's point of view).
   Score? evaluation;
 
@@ -103,14 +107,14 @@ class GameController extends ChangeNotifier {
 
   Position get position => positions.last;
   bool get isOver => resigned || position.isGameOver;
-  bool get playerToMove => !isOver && !thinking && position.turn == playerSide;
+  bool get playerToMove => !isOver && !thinking && (twoPlayers || position.turn == playerSide);
   bool get canUndo => _playerMoveCount > 0;
   int get _playerMoveCount => [for (var i = 0; i < moves.length; i++) positions[i].turn].where((s) => s == playerSide).length;
   NormalMove? get lastMove => moves.isEmpty ? null : moves.last;
 
   // ---- game flow ----
 
-  void newGame({required Side side, required int elo}) {
+  void newGame({required Side side, required int elo, bool twoPlayers = false}) {
     _token++;
     positions
       ..clear()
@@ -123,14 +127,19 @@ class GameController extends ChangeNotifier {
     coachElo = elo;
     resigned = false;
     thinking = false;
+    this.twoPlayers = twoPlayers;
     _clearMarks();
     evaluation = null;
     _analysis = null;
-    _say('New game! You play ${_name(side)}, I play at about $elo. '
-        '${mode == PlayMode.training ? 'In Training mode I comment on every move.' : 'Real game: I stay quiet until the end.'}',
+    _say(twoPlayers
+        ? 'Two players on one board: pass the device after each move. Either player can tap Hint '
+            'and the coach suggests what to play.'
+        : 'New game! You play ${_name(side)}, I play at about $elo. '
+            '${mode == PlayMode.training ? 'In Training mode I comment on every move.' : 'Real game: I stay quiet until the end.'}',
         CoachTone.info);
     _save();
     notifyListeners();
+    if (twoPlayers) return; // both sides are human; nothing to analyse in the background
     if (side == Side.black) {
       unawaited(_coachMove(_token));
     } else {
@@ -169,14 +178,15 @@ class GameController extends ChangeNotifier {
       playerSide = side;
       coachElo = data['elo'] as int? ?? 800;
       mode = data['mode'] == 'real' ? PlayMode.real : PlayMode.training;
+      twoPlayers = data['two'] == true;
       resigned = false;
       thinking = false;
       _clearMarks();
       _say('Welcome back! Your game is just as you left it.', CoachTone.info);
       notifyListeners();
-      if (!isOver && position.turn != playerSide) {
+      if (!twoPlayers && !isOver && position.turn != playerSide) {
         unawaited(_coachMove(_token));
-      } else {
+      } else if (!twoPlayers) {
         unawaited(_analyseCurrent());
       }
       return true;
@@ -209,6 +219,12 @@ class GameController extends ChangeNotifier {
     thinking = true;
     _save();
     notifyListeners();
+    if (twoPlayers) {
+      thinking = false;
+      if (isOver) _announce();
+      notifyListeners();
+      return;
+    }
     if (mode == PlayMode.training && hintsEnabled) {
       await _feedback(before, move, beforeAnalysis, token);
       if (token != _token) return;
@@ -329,17 +345,19 @@ class GameController extends ChangeNotifier {
 
   Future<void> hint() async {
     if (!playerToMove) return;
+    // In a two-player game the coach addresses the side to move by name.
+    final turnName = twoPlayers ? '${_name(position.turn)}: ' : '';
     final engine = await host.engine;
     if (engine == null) {
       for (final m in legalMoves(position)) {
         final piece = freeCapture(position, m);
         if (piece != null) {
-          _say('Hint: the ${piece.role.name} on ${m.to.name} is not defended.', CoachTone.info);
+          _say('Hint: ${turnName}the ${piece.role.name} on ${m.to.name} is not defended.', CoachTone.info);
           notifyListeners();
           return;
         }
       }
-      _say('Hint: develop a piece, control the centre or make your king safer.', CoachTone.info);
+      _say('Hint: ${turnName}develop a piece, control the centre or make your king safer.', CoachTone.info);
       notifyListeners();
       return;
     }
@@ -353,12 +371,12 @@ class GameController extends ChangeNotifier {
     if (_hintLevel == 0 && piece != null) {
       highlight = m.from;
       _hintLevel = 1;
-      _say('Hint: look at your ${piece.role.name} on ${m.from.name}. Tap Hint again for the move.', CoachTone.info);
+      _say('Hint: ${turnName}look at your ${piece.role.name} on ${m.from.name}. Tap Hint again for the move.', CoachTone.info);
     } else {
       arrow = m;
       highlight = null;
       _hintLevel = 2;
-      _say('Hint: ${sanOf(position, a.bestMove!)}.', CoachTone.info);
+      _say('Hint: $turnName${sanOf(position, a.bestMove!)}.', CoachTone.info);
     }
     notifyListeners();
   }
@@ -367,13 +385,21 @@ class GameController extends ChangeNotifier {
     if (!canUndo) return;
     _token++;
     thinking = false;
-    var removedPlayerMove = false;
-    while (moves.isNotEmpty && !(removedPlayerMove && position.turn == playerSide)) {
-      if (positions[positions.length - 2].turn == playerSide) removedPlayerMove = true;
+    if (twoPlayers) {
+      // Both sides are human: take back exactly the move that was just played.
       positions.removeLast();
       moves.removeLast();
       sans.removeLast();
       grades.remove(moves.length);
+    } else {
+      var removedPlayerMove = false;
+      while (moves.isNotEmpty && !(removedPlayerMove && position.turn == playerSide)) {
+        if (positions[positions.length - 2].turn == playerSide) removedPlayerMove = true;
+        positions.removeLast();
+        moves.removeLast();
+        sans.removeLast();
+        grades.remove(moves.length);
+      }
     }
     resigned = false;
     _clearMarks();
@@ -381,6 +407,7 @@ class GameController extends ChangeNotifier {
     _say('Move taken back. Take your time and check for threats.', CoachTone.info);
     _save();
     notifyListeners();
+    if (twoPlayers) return;
     if (position.turn == playerSide) {
       unawaited(_analyseCurrent());
     } else {
@@ -401,6 +428,21 @@ class GameController extends ChangeNotifier {
 
   void _announce() {
     final p = position;
+    if (twoPlayers) {
+      // Two humans: just the verdict. No record, no grading, no archive.
+      if (resigned) {
+        final loser = _name(p.turn);
+        _say('$loser resigned. ${_name(p.turn.opposite)} wins.', CoachTone.info);
+      } else if (p.isCheckmate) {
+        _sound(BoardSoundKind.victory);
+        _say('Checkmate! ${_name(p.turn.opposite)} wins.', CoachTone.good);
+      } else {
+        _say(p.isStalemate ? 'Stalemate: the game is a draw.' : 'The game is a draw.', CoachTone.info);
+      }
+      _save();
+      notifyListeners();
+      return;
+    }
     final playerWon = !resigned && p.isCheckmate && p.turn != playerSide;
     final playerLost = resigned || p.isCheckmate && p.turn == playerSide;
     if (playerWon) {
@@ -490,6 +532,7 @@ class GameController extends ChangeNotifier {
             'side': playerSide.name,
             'elo': coachElo,
             'mode': mode.name,
+            if (twoPlayers) 'two': true,
             'moves': [for (final m in moves) m.uci],
           }));
   }

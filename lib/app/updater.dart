@@ -235,7 +235,12 @@ class Updater extends ChangeNotifier {
           progress = (double.tryParse(event.value ?? '') ?? 0) / 100;
         case OtaStatus.INSTALLING || OtaStatus.INSTALLATION_DONE:
           status = UpdateStatus.installing;
-          if (!done.isCompleted) done.complete();
+          // The new version replaces this one and restarts the app; never
+          // offer the old version again in the seconds before that happens.
+          if (!done.isCompleted) {
+            available = null;
+            done.complete();
+          }
         case OtaStatus.CHECKSUM_ERROR:
           fail('The download was damaged, so it was not installed. Try again.');
         case OtaStatus.PERMISSION_NOT_GRANTED_ERROR:
@@ -246,6 +251,9 @@ class Updater extends ChangeNotifier {
       notifyListeners();
     }, onDone: () {
       if (!done.isCompleted) done.complete();
+    }, onError: (Object e) {
+      fail('The update could not be installed: $e');
+      notifyListeners();
     });
     try {
       await done.future.timeout(const Duration(minutes: 2));

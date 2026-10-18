@@ -148,4 +148,46 @@ void main() {
     expect(g.isOver, isTrue);
     expect(saved, isNull);
   });
+
+  group('two players', () {
+    test('both sides are human, the coach never moves, and hints name the side', () async {
+      final g = GameController(host: _host())..newGame(side: Side.white, elo: 800, twoPlayers: true);
+      expect(g.twoPlayers, isTrue);
+      await g.playerMove(NormalMove.fromUci('e2e4'));
+      expect(g.moves, hasLength(1), reason: 'no coach reply in a two-player game');
+      expect(g.playerToMove, isTrue, reason: 'Black is also human');
+      await g.playerMove(NormalMove.fromUci('e7e5'));
+      expect(g.moves, hasLength(2));
+      await g.hint();
+      expect(g.chat.map((m) => m.text).join(' '), contains('White'));
+      expect(g.lastRecord, isNull);
+    });
+
+    test('undo takes back exactly one move and resigning names the winner', () async {
+      final g = GameController(host: _offline)..newGame(side: Side.white, elo: 800, twoPlayers: true);
+      await g.playerMove(NormalMove.fromUci('e2e4'));
+      await g.playerMove(NormalMove.fromUci('e7e5'));
+      g.undo();
+      expect(g.moves, hasLength(1), reason: 'one ply back, not a whole round');
+      expect(g.position.turn, Side.black);
+      g.resign();
+      expect(g.isOver, isTrue);
+      expect(g.chat.last.text, contains('Black resigned. White wins.'));
+      expect(g.lastRecord, isNull, reason: 'two-player games are not archived');
+    });
+
+    test('an unfinished two-player game survives save and restore', () async {
+      String? saved;
+      final g = GameController(host: _offline, onSave: (j) => saved = j)
+        ..newGame(side: Side.white, elo: 800, twoPlayers: true);
+      await g.playerMove(NormalMove.fromUci('d2d4'));
+      expect(saved, contains('"two":true'));
+
+      final restored = GameController(host: _offline);
+      expect(restored.restore(saved!), isTrue);
+      expect(restored.twoPlayers, isTrue);
+      expect(restored.moves.map((m) => m.uci), ['d2d4']);
+      expect(restored.playerToMove, isTrue, reason: 'Black to move, still human');
+    });
+  });
 }
