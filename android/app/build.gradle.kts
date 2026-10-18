@@ -48,6 +48,12 @@ android {
                 storePassword = signingValue("ANDROID_KEYSTORE_PASSWORD", "storePassword")
                 keyAlias = signingValue("ANDROID_KEY_ALIAS", "keyAlias")
                 keyPassword = signingValue("ANDROID_KEY_PASSWORD", "keyPassword")
+                // v1 (JAR) signing embeds the signing time, so every rebuild
+                // differs. v2/v3 only: time-independent, and every supported
+                // Android version (minSdk 24+) verifies v2.
+                enableV1Signing = false
+                enableV2Signing = true
+                enableV3Signing = true
             }
         }
     }
