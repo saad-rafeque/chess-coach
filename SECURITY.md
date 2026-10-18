@@ -34,9 +34,11 @@ Reports are handled in confidence and credited on request.
   key hex is in `lib/app/release_key.dart`), then compare your file's `sha256sum` with its line in
   `SHA256SUMS.txt`.
 - Builds are reproducible: after every release, CI rebuilds the Linux (AppImage, deb, tar.gz), Windows
-  (Setup.exe, zip) and Android (APK) artifacts from the same commit and fails loudly unless their hashes
-  match the published `SHA256SUMS.txt`. Every artifact is built with fixed timestamps
-  (`SOURCE_DATE_EPOCH`).
+  (Setup.exe, zip) and Android artifacts from the same commit and fails loudly unless their hashes match
+  the published `SHA256SUMS.txt`. Every artifact is built with fixed timestamps (`SOURCE_DATE_EPOCH`).
+  For Android the rebuild check compares the *unsigned* APK and verifies the signature against the
+  release certificate, because APK signatures embed a random salt and legitimately differ between
+  otherwise identical builds.
 
 ## How the app protects you
 
