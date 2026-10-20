@@ -87,11 +87,14 @@
 - [x] `flutter analyze` passed; the full Flutter suite passed (186 tests); all 8 screenshot cases passed. The
   focused phone/PiP tests and the new two-player split-screen screenshot passed; the screenshot was inspected.
 - [x] Commit `89cb641` was pushed to `main` after the pre-push hook passed. Its GitHub run exposed that the
-  free private repo cannot accept SARIF through Code Scanning; the OSV workflow is being adjusted to keep its
-  scan artifact in Actions without the unsupported upload.
+  free private repo cannot accept SARIF through Code Scanning, and the mutable AppImage runtime had changed.
+- [x] Commit `7b73e5a` disables only the unsupported SARIF upload; OSV scanning and the Actions report artifact
+  remain enabled. Its first GitHub run ended before creating jobs (`startup_failure`).
+- [x] Replaced the mutable AppImage runtime URL with the signed versioned `20251108` release, verified its
+  upstream GPG signature and digest, and built the AppImage locally. Removed a duplicate desktop menu category.
 - [ ] Verify native Android compilation and PiP on a device. This PC has no Android SDK or emulator configured;
   `:app:assembleDebug` stops with “SDK location not found”, before compiling the Android activity.
-- [ ] Verify the private-compatible OSV workflow on GitHub and confirm all Actions checks pass.
+- [ ] Run the latest private-compatible workflow and confirm OSV, Linux, Windows and Android jobs pass.
 
 ## Next step
 
@@ -174,6 +177,8 @@ updater are not accessible to people who are not repository collaborators.
   desugaring on), Windows runs the Inno installer silently, AppImage replaces itself, .deb uses pkexec.
 - Android sign-in uses Google Play services (`google_sign_in` 7) with a Web client as server client ID, falling
   back to the browser flow when Play services can't do it. Desktop keeps the loopback flow.
+- AppImage runtime pin (20 Oct 2026): use the immutable AppImage `20251108` runtime, whose GPG signature was
+  verified against the upstream type2-runtime signing key; never pin the mutable `continuous` asset.
 - Private-repo preference (20 Oct 2026): keep `saad-rafeque/chess-coach` private until the owner says otherwise.
   Recheck privacy after any repo-setting change. Do not enable paid GitHub or cloud features. The free plan does
   not provide repository rulesets or native secret scanning while this repo is private.

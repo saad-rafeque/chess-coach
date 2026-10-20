@@ -36,14 +36,14 @@ echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  $tool" |
   || { rm -f "$tool"; exit 1; }
 chmod +x "$tool"
 
-# Pin the runtime too: appimagetool otherwise downloads an unpinned `continuous`
-# build, so the image could change without the project changing.
+# Use an immutable, signed upstream release rather than the mutable `continuous`
+# asset, whose bytes can change and make a pinned digest fail unexpectedly.
 runtime="$work/runtime-x86_64"
 if [ ! -f "$runtime" ]; then
   curl -fsSL --retry 5 -o "$runtime" \
-    https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64
+    https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64
 fi
-echo "156f4bdbde9c52d01814600013e0a273f0118dc2de98975f3c8c63427ec79074  $runtime" | sha256sum -c - \
+echo "2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d  $runtime" | sha256sum -c - \
   || { rm -f "$runtime"; exit 1; }
 
 # SOURCE_DATE_EPOCH makes mksquashfs store the same timestamps in every build;
