@@ -4,10 +4,10 @@
 
 The detailed owner-facing audit handoff, including requirements, evidence, confirmed flaws, local-only edits, and
 the ordered inspect-after-each-step checklist, is [docs/audit-handoff-2026-10-20.md](docs/audit-handoff-2026-10-20.md).
-Current checkout: `main` matches `origin/main` at `702373d`. All security hardening, local data permissions,
-workflow permissions, and two-player undo fixes have been committed and verified. GitHub Actions CI run `39407875887`
-passed completely across all jobs (Analyze, test, screenshots; OSV scanner; Linux build; Windows build; Android APK).
-Repository visibility has been updated to public as requested and verified clean.
+Current checkout: `main` matches `origin/main` at `39e7e56`. All security hardening, local data permissions,
+workflow permissions, engine lifecycle fixes, threefold/50-move draw rules, puzzle mating move recognition,
+Android PiP crash safety, and the complete Frosted Glass UI redesign have been committed and pushed.
+Repository visibility is public and verified clean.
 
 | # | Milestone | Status |
 |---|---|---|
@@ -156,9 +156,19 @@ Work through these in order. A step is not complete until its inspection/check i
 - [x] Inspect GitHub Actions run to verify all jobs (check, linux, android, windows, dependency scan) pass on CI: run `39407875887` passed completely across all jobs.
 - [x] Confirm repository visibility is public as requested and verified clean.
 
+### 8. Third-party QA, security hardening, and Frosted Glass UI redesign
+- [x] Engine zombie prevention & timeout recovery: immediate `_process.send('stop')` on search error/timeout in `lib/engine/chess_engine.dart`, configurable timeout parameter, and whitespace-tolerant FEN tokenization (`RegExp(r'\s+')`).
+- [x] EngineHost listener leak fix: `status.dispose()` added in `lib/engine/engine_host.dart` on disposal.
+- [x] Threefold repetition & 50-move draw rules: strict repetition tracking across board, turn, castling rights, and en passant squares in `lib/game/game_controller.dart`. 50-move rule detection (`position.halfmoves >= 100`). Draw announcement reasons recorded.
+- [x] Puzzle alternate checkmate recognition: `PuzzleSession.playerMove` accepts any move delivering checkmate as solving the puzzle.
+- [x] Android native PiP crash safety: `enterPictureInPictureMode` wrapped in try/catch in `android/app/src/main/kotlin/com/example/chess_coach/MainActivity.kt`.
+- [x] Local LLM model permissions: model files restricted to `0600` on Linux via `secureDataFile` in `lib/coach/llm/model_store.dart`.
+- [x] Frosted Glass UI redesign: elevated Obsidian Dark, Frosted Pearl Light, and Warm Mahogany palettes with translucent blurred surfaces (`BackdropFilter(sigmaX: 12, sigmaY: 12)`), specular borders (`0x24FFFFFF` / `0x1A000000`), frosted navigation bar, refined time control hero card, and clean distraction-free calm gameplay without arcade badges.
+- [x] Full validation: 199/199 Flutter tests pass, 8/8 screenshot suites pass, secret scanner reports 0 findings across all 1,632 objects. Pushed as commit `39e7e56`.
+
 ## Next step
 
-All audit tasks 0 through 8 from the audit document are complete, CI is fully green across all platforms, and repository visibility is public. Proceed with third-party testing and ongoing security hardening.
+All audit tasks 0 through 8 from the audit document, independent third-party QA fixes, and the professional Frosted Glass UI redesign are complete. GitHub Actions CI run `39417921186` passed 100% across all jobs (Analyze, test, screenshots; OSV scan; Windows build; Linux build; Android APK). All builds are verified and clean.
 
 ## Decisions
 
