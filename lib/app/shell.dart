@@ -78,17 +78,26 @@ class _AppShellState extends State<AppShell> {
             : PaneDisplayMode.compact,
         header: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const AppLogo(size: 26),
-              const SizedBox(width: 10),
-              Text(
-                'Chess Coach',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
-                  color: p.text,
-                ),
+              const Padding(
+                padding: EdgeInsets.only(left: 8, top: 8, bottom: 12),
+                child: MacOsTrafficLights(),
+              ),
+              Row(
+                children: [
+                  const AppLogo(size: 26),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Chess Coach',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                      color: p.text,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -111,74 +120,90 @@ class _BottomNav extends StatelessWidget {
     final p = Palette.of(context);
     return ClipRect(
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
         child: Container(
           decoration: BoxDecoration(
             color: p.pane.withValues(alpha: p.brightness == Brightness.dark ? 0.78 : 0.90),
             border: Border(top: BorderSide(color: p.glassBorder)),
           ),
           child: SafeArea(
-        top: false,
-        // Large system fonts would not fit the bar; labels grow a little, icons say the rest.
-        child: MediaQuery.withClampedTextScaling(
-          maxScaleFactor: 1.15,
-          child: SizedBox(
-            height: 56,
-            child: Row(
-              children: [
-                for (final (i, d) in _dests.indexed)
-                  Expanded(
-                    child: HoverButton(
-                      onPressed: () => onTap(i),
-                      builder: (context, states) {
-                        final selected = i == index;
-                        final color = selected ? p.accent : p.muted;
-                        return Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            AnimatedContainer(
+            top: false,
+            // Large system fonts would not fit the bar; labels grow a little, icons say the rest.
+            child: MediaQuery.withClampedTextScaling(
+              maxScaleFactor: 1.15,
+              child: SizedBox(
+                height: 58,
+                child: Row(
+                  children: [
+                    for (final (i, d) in _dests.indexed)
+                      Expanded(
+                        child: HoverButton(
+                          onPressed: () => onTap(i),
+                          builder: (context, states) {
+                            final selected = i == index;
+                            final color = selected ? p.accent : p.muted;
+                            return AnimatedScale(
                               duration: motion(
                                 context,
-                                const Duration(milliseconds: 180),
+                                const Duration(milliseconds: 140),
                               ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 5,
+                              curve: Curves.easeOutCubic,
+                              scale: states.isPressed ? 0.92 : 1.0,
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  AnimatedContainer(
+                                    duration: motion(
+                                      context,
+                                      const Duration(milliseconds: 180),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 5,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: selected
+                                          ? p.accent.withValues(alpha: 0.16)
+                                          : null,
+                                      borderRadius: BorderRadius.circular(14),
+                                      boxShadow: [
+                                        if (selected)
+                                          BoxShadow(
+                                            color: p.accent.withValues(alpha: 0.18),
+                                            blurRadius: 10,
+                                            spreadRadius: 0.5,
+                                          ),
+                                      ],
+                                    ),
+                                    child: Icon(d.icon, size: 18, color: color),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    d.label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.fade,
+                                    softWrap: false,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: color,
+                                      fontWeight: selected
+                                          ? FontWeight.w600
+                                          : FontWeight.w400,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              decoration: BoxDecoration(
-                                color: selected
-                                    ? p.accent.withValues(alpha: 0.15)
-                                    : null,
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: Icon(d.icon, size: 18, color: color),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              d.label,
-                              maxLines: 1,
-                              overflow: TextOverflow.fade,
-                              softWrap: false,
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: color,
-                                fontWeight: selected
-                                    ? FontWeight.w600
-                                    : FontWeight.w400,
-                              ),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
-              ],
+                            );
+                          },
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
       ),
-    ),
-  ),
-);
-}
+    );
+  }
 }

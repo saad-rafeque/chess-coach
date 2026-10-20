@@ -411,29 +411,37 @@ class _PlayPageState extends State<PlayPage> {
     final orientation = _flipped ? g.playerSide.opposite : g.playerSide;
     final coachToMove =
         !g.twoPlayers && !g.isOver && g.position.turn != g.playerSide;
+    final mat = _calcMaterial(g.position);
+    final isWhitePlayer = g.twoPlayers ? true : g.playerSide == Side.white;
+    final isBlackPlayer = g.twoPlayers ? true : g.playerSide == Side.black;
+
     final whiteBar = PlayerBar(
-      name: g.twoPlayers ? 'White' : s.coachName,
-      detail: g.twoPlayers ? 'Player 1' : '~${g.coachElo}',
-      icon: g.twoPlayers ? FluentIcons.contact : FluentIcons.robot,
-      active:
-          !g.isOver &&
-          (g.twoPlayers ? g.position.turn == Side.white : coachToMove),
+      name: g.twoPlayers
+          ? 'White'
+          : (isWhitePlayer ? (s.playerName.isEmpty ? 'You' : s.playerName) : s.coachName),
+      detail: g.twoPlayers ? 'Player 1' : (isWhitePlayer ? 'White' : '~${g.coachElo}'),
+      icon: g.twoPlayers
+          ? FluentIcons.contact
+          : (isWhitePlayer ? FluentIcons.contact : FluentIcons.robot),
+      badge: g.twoPlayers ? null : (isWhitePlayer ? 'YOU' : 'COACH'),
+      active: !g.isOver && g.position.turn == Side.white,
+      capturedPieces: mat.whiteCaptured,
+      advantage: mat.whiteAdvantage,
     );
     final blackBar = PlayerBar(
       name: g.twoPlayers
           ? 'Black'
-          : (s.playerName.isEmpty ? 'You' : s.playerName),
-      detail: g.twoPlayers
-          ? 'Player 2'
-          : (g.playerSide == Side.white ? 'White' : 'Black'),
-      icon: FluentIcons.contact,
-      active:
-          !g.isOver &&
-          (g.twoPlayers ? g.position.turn == Side.black : !coachToMove),
+          : (isBlackPlayer ? (s.playerName.isEmpty ? 'You' : s.playerName) : s.coachName),
+      detail: g.twoPlayers ? 'Player 2' : (isBlackPlayer ? 'Black' : '~${g.coachElo}'),
+      icon: g.twoPlayers
+          ? FluentIcons.contact
+          : (isBlackPlayer ? FluentIcons.contact : FluentIcons.robot),
+      badge: g.twoPlayers ? null : (isBlackPlayer ? 'YOU' : 'COACH'),
+      active: !g.isOver && g.position.turn == Side.black,
+      capturedPieces: mat.blackCaptured,
+      advantage: mat.blackAdvantage,
     );
-    final whiteAtBottom = g.twoPlayers
-        ? orientation == Side.white
-        : orientation == g.playerSide;
+    final whiteAtBottom = orientation == Side.white;
     final training = g.mode == PlayMode.training;
     final eval = g.evaluation;
     final latestCoachMessage = g.chat.isEmpty ? null : g.chat.last.text;
@@ -736,10 +744,25 @@ class _Action extends StatelessWidget {
         child: Button(
           onPressed: onPressed,
           style: ButtonStyle(
+            backgroundColor: WidgetStateProperty.resolveWith((states) {
+              if (onPressed == null) return p.glassFillSubtle.withValues(alpha: 0.35);
+              if (states.isPressed) return p.accent.withValues(alpha: 0.22);
+              if (states.isHovered) return p.accent.withValues(alpha: 0.14);
+              return p.glassFillSubtle;
+            }),
+            shape: WidgetStateProperty.resolveWith((states) => RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+              side: BorderSide(
+                color: states.isHovered && onPressed != null
+                    ? p.accent.withValues(alpha: 0.35)
+                    : p.glassBorderSubtle,
+                width: 1,
+              ),
+            )),
             padding: WidgetStatePropertyAll(
               EdgeInsets.symmetric(
-                horizontal: isMobile(context) ? 6 : 12,
-                vertical: 8,
+                horizontal: isMobile(context) ? 5 : 8,
+                vertical: 7,
               ),
             ),
           ),
@@ -750,16 +773,19 @@ class _Action extends StatelessWidget {
                 icon,
                 size: 16,
                 color: onPressed == null
-                    ? p.muted.withValues(alpha: 0.5)
+                    ? p.muted.withValues(alpha: 0.45)
                     : p.text,
               ),
               const SizedBox(height: 2),
               Text(
                 label,
+                maxLines: 1,
+                softWrap: false,
                 style: TextStyle(
                   fontSize: 11,
+                  fontWeight: FontWeight.w500,
                   color: onPressed == null
-                      ? p.muted.withValues(alpha: 0.5)
+                      ? p.muted.withValues(alpha: 0.45)
                       : p.muted,
                 ),
               ),
@@ -769,4 +795,102 @@ class _Action extends StatelessWidget {
       ),
     );
   }
+}
+
+class _MaterialDiff {
+  const _MaterialDiff({
+    required this.whiteCaptured,
+    required this.blackCaptured,
+    required this.whiteAdvantage,
+    required this.blackAdvantage,
+  });
+
+  final List<String> whiteCaptured;
+  final List<String> blackCaptured;
+  final int whiteAdvantage;
+  final int blackAdvantage;
+}
+
+_MaterialDiff _calcMaterial(Position pos) {
+  var wP = 0, wN = 0, wB = 0, wR = 0, wQ = 0;
+  var bP = 0, bN = 0, bB = 0, bR = 0, bQ = 0;
+
+  for (final (_, piece) in pos.board.pieces) {
+    if (piece.color == Side.white) {
+      switch (piece.role) {
+        case Role.pawn:
+          wP++;
+        case Role.knight:
+          wN++;
+        case Role.bishop:
+          wB++;
+        case Role.rook:
+          wR++;
+        case Role.queen:
+          wQ++;
+        case Role.king:
+          break;
+      }
+    } else {
+      switch (piece.role) {
+        case Role.pawn:
+          bP++;
+        case Role.knight:
+          bN++;
+        case Role.bishop:
+          bB++;
+        case Role.rook:
+          bR++;
+        case Role.queen:
+          bQ++;
+        case Role.king:
+          break;
+      }
+    }
+  }
+
+  final whiteCaptured = <String>[];
+  for (var i = 0; i < 8 - bP; i++) {
+    whiteCaptured.add('♟');
+  }
+  for (var i = 0; i < 2 - bN; i++) {
+    whiteCaptured.add('♞');
+  }
+  for (var i = 0; i < 2 - bB; i++) {
+    whiteCaptured.add('♝');
+  }
+  for (var i = 0; i < 2 - bR; i++) {
+    whiteCaptured.add('♜');
+  }
+  for (var i = 0; i < 1 - bQ; i++) {
+    whiteCaptured.add('♛');
+  }
+
+  final blackCaptured = <String>[];
+  for (var i = 0; i < 8 - wP; i++) {
+    blackCaptured.add('♙');
+  }
+  for (var i = 0; i < 2 - wN; i++) {
+    blackCaptured.add('♘');
+  }
+  for (var i = 0; i < 2 - wB; i++) {
+    blackCaptured.add('♗');
+  }
+  for (var i = 0; i < 2 - wR; i++) {
+    blackCaptured.add('♖');
+  }
+  for (var i = 0; i < 1 - wQ; i++) {
+    blackCaptured.add('♕');
+  }
+
+  final wScore = wP + wN * 3 + wB * 3 + wR * 5 + wQ * 9;
+  final bScore = bP + bN * 3 + bB * 3 + bR * 5 + bQ * 9;
+  final diff = wScore - bScore;
+
+  return _MaterialDiff(
+    whiteCaptured: whiteCaptured,
+    blackCaptured: blackCaptured,
+    whiteAdvantage: diff > 0 ? diff : 0,
+    blackAdvantage: diff < 0 ? -diff : 0,
+  );
 }

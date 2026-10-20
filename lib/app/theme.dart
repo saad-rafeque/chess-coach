@@ -38,34 +38,41 @@ class Palette {
   final Color danger;
   final bool woodGrain;
 
-  Color get glassFill => surface.withValues(alpha: brightness == Brightness.dark ? 0.72 : 0.86);
-  Color get glassFillSubtle => surfaceAlt.withValues(alpha: brightness == Brightness.dark ? 0.52 : 0.68);
-  Color get glassBorder => brightness == Brightness.dark ? const Color(0x24FFFFFF) : const Color(0x1A000000);
-  Color get glassBorderSubtle => brightness == Brightness.dark ? const Color(0x14FFFFFF) : const Color(0x10000000);
+  Color get glassFill => surface.withValues(alpha: brightness == Brightness.dark ? 0.76 : 0.88);
+  Color get glassFillSubtle => surfaceAlt.withValues(alpha: brightness == Brightness.dark ? 0.55 : 0.70);
+  Color get glassBorder => brightness == Brightness.dark ? const Color(0x28FFFFFF) : const Color(0x1E000000);
+  Color get glassBorderSubtle => brightness == Brightness.dark ? const Color(0x18FFFFFF) : const Color(0x12000000);
+  Color get specularBorder => brightness == Brightness.dark ? const Color(0x38FFFFFF) : const Color(0x28FFFFFF);
 
   BoxDecoration glassDecoration({
-    double radius = 16,
+    double radius = 18,
     bool highlight = false,
     bool subtle = false,
+    bool macosElevated = false,
   }) =>
       BoxDecoration(
         color: subtle ? glassFillSubtle : glassFill,
         borderRadius: BorderRadius.circular(radius),
         border: Border.all(
-          color: highlight ? accent : (subtle ? glassBorderSubtle : glassBorder),
+          color: highlight
+              ? accent
+              : (subtle ? glassBorderSubtle : (macosElevated ? specularBorder : glassBorder)),
           width: highlight ? 1.6 : 1.0,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF000000).withValues(alpha: brightness == Brightness.light ? 0.05 : 0.28),
-            blurRadius: 20,
-            offset: const Offset(0, 6),
+            color: const Color(0xFF000000).withValues(
+              alpha: brightness == Brightness.light ? 0.06 : 0.32,
+            ),
+            blurRadius: macosElevated ? 28 : 20,
+            offset: Offset(0, macosElevated ? 10 : 6),
+            spreadRadius: macosElevated ? 1 : 0,
           ),
           if (highlight)
             BoxShadow(
-              color: accent.withValues(alpha: 0.18),
-              blurRadius: 16,
-              spreadRadius: 1,
+              color: accent.withValues(alpha: 0.22),
+              blurRadius: 18,
+              spreadRadius: 1.5,
             ),
         ],
       );

@@ -125,10 +125,17 @@ class PageFrame extends StatelessWidget {
     );
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [p.background, p.backgroundEnd],
+        gradient: RadialGradient(
+          center: const Alignment(0.65, -0.85),
+          radius: 1.4,
+          colors: [
+            p.brightness == Brightness.dark
+                ? Color.lerp(p.backgroundEnd, p.accent, 0.09)!
+                : Color.lerp(p.backgroundEnd, p.accent, 0.04)!,
+            p.backgroundEnd,
+            p.background,
+          ],
+          stops: const [0.0, 0.55, 1.0],
         ),
       ),
       child: CustomPaint(
@@ -183,6 +190,42 @@ class _GrainPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
+/// The three iconic window control dots on macOS (red, yellow, green).
+class MacOsTrafficLights extends StatelessWidget {
+  const MacOsTrafficLights({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _dot(const Color(0xFFFF5F56), const Color(0xFFE0443E)),
+        const SizedBox(width: 8),
+        _dot(const Color(0xFFFFBD2E), const Color(0xFFDEA123)),
+        const SizedBox(width: 8),
+        _dot(const Color(0xFF27C93F), const Color(0xFF1AAB29)),
+      ],
+    );
+  }
+
+  Widget _dot(Color fill, Color border) => Container(
+        width: 12,
+        height: 12,
+        decoration: BoxDecoration(
+          color: fill,
+          shape: BoxShape.circle,
+          border: Border.all(color: border, width: 0.8),
+          boxShadow: [
+            BoxShadow(
+              color: fill.withValues(alpha: 0.35),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+      );
+}
+
 /// Rounded surface used for every card in the app, with frosted glass styling.
 class SurfaceCard extends StatelessWidget {
   const SurfaceCard({
@@ -191,24 +234,30 @@ class SurfaceCard extends StatelessWidget {
     this.padding = const EdgeInsets.all(20),
     this.onTap,
     this.highlight = false,
+    this.elevated = false,
   });
 
   final Widget child;
   final EdgeInsets padding;
   final VoidCallback? onTap;
   final bool highlight;
+  final bool elevated;
 
   @override
   Widget build(BuildContext context) {
     final p = Palette.of(context);
     final card = ClipRRect(
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(18),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
         child: AnimatedContainer(
           duration: motion(context, const Duration(milliseconds: 160)),
           padding: padding,
-          decoration: p.glassDecoration(radius: 16, highlight: highlight),
+          decoration: p.glassDecoration(
+            radius: 18,
+            highlight: highlight,
+            macosElevated: elevated,
+          ),
           child: child,
         ),
       ),
@@ -217,9 +266,10 @@ class SurfaceCard extends StatelessWidget {
     return HoverButton(
       onPressed: onTap,
       builder: (context, states) => AnimatedScale(
-        duration: motion(context, const Duration(milliseconds: 120)),
-        scale: states.isPressed ? 0.985 : 1,
-        child: Opacity(opacity: states.isHovered ? 0.93 : 1, child: card),
+        duration: motion(context, const Duration(milliseconds: 140)),
+        curve: Curves.easeOutCubic,
+        scale: states.isPressed ? 0.978 : (states.isHovered ? 1.012 : 1.0),
+        child: card,
       ),
     );
   }

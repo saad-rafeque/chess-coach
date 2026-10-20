@@ -50,20 +50,26 @@ class HomePage extends StatelessWidget {
         children: [
           Row(children: [
             Container(
-              padding: const EdgeInsets.all(6),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: p.accent.withValues(alpha: 0.16),
-                borderRadius: BorderRadius.circular(8),
+                gradient: LinearGradient(
+                  colors: [
+                    p.accent.withValues(alpha: 0.24),
+                    p.accent.withValues(alpha: 0.12),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: p.accent.withValues(alpha: 0.3)),
               ),
-              child: Icon(FluentIcons.timer, color: p.accent, size: 18),
+              child: Icon(FluentIcons.timer, color: p.accent, size: 20),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('How much time do you have?',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: p.text)),
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: p.text, letterSpacing: -0.3)),
                   const SizedBox(height: 2),
                   Text('Your coach builds the best session for the time you have.',
                       style: TextStyle(color: p.muted, fontSize: 13)),
@@ -299,50 +305,65 @@ class _SessionTile extends StatelessWidget {
     final p = Palette.of(context);
     return HoverButton(
       onPressed: onTap,
-      builder: (context, states) => AnimatedContainer(
+      builder: (context, states) => AnimatedScale(
         duration: motion(context, const Duration(milliseconds: 140)),
-        constraints: const BoxConstraints(minHeight: 120),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: states.isHovered ? p.accent.withValues(alpha: 0.15) : p.glassFillSubtle,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: states.isHovered ? p.accent : p.glassBorderSubtle,
-            width: states.isHovered ? 1.5 : 1.0,
+        curve: Curves.easeOutCubic,
+        scale: states.isPressed ? 0.965 : (states.isHovered ? 1.025 : 1.0),
+        child: AnimatedContainer(
+          duration: motion(context, const Duration(milliseconds: 140)),
+          constraints: const BoxConstraints(minHeight: 120),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: states.isHovered ? p.accent.withValues(alpha: 0.16) : p.glassFillSubtle,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: states.isHovered ? p.accent : p.glassBorderSubtle,
+              width: states.isHovered ? 1.5 : 1.0,
+            ),
+            boxShadow: [
+              if (states.isHovered)
+                BoxShadow(
+                  color: p.accent.withValues(alpha: 0.20),
+                  blurRadius: 16,
+                  spreadRadius: 1,
+                  offset: const Offset(0, 4),
+                ),
+            ],
           ),
-          boxShadow: [
-            if (states.isHovered)
-              BoxShadow(
-                color: p.accent.withValues(alpha: 0.14),
-                blurRadius: 14,
-                spreadRadius: 1,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      p.accent.withValues(alpha: states.isHovered ? 0.35 : 0.20),
+                      p.accent.withValues(alpha: states.isHovered ? 0.20 : 0.10),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: p.accent.withValues(alpha: states.isHovered ? 0.5 : 0.25),
+                    width: 1,
+                  ),
+                ),
+                child: Icon(icon, color: p.accent, size: 17),
               ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: p.accent.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(8),
+              const SizedBox(height: 12),
+              Text(option.label,
+                  maxLines: 1, style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700, color: p.text)),
+              const SizedBox(height: 2),
+              // Two lines tall whatever the plan, so the tiles line up.
+              SizedBox(
+                height: MediaQuery.textScalerOf(context).scale(12) * 1.3 * 2 + 2,
+                child: Text(plan,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 12, color: p.muted, height: 1.3)),
               ),
-              child: Icon(icon, color: p.accent, size: 16),
-            ),
-            const SizedBox(height: 12),
-            Text(option.label,
-                maxLines: 1, style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700, color: p.text)),
-            const SizedBox(height: 2),
-            // Two lines tall whatever the plan, so the tiles line up.
-            SizedBox(
-              height: MediaQuery.textScalerOf(context).scale(12) * 1.3 * 2 + 2,
-              child: Text(plan,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, color: p.muted, height: 1.3)),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -364,7 +385,15 @@ class _Stat extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          Icon(icon, color: p.accent, size: 20),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: p.accent.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: p.accent.withValues(alpha: 0.2)),
+            ),
+            child: Icon(icon, color: p.accent, size: 20),
+          ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -397,27 +426,47 @@ class _GameRow extends StatelessWidget {
     };
     return HoverButton(
       onPressed: () => openReview(context, game),
-      builder: (context, states) => Container(
-        margin: const EdgeInsets.only(bottom: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
-        decoration: BoxDecoration(
-          color: states.isHovered ? p.glassFillSubtle : null,
-          borderRadius: BorderRadius.circular(10),
-          border: states.isHovered ? Border.all(color: p.glassBorderSubtle) : null,
-        ),
-        child: Row(children: [
-          SizedBox(width: 56, child: Pill(game.outcomeLabel, color: color)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'vs ${SettingsScope.of(context).coachName} ~${game.coachElo} · ${(game.moves.length + 1) ~/ 2} moves · ${game.date.day}/${game.date.month}',
-              style: TextStyle(color: p.text),
-              overflow: TextOverflow.ellipsis,
+      builder: (context, states) => AnimatedScale(
+        duration: motion(context, const Duration(milliseconds: 120)),
+        curve: Curves.easeOutCubic,
+        scale: states.isPressed ? 0.98 : (states.isHovered ? 1.01 : 1.0),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          decoration: BoxDecoration(
+            color: states.isHovered ? p.accent.withValues(alpha: 0.12) : p.glassFillSubtle,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: states.isHovered ? p.accent.withValues(alpha: 0.3) : p.glassBorderSubtle,
             ),
           ),
-          Text('Review', style: TextStyle(color: p.accent, fontSize: 12, fontWeight: FontWeight.w600)),
-          Icon(FluentIcons.chevron_right, size: 10, color: p.accent),
-        ]),
+          child: Row(children: [
+            SizedBox(width: 56, child: Pill(game.outcomeLabel, color: color)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'vs ${SettingsScope.of(context).coachName} ~${game.coachElo} · ${(game.moves.length + 1) ~/ 2} moves · ${game.date.day}/${game.date.month}',
+                style: TextStyle(color: p.text, fontWeight: FontWeight.w500),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: p.accent.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Review', style: TextStyle(color: p.accent, fontSize: 12, fontWeight: FontWeight.w600)),
+                  const SizedBox(width: 4),
+                  Icon(FluentIcons.chevron_right, size: 9, color: p.accent),
+                ],
+              ),
+            ),
+          ]),
+        ),
       ),
     );
   }

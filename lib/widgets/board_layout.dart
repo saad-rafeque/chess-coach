@@ -554,7 +554,7 @@ class _BoardLayoutState extends State<BoardLayout> {
   }
 }
 
-/// Name, rating and status shown above or below the board.
+/// Name, rating, captured pieces, and status shown above or below the board.
 class PlayerBar extends StatelessWidget {
   const PlayerBar({
     super.key,
@@ -562,56 +562,187 @@ class PlayerBar extends StatelessWidget {
     required this.detail,
     required this.icon,
     this.active = false,
+    this.capturedPieces,
+    this.advantage,
+    this.badge,
+    this.clock,
   });
 
   final String name;
   final String detail;
   final IconData icon;
   final bool active;
+  final List<String>? capturedPieces;
+  final int? advantage;
+  final String? badge;
+  final String? clock;
 
   @override
   Widget build(BuildContext context) {
     final p = Palette.of(context);
-    return Row(
-      children: [
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-            color: active ? p.accent : p.glassFillSubtle,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: active ? p.accent : p.glassBorderSubtle,
-              width: 1,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      child: Row(
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: active ? p.accent : p.glassFillSubtle,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: active ? p.accent : p.glassBorderSubtle,
+                width: active ? 1.5 : 1.0,
+              ),
+              boxShadow: [
+                if (active)
+                  BoxShadow(
+                    color: p.accent.withValues(alpha: 0.35),
+                    blurRadius: 10,
+                    spreadRadius: 1,
+                  ),
+              ],
+            ),
+            child: Icon(icon, size: 18, color: active ? p.onAccent : p.muted),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: p.text,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    if (badge != null) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 1,
+                        ),
+                        decoration: BoxDecoration(
+                          color: p.accent.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          badge!,
+                          style: TextStyle(
+                            color: p.accent,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(width: 6),
+                    Text(
+                      detail,
+                      maxLines: 1,
+                      style: TextStyle(
+                        color: p.brightness == Brightness.dark
+                            ? const Color(0xFFCBD5E1)
+                            : p.muted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                if ((capturedPieces != null && capturedPieces!.isNotEmpty) ||
+                    (advantage != null && advantage! > 0)) ...[
+                  const SizedBox(height: 1),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (capturedPieces != null && capturedPieces!.isNotEmpty)
+                        Text(
+                          capturedPieces!.join(''),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: p.text.withValues(alpha: 0.85),
+                            height: 1.1,
+                          ),
+                        ),
+                      if (advantage != null && advantage! > 0) ...[
+                        const SizedBox(width: 5),
+                        Text(
+                          '+$advantage',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: p.muted,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ],
             ),
           ),
-          child: Icon(icon, size: 16, color: active ? p.onAccent : p.muted),
-        ),
-        const SizedBox(width: 10),
-        Text(
-          name,
-          style: TextStyle(color: p.text, fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            detail,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: p.muted, fontSize: 12),
-          ),
-        ),
-        if (active)
-          Text(
-            'to move',
-            style: TextStyle(
-              color: p.accent,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
+          if (clock != null)
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: active
+                    ? (p.brightness == Brightness.dark
+                        ? const Color(0xFF1E293B)
+                        : const Color(0xFF0F172A))
+                    : p.glassFillSubtle,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: active ? p.accent : p.glassBorderSubtle,
+                  width: active ? 1.5 : 1.0,
+                ),
+                boxShadow: [
+                  if (active)
+                    BoxShadow(
+                      color: p.accent.withValues(alpha: 0.25),
+                      blurRadius: 8,
+                    ),
+                ],
+              ),
+              child: Text(
+                clock!,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: active
+                      ? (p.brightness == Brightness.dark
+                          ? Colors.white
+                          : const Color(0xFFF8FAFC))
+                      : p.muted,
+                ),
+              ),
+            )
+          else if (active)
+            Text(
+              'to move',
+              style: TextStyle(
+                color: p.accent,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -746,20 +877,30 @@ class EvalBar extends StatelessWidget {
       children: [
         Expanded(
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(6),
             child: SizedBox(
-              height: 8,
+              height: 10,
               child: Stack(
                 children: [
-                  Container(color: const Color(0xFF2B2B2E)),
+                  Container(color: const Color(0xFF1E222A)),
                   AnimatedFractionallySizedBox(
-                    duration: const Duration(milliseconds: 400),
+                    duration: const Duration(milliseconds: 380),
                     curve: Curves.easeOutCubic,
                     alignment: flipped
                         ? Alignment.centerRight
                         : Alignment.centerLeft,
                     widthFactor: share,
-                    child: Container(color: const Color(0xFFF2F2F2)),
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFF1F5F9),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Color(0x33FFFFFF),
+                            blurRadius: 4,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -767,15 +908,20 @@ class EvalBar extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        SizedBox(
-          width: 42,
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: p.glassFillSubtle,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: p.glassBorderSubtle),
+          ),
           child: Text(
             label,
-            textAlign: TextAlign.right,
+            textAlign: TextAlign.center,
             style: TextStyle(
-              color: p.muted,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
+              color: p.text,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ),
