@@ -86,17 +86,21 @@
   strip and action controls. The full Coach panel remains optional.
 - [x] `flutter analyze` passed; the full Flutter suite passed (186 tests); all 8 screenshot cases passed. The
   focused phone/PiP tests and the new two-player split-screen screenshot passed; the screenshot was inspected.
+- [x] Commit `89cb641` was pushed to `main` after the pre-push hook passed. Its GitHub run exposed that the
+  free private repo cannot accept SARIF through Code Scanning; the OSV workflow is being adjusted to keep its
+  scan artifact in Actions without the unsupported upload.
 - [ ] Verify native Android compilation and PiP on a device. This PC has no Android SDK or emulator configured;
   `:app:assembleDebug` stops with “SDK location not found”, before compiling the Android activity.
-- [ ] Review the final diff, run the pre-push hook, commit and push to `main`, then verify the new Actions run.
+- [ ] Verify the private-compatible OSV workflow on GitHub and confirm all Actions checks pass.
 
 ## Next step
 
 The latest release is v1.0.10 (18 Oct 2026). The repository is private per the owner's instruction. Continue with
 the unchecked gameplay/security follow-up above. Because this is a private repository on the free GitHub plan,
 GitHub's rulesets and native secret-scanning controls are unavailable (the API requires Pro or a public repo);
-local pre-push checks and workflow checks remain enabled. Private releases and the current in-app updater are
-not accessible to people who are not repository collaborators.
+local pre-push checks and dependency scanning remain enabled. The OSV report is kept as an Actions artifact;
+SARIF upload to Code Scanning is disabled for this free private repo. Private releases and the current in-app
+updater are not accessible to people who are not repository collaborators.
 
 ## Decisions
 

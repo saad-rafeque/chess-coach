@@ -450,11 +450,10 @@ jobs:
     permissions:
       actions: read
       contents: read
-      security-events: write
     with:
-      # Report every finding to Code Scanning instead of failing the build on
-      # the first low-severity hit; the maintainer reviews the Security tab.
+      # Keep scanning dependencies without relying on paid Code Scanning for
+      # this private repository. The report remains available in Actions.
       fail-on-vuln: false
-      upload-sarif: true
+      upload-sarif: false
       # ubuntu-latest moves to Ubuntu 26 in October 2026; stay on 24.04.
       runs-on: ubuntu-24.04
