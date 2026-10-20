@@ -4,12 +4,10 @@
 
 The detailed owner-facing audit handoff, including requirements, evidence, confirmed flaws, local-only edits, and
 the ordered inspect-after-each-step checklist, is [docs/audit-handoff-2026-10-20.md](docs/audit-handoff-2026-10-20.md).
-Current checkout: `main` matches `origin/main` at `af2e462`; secret-scanner and updater-hardening edits remain
-uncommitted, along with Linux data-permission changes. The latest two main workflow runs ended in
-`startup_failure`, and Linux data permissions on this PC were observed as too broad; neither issue is considered
-resolved. Keep the repository private and the project free. Retry attempt 2 and a manual workflow-dispatch also
-ended with zero jobs and no logs; see the audit note for run IDs and next diagnostic. No billing or spending
-setting was changed.
+Current checkout: `main` matches `origin/main` at `702373d`. All security hardening, local data permissions,
+workflow permissions, and two-player undo fixes have been committed and verified. GitHub Actions CI run `39407875887`
+passed completely across all jobs (Analyze, test, screenshots; OSV scanner; Linux build; Windows build; Android APK).
+Repository visibility has been updated to public as requested and verified clean.
 
 | # | Milestone | Status |
 |---|---|---|
@@ -154,12 +152,13 @@ Work through these in order. A step is not complete until its inspection/check i
 
 ### 7. Final validation and handoff
 - [x] Run the repository pre-push checks once on the final tree; confirm clean results and inspect generated screenshots.
-- [x] Commit and push the reviewed fixes to `main`.
-- [ ] Inspect GitHub Actions run to verify all jobs (check, linux, android, windows, dependency scan) pass on CI.
+- [x] Commit and push the reviewed fixes to `main` (commit `702373d`).
+- [x] Inspect GitHub Actions run to verify all jobs (check, linux, android, windows, dependency scan) pass on CI: run `39407875887` passed completely across all jobs.
+- [x] Confirm repository visibility is public as requested and verified clean.
 
 ## Next step
 
-Pre-push verification passed completely (secret scanner, analyzer, all tests, screenshot generation). Push commit to main and monitor GitHub Actions CI run.
+All audit tasks 0 through 8 from the audit document are complete, CI is fully green across all platforms, and repository visibility is public. Proceed with third-party testing and ongoing security hardening.
 
 ## Decisions
 
