@@ -43,7 +43,10 @@ class EngineHost {
     }
   }
 
-  Future<void> dispose() async => (await _engine)?.dispose();
+  Future<void> dispose() async {
+    status.dispose();
+    await (await _engine)?.dispose();
+  }
 }
 
 /// Makes the app's [EngineHost] available to widgets.

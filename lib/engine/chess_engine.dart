@@ -46,17 +46,38 @@ class ChessEngine {
       _process.lines.firstWhere((l) => l.startsWith(prefix)).timeout(timeout);
 
   /// Analyses [fen]. Stops at [depth] or after [movetime], whichever is given.
-  Future<Analysis> analyse(String fen, {int depth = 14, Duration? movetime, int multiPv = 1}) {
-    final result = _queue.then((_) => _search(fen, depth: depth, movetime: movetime, multiPv: multiPv));
+  Future<Analysis> analyse(
+    String fen, {
+    int depth = 14,
+    Duration? movetime,
+    int multiPv = 1,
+    Duration searchTimeout = const Duration(seconds: 60),
+  }) {
+    final result = _queue.then(
+      (_) => _search(
+        fen,
+        depth: depth,
+        movetime: movetime,
+        multiPv: multiPv,
+        searchTimeout: searchTimeout,
+      ),
+    );
     _queue = result.then((_) {}, onError: (_) {});
     return result;
   }
 
-  Future<Analysis> _search(String fen, {required int depth, Duration? movetime, required int multiPv}) async {
+  Future<Analysis> _search(
+    String fen, {
+    required int depth,
+    Duration? movetime,
+    required int multiPv,
+    required Duration searchTimeout,
+  }) async {
     if (_closed) throw StateError('Engine is closed');
     // One UCI command per line: a line break would let the text run engine commands.
     if (fen.contains('\n') || fen.contains('\r')) throw ArgumentError.value(fen, 'fen', 'must be one line');
-    final whiteToMove = fen.split(' ')[1] == 'w';
+    final tokens = fen.trim().split(RegExp(r'\s+'));
+    final whiteToMove = tokens.length > 1 ? tokens[1] != 'b' : true;
     final best = <int, EngineLine>{};
     final done = Completer<String?>();
     final sub = _process.lines.listen((line) {
@@ -74,9 +95,14 @@ class ChessEngine {
       await _ready();
       _process.send('position fen $fen');
       _process.send(movetime != null ? 'go movetime ${movetime.inMilliseconds}' : 'go depth $depth');
-      final move = await done.future.timeout(const Duration(seconds: 60));
+      final move = await done.future.timeout(searchTimeout);
       final lines = best.values.toList()..sort((a, b) => a.multipv.compareTo(b.multipv));
       return Analysis(fen: fen, lines: lines, bestMove: move);
+    } catch (_) {
+      try {
+        _process.send('stop');
+      } catch (_) {}
+      rethrow;
     } finally {
       await sub.cancel();
     }

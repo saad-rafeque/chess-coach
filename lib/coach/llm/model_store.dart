@@ -220,6 +220,7 @@ class ModelStore extends ChangeNotifier {
       }
       if (target.existsSync()) target.deleteSync();
       part.renameSync(target.path);
+      await secureDataFile(target);
       await markVerified(m);
       _sessionVerified.add(m.id); // just hashed it, no need to do it again this session
       _status[m.id] = ModelStatus.ready;

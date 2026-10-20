@@ -71,6 +71,23 @@ void main() {
     expect(await s.playerMove(NormalMove.fromUci('a1a8')), isTrue);
   });
 
+  test('early checkmate is accepted and marks puzzle solved immediately', () async {
+    const p = PuzzleItem(
+      id: 'early_mate',
+      fen: '6k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1',
+      moves: ['a1a8', 'g8f7', 'a8f8'],
+      rating: 700,
+      themes: ['mate'],
+      setup: false,
+    );
+    final results = <bool>[];
+    final s = PuzzleSession(p, onResult: (_, ok) => results.add(ok), moveDelay: Duration.zero);
+    await s.start();
+    expect(await s.playerMove(NormalMove.fromUci('a1a8')), isTrue);
+    expect(s.state, PuzzleState.solved);
+    expect(results, [true]);
+  });
+
   test('show solution plays the line and counts as failed', () async {
     final results = <bool>[];
     final s = _session(_line, onResult: (_, ok) => results.add(ok));

@@ -38,48 +38,80 @@ class Palette {
   final Color danger;
   final bool woodGrain;
 
+  Color get glassFill => surface.withValues(alpha: brightness == Brightness.dark ? 0.72 : 0.86);
+  Color get glassFillSubtle => surfaceAlt.withValues(alpha: brightness == Brightness.dark ? 0.52 : 0.68);
+  Color get glassBorder => brightness == Brightness.dark ? const Color(0x24FFFFFF) : const Color(0x1A000000);
+  Color get glassBorderSubtle => brightness == Brightness.dark ? const Color(0x14FFFFFF) : const Color(0x10000000);
+
+  BoxDecoration glassDecoration({
+    double radius = 16,
+    bool highlight = false,
+    bool subtle = false,
+  }) =>
+      BoxDecoration(
+        color: subtle ? glassFillSubtle : glassFill,
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(
+          color: highlight ? accent : (subtle ? glassBorderSubtle : glassBorder),
+          width: highlight ? 1.6 : 1.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF000000).withValues(alpha: brightness == Brightness.light ? 0.05 : 0.28),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
+          ),
+          if (highlight)
+            BoxShadow(
+              color: accent.withValues(alpha: 0.18),
+              blurRadius: 16,
+              spreadRadius: 1,
+            ),
+        ],
+      );
+
   static const light = Palette(
     brightness: Brightness.light,
-    background: Color(0xFFF4F5F8),
-    backgroundEnd: Color(0xFFE8EDF5),
-    pane: Color(0xFFEDEFF3),
+    background: Color(0xFFF8FAFC),
+    backgroundEnd: Color(0xFFEDF2F7),
+    pane: Color(0xFFF1F5F9),
     surface: Color(0xFFFFFFFF),
-    surfaceAlt: Color(0xFFF5F6F9),
-    border: Color(0xFFE1E4EA),
-    text: Color(0xFF1B1D22),
-    muted: Color(0xFF666C76),
-    accent: Color(0xFF2563EB),
+    surfaceAlt: Color(0xFFF1F5F9),
+    border: Color(0xFFE2E8F0),
+    text: Color(0xFF0F172A),
+    muted: Color(0xFF64748B),
+    accent: Color(0xFF0284C7),
     onAccent: Color(0xFFFFFFFF),
-    success: Color(0xFF16A34A),
+    success: Color(0xFF10B981),
   );
 
   static const dark = Palette(
     brightness: Brightness.dark,
-    background: Color(0xFF18191C),
-    backgroundEnd: Color(0xFF1F2228),
-    pane: Color(0xFF141518),
-    surface: Color(0xFF25272C),
-    surfaceAlt: Color(0xFF2D3036),
-    border: Color(0xFF363A42),
-    text: Color(0xFFF1F2F5),
-    muted: Color(0xFFA0A5AF),
-    accent: Color(0xFF60A5FA),
-    onAccent: Color(0xFF0B1220),
+    background: Color(0xFF0B0F17),
+    backgroundEnd: Color(0xFF141A24),
+    pane: Color(0xFF0A0D14),
+    surface: Color(0xFF161D29),
+    surfaceAlt: Color(0xFF1E2838),
+    border: Color(0xFF263346),
+    text: Color(0xFFF1F5F9),
+    muted: Color(0xFF94A3B8),
+    accent: Color(0xFF38BDF8),
+    onAccent: Color(0xFF0B132B),
   );
 
   static const wooden = Palette(
     brightness: Brightness.dark,
-    background: Color(0xFF2A1C12),
-    backgroundEnd: Color(0xFF3A2616),
-    pane: Color(0xFF22170F),
-    surface: Color(0xFF3F2B1D),
-    surfaceAlt: Color(0xFF4A3323),
-    border: Color(0xFF5E4330),
-    text: Color(0xFFF7ECDD),
-    muted: Color(0xFFCDB69B),
-    accent: Color(0xFFE3A857),
-    onAccent: Color(0xFF2A1C12),
-    success: Color(0xFF8BC34A),
+    background: Color(0xFF1A120B),
+    backgroundEnd: Color(0xFF2B1D12),
+    pane: Color(0xFF150E09),
+    surface: Color(0xFF332317),
+    surfaceAlt: Color(0xFF3D2B1C),
+    border: Color(0xFF553C28),
+    text: Color(0xFFFDF4E7),
+    muted: Color(0xFFC7AC93),
+    accent: Color(0xFFF59E0B),
+    onAccent: Color(0xFF1A120B),
+    success: Color(0xFF84CC16),
     woodGrain: true,
   );
 

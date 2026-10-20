@@ -17,10 +17,14 @@ class MainActivity : FlutterActivity() {
                 } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
                     result.success(false)
                 } else {
-                    val params = PictureInPictureParams.Builder()
-                        .setAspectRatio(Rational(1, 1))
-                        .build()
-                    result.success(enterPictureInPictureMode(params))
+                    try {
+                        val params = PictureInPictureParams.Builder()
+                            .setAspectRatio(Rational(1, 1))
+                            .build()
+                        result.success(enterPictureInPictureMode(params))
+                    } catch (e: Exception) {
+                        result.success(false)
+                    }
                 }
             }
     }

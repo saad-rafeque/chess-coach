@@ -579,8 +579,12 @@ class PlayerBar extends StatelessWidget {
           width: 34,
           height: 34,
           decoration: BoxDecoration(
-            color: active ? p.accent : p.surfaceAlt,
-            borderRadius: BorderRadius.circular(9),
+            color: active ? p.accent : p.glassFillSubtle,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: active ? p.accent : p.glassBorderSubtle,
+              width: 1,
+            ),
           ),
           child: Icon(icon, size: 16, color: active ? p.onAccent : p.muted),
         ),
@@ -645,6 +649,10 @@ class CoachBubble extends StatelessWidget {
           bottomLeft: Radius.circular(12),
           bottomRight: Radius.circular(12),
           topLeft: Radius.circular(4),
+        ),
+        border: Border.all(
+          color: color.withValues(alpha: 0.22),
+          width: 1,
         ),
       ),
       child: Row(

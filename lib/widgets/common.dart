@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 
 import 'package:fluent_ui/fluent_ui.dart';
 
@@ -182,7 +183,7 @@ class _GrainPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-/// Rounded surface used for every card in the app.
+/// Rounded surface used for every card in the app, with frosted glass styling.
 class SurfaceCard extends StatelessWidget {
   const SurfaceCard({
     super.key,
@@ -200,35 +201,25 @@ class SurfaceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = Palette.of(context);
-    final card = AnimatedContainer(
-      duration: motion(context, const Duration(milliseconds: 160)),
-      padding: padding,
-      decoration: BoxDecoration(
-        color: p.surface.withValues(alpha: p.woodGrain ? 0.88 : 1),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: highlight ? p.accent : p.border,
-          width: highlight ? 1.6 : 1,
+    final card = ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: AnimatedContainer(
+          duration: motion(context, const Duration(milliseconds: 160)),
+          padding: padding,
+          decoration: p.glassDecoration(radius: 16, highlight: highlight),
+          child: child,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(
-              0xFF000000,
-            ).withValues(alpha: p.brightness == Brightness.light ? 0.05 : 0.25),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
       ),
-      child: child,
     );
     if (onTap == null) return card;
     return HoverButton(
       onPressed: onTap,
       builder: (context, states) => AnimatedScale(
         duration: motion(context, const Duration(milliseconds: 120)),
-        scale: states.isPressed ? 0.98 : 1,
-        child: Opacity(opacity: states.isHovered ? 0.92 : 1, child: card),
+        scale: states.isPressed ? 0.985 : 1,
+        child: Opacity(opacity: states.isHovered ? 0.93 : 1, child: card),
       ),
     );
   }

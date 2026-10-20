@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:fluent_ui/fluent_ui.dart';
 
 import '../screens/home_page.dart';
@@ -107,12 +109,15 @@ class _BottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = Palette.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: p.pane,
-        border: Border(top: BorderSide(color: p.border)),
-      ),
-      child: SafeArea(
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          decoration: BoxDecoration(
+            color: p.pane.withValues(alpha: p.brightness == Brightness.dark ? 0.78 : 0.90),
+            border: Border(top: BorderSide(color: p.glassBorder)),
+          ),
+          child: SafeArea(
         top: false,
         // Large system fonts would not fit the bar; labels grow a little, icons say the rest.
         child: MediaQuery.withClampedTextScaling(
@@ -172,6 +177,8 @@ class _BottomNav extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
+    ),
+  ),
+);
+}
 }

@@ -44,20 +44,33 @@ class HomePage extends StatelessWidget {
     final planner = Planner.forStore(store, dueCards: due);
 
     final timeCard = SurfaceCard(
+      highlight: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            Icon(FluentIcons.timer, color: p.accent, size: 18),
-            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: p.accent.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(FluentIcons.timer, color: p.accent, size: 18),
+            ),
+            const SizedBox(width: 10),
             Expanded(
-              child: Text('How much time do you have?',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: p.text)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('How much time do you have?',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: p.text)),
+                  const SizedBox(height: 2),
+                  Text('Your coach builds the best session for the time you have.',
+                      style: TextStyle(color: p.muted, fontSize: 13)),
+                ],
+              ),
             ),
           ]),
-          const SizedBox(height: 4),
-          Text('Your coach builds the best session for the time you have.',
-              style: TextStyle(color: p.muted)),
           const SizedBox(height: 16),
           ResponsiveGrid(
             minItemWidth: mobile ? 140 : 170,
@@ -288,20 +301,38 @@ class _SessionTile extends StatelessWidget {
       onPressed: onTap,
       builder: (context, states) => AnimatedContainer(
         duration: motion(context, const Duration(milliseconds: 140)),
-        constraints: const BoxConstraints(minHeight: 118),
+        constraints: const BoxConstraints(minHeight: 120),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: states.isHovered ? p.accent.withValues(alpha: 0.12) : p.surfaceAlt,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: states.isHovered ? p.accent : p.border),
+          color: states.isHovered ? p.accent.withValues(alpha: 0.15) : p.glassFillSubtle,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: states.isHovered ? p.accent : p.glassBorderSubtle,
+            width: states.isHovered ? 1.5 : 1.0,
+          ),
+          boxShadow: [
+            if (states.isHovered)
+              BoxShadow(
+                color: p.accent.withValues(alpha: 0.14),
+                blurRadius: 14,
+                spreadRadius: 1,
+              ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: p.accent, size: 18),
-            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: p.accent.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: p.accent, size: 16),
+            ),
+            const SizedBox(height: 12),
             Text(option.label,
-                maxLines: 1, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: p.text)),
+                maxLines: 1, style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700, color: p.text)),
             const SizedBox(height: 2),
             // Two lines tall whatever the plan, so the tiles line up.
             SizedBox(
@@ -370,8 +401,9 @@ class _GameRow extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 4),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
         decoration: BoxDecoration(
-          color: states.isHovered ? p.surfaceAlt : null,
-          borderRadius: BorderRadius.circular(8),
+          color: states.isHovered ? p.glassFillSubtle : null,
+          borderRadius: BorderRadius.circular(10),
+          border: states.isHovered ? Border.all(color: p.glassBorderSubtle) : null,
         ),
         child: Row(children: [
           SizedBox(width: 56, child: Pill(game.outcomeLabel, color: color)),

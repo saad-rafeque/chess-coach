@@ -212,8 +212,8 @@ class PuzzleSession extends ChangeNotifier {
     if (!position.isLegal(move)) return false;
     final expected = _expected;
     final after = position.play(move);
-    final isLast = _next == puzzle.moves.length - 1;
-    final correct = after.fen == position.play(expected).fen || (isLast && after.isCheckmate);
+    final isMate = after.isCheckmate;
+    final correct = after.fen == position.play(expected).fen || isMate;
     if (!correct) {
       _report(false);
       state = PuzzleState.wrongMove;
@@ -222,7 +222,7 @@ class PuzzleSession extends ChangeNotifier {
     }
     hintSquare = null;
     _play(move);
-    if (_next >= puzzle.moves.length) {
+    if (_next >= puzzle.moves.length || isMate) {
       _report(true);
       state = PuzzleState.solved;
       _notify();

@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:chess_coach/coach/coach_player.dart';
 import 'package:chess_coach/engine/analysis.dart';
 import 'package:chess_coach/engine/chess_engine.dart';
+import 'package:chess_coach/engine/engine_host.dart';
 import 'package:chess_coach/engine/uci_process.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -105,6 +106,43 @@ void main() {
       expect(results.map((r) => r.fen), [_start, _blackToMove]);
       expect(fake.sent.where((c) => c.startsWith('position')).toList(),
           ['position fen $_start', 'position fen $_blackToMove']);
+    });
+
+    test('handles whitespace-tolerant FENs', () async {
+      final fake = FakeUci({
+        'uci': ['uciok'],
+        'isready': ['readyok'],
+        'go': ['info depth 1 score cp 10 pv e2e4', 'bestmove e2e4'],
+      });
+      final engine = await ChessEngine.start(process: fake);
+      const multiSpaceFen = '  rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR   w   KQkq   -   0   1  ';
+      final a = await engine.analyse(multiSpaceFen, depth: 1);
+      expect(a.bestMove, 'e2e4');
+      await engine.dispose();
+    });
+
+    test('sends stop to engine if search throws or times out', () async {
+      final fake = FakeUci({
+        'uci': ['uciok'],
+        'isready': ['readyok'],
+      });
+      final engine = await ChessEngine.start(process: fake);
+      await expectLater(
+        engine.analyse(_start, searchTimeout: const Duration(milliseconds: 50)),
+        throwsA(isA<TimeoutException>()),
+      );
+      expect(fake.sent, contains('stop'));
+      await engine.dispose();
+    });
+
+    test('EngineHost.dispose disposes status notifier', () async {
+      final fake = FakeUci({'uci': ['uciok'], 'isready': ['readyok']});
+      final host = EngineHost(starter: () => ChessEngine.start(process: fake));
+      final engine = await host.engine;
+      expect(engine, isNotNull);
+      expect(host.status.value, EngineStatus.ready);
+      await host.dispose();
+      expect(() => host.status.addListener(() {}), throwsFlutterError);
     });
   });
 

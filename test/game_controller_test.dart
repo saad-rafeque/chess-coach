@@ -340,5 +340,23 @@ void main() {
       expect(g.moves, isEmpty);
       expect(g.position.turn, Side.white);
     });
+
+    test('threefold repetition is detected and ends game in draw with announcement', () async {
+      final g = GameController(host: _offline)
+        ..newGame(side: Side.white, elo: 800, twoPlayers: true);
+
+      final repetitionMoves = [
+        'g1f3', 'g8f6', 'f3g1', 'f6g8',
+        'g1f3', 'g8f6', 'f3g1', 'f6g8',
+      ];
+      for (final m in repetitionMoves) {
+        expect(g.isOver, isFalse);
+        await g.playerMove(NormalMove.fromUci(m));
+      }
+
+      expect(g.isThreefoldRepetition, isTrue);
+      expect(g.isOver, isTrue);
+      expect(g.chat.last.text, 'Threefold repetition: the game is a draw.');
+    });
   });
 }

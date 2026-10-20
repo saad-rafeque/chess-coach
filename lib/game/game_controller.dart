@@ -106,7 +106,27 @@ class GameController extends ChangeNotifier {
   bool _engineNoticeShown = false;
 
   Position get position => positions.last;
-  bool get isOver => resigned || position.isGameOver;
+
+  /// Whether the current board state has occurred 3 or more times.
+  bool get isThreefoldRepetition {
+    if (positions.length < 5) return false;
+    final current = positions.last;
+    var count = 0;
+    for (final p in positions) {
+      if (p.turn == current.turn &&
+          p.board == current.board &&
+          p.castles == current.castles &&
+          p.epSquare == current.epSquare) {
+        count++;
+        if (count >= 3) return true;
+      }
+    }
+    return false;
+  }
+
+  bool get isFiftyMoveDraw => position.halfmoves >= 100;
+  bool get isOver =>
+      resigned || position.isGameOver || isThreefoldRepetition || isFiftyMoveDraw;
   bool get playerToMove =>
       !isOver && !thinking && (twoPlayers || position.turn == playerSide);
   bool get canUndo => twoPlayers ? moves.isNotEmpty : _playerMoveCount > 0;
@@ -271,7 +291,7 @@ class GameController extends ChangeNotifier {
   ) async {
     final after = position;
     final engine = await host.engine;
-    if (engine == null || after.isGameOver) {
+    if (engine == null || isOver) {
       if (engine == null) _engineNotice();
       final tip = tipForMove(before, move, after);
       if (tip != null) _say(tip.text, _toneFor(tip.kind));
@@ -400,7 +420,7 @@ class GameController extends ChangeNotifier {
   Future<void> _analyseCurrent() async {
     final token = _token;
     final engine = await host.engine;
-    if (engine == null || position.isGameOver) return;
+    if (engine == null || isOver) return;
     final fen = position.fen;
     final a = await _analyseSafely(
       () => engine.analyse(fen, depth: feedbackDepth),
@@ -501,6 +521,24 @@ class GameController extends ChangeNotifier {
 
   // ---- helpers ----
 
+  String _drawReason() {
+    if (isThreefoldRepetition) return 'Threefold repetition: the game is a draw.';
+    if (isFiftyMoveDraw) return '50-move rule: the game is a draw.';
+    if (position.isStalemate) return 'Stalemate: the game is a draw.';
+    if (position.isInsufficientMaterial) return 'Insufficient material: the game is a draw.';
+    return 'The game is a draw.';
+  }
+
+  String _endingReason() {
+    if (resigned) return 'resignation';
+    if (position.isCheckmate) return 'checkmate';
+    if (isThreefoldRepetition) return 'threefold';
+    if (isFiftyMoveDraw) return '50-move';
+    if (position.isStalemate) return 'stalemate';
+    if (position.isInsufficientMaterial) return 'insufficient_material';
+    return 'draw';
+  }
+
   void _announce() {
     final p = position;
     if (twoPlayers) {
@@ -515,12 +553,7 @@ class GameController extends ChangeNotifier {
         _sound(BoardSoundKind.victory);
         _say('Checkmate! ${_name(p.turn.opposite)} wins.', CoachTone.good);
       } else {
-        _say(
-          p.isStalemate
-              ? 'Stalemate: the game is a draw.'
-              : 'The game is a draw.',
-          CoachTone.info,
-        );
+        _say(_drawReason(), CoachTone.info);
       }
       _save();
       notifyListeners();
@@ -540,12 +573,7 @@ class GameController extends ChangeNotifier {
           ? _say('Checkmate! You won. Excellent finish.', CoachTone.good)
           : _say('Checkmate. Let\'s learn from it.', CoachTone.warning);
     } else {
-      _say(
-        p.isStalemate
-            ? 'Stalemate: the game is a draw.'
-            : 'The game is a draw.',
-        CoachTone.info,
-      );
+      _say(_drawReason(), CoachTone.info);
     }
     final whiteLost = resigned
         ? playerSide == Side.white
@@ -560,11 +588,7 @@ class GameController extends ChangeNotifier {
       coachElo: coachElo,
       moves: [for (final m in moves) m.uci],
       result: whiteLost ? '0-1' : (blackLost ? '1-0' : '1/2-1/2'),
-      ending: resigned
-          ? 'resignation'
-          : (p.isCheckmate
-                ? 'checkmate'
-                : (p.isStalemate ? 'stalemate' : 'draw')),
+      ending: _endingReason(),
       grades: Map.of(grades),
     );
     onFinished?.call(lastRecord!);

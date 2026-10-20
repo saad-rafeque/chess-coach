@@ -514,8 +514,9 @@ class _PlayPageState extends State<PlayPage> {
             height: 64,
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: p.surfaceAlt,
-              borderRadius: BorderRadius.circular(8),
+              color: p.glassFillSubtle,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: p.glassBorderSubtle),
             ),
             child: SingleChildScrollView(
               reverse: true,
