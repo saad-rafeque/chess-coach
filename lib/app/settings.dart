@@ -6,8 +6,11 @@ import 'board_style.dart';
 
 /// Gives widgets access to [AppSettings] and rebuilds them when it changes.
 class SettingsScope extends InheritedNotifier<AppSettings> {
-  const SettingsScope({super.key, required AppSettings settings, required super.child})
-      : super(notifier: settings);
+  const SettingsScope({
+    super.key,
+    required AppSettings settings,
+    required super.child,
+  }) : super(notifier: settings);
 
   static AppSettings of(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<SettingsScope>()!.notifier!;
@@ -21,7 +24,10 @@ enum AppTheme { light, dark, wooden }
 
 /// A name as typed: one line, no control characters, at most 24 characters.
 String cleanName(String value) {
-  final s = value.replaceAll(RegExp(r'[\x00-\x1F\x7F]'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+  final s = value
+      .replaceAll(RegExp(r'[\x00-\x1F\x7F]'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
   return s.length > 24 ? s.substring(0, 24).trim() : s;
 }
 
@@ -31,25 +37,29 @@ int clampCoachElo(int elo) => elo.clamp(400, 3200);
 /// User preferences, persisted locally.
 class AppSettings extends ChangeNotifier {
   AppSettings._(this._prefs)
-      : _theme = AppTheme.values.asNameMap()[_prefs?.getString('theme')] ?? AppTheme.dark,
-        _showCoordinates = _prefs?.getBool('coords') ?? true,
-        _trainingHints = _prefs?.getBool('hints') ?? true,
-        _evalBar = _prefs?.getBool('evalBar') ?? true,
-        _coachElo = clampCoachElo(_prefs?.getInt('coachElo') ?? 800),
-        _autoStrength = _prefs?.getBool('autoStrength') ?? true,
-        _friendlyVoice = _prefs?.getBool('friendlyVoice') ?? true,
-        _panelUnderBoard = _prefs?.getBool('panelUnderBoard') ?? true,
-        _boardSounds = _prefs?.getBool('boardSounds') ?? true,
-        _haptics = _prefs?.getBool('haptics') ?? true,
-        _boardScheme = _prefs?.getString('boardScheme'),
-        _playerName = cleanName(_prefs?.getString('playerName') ?? ''),
-        _coachName = cleanName(_prefs?.getString('coachName') ?? ''),
-        // Tests start in memory and skip setup; a real install shows it once.
-        _onboarded = _prefs?.getBool('onboarded') ?? _prefs == null,
-        _pieceSet = _prefs?.getString('pieceSet'),
-        _refreshRate = (_prefs?.getInt('refreshRate') ?? 0).clamp(0, 240),
-        _voiceModel = _prefs?.getString('voiceModel'),
-        _changedAt = DateTime.tryParse(_prefs?.getString('settingsChangedAt') ?? '');
+    : _theme =
+          AppTheme.values.asNameMap()[_prefs?.getString('theme')] ??
+          AppTheme.dark,
+      _showCoordinates = _prefs?.getBool('coords') ?? true,
+      _trainingHints = _prefs?.getBool('hints') ?? true,
+      _evalBar = _prefs?.getBool('evalBar') ?? true,
+      _coachElo = clampCoachElo(_prefs?.getInt('coachElo') ?? 800),
+      _autoStrength = _prefs?.getBool('autoStrength') ?? true,
+      _friendlyVoice = _prefs?.getBool('friendlyVoice') ?? true,
+      _panelUnderBoard = _prefs?.getBool('panelUnderBoard') ?? false,
+      _boardSounds = _prefs?.getBool('boardSounds') ?? true,
+      _haptics = _prefs?.getBool('haptics') ?? true,
+      _boardScheme = _prefs?.getString('boardScheme'),
+      _playerName = cleanName(_prefs?.getString('playerName') ?? ''),
+      _coachName = cleanName(_prefs?.getString('coachName') ?? ''),
+      // Tests start in memory and skip setup; a real install shows it once.
+      _onboarded = _prefs?.getBool('onboarded') ?? _prefs == null,
+      _pieceSet = _prefs?.getString('pieceSet'),
+      _refreshRate = (_prefs?.getInt('refreshRate') ?? 0).clamp(0, 240),
+      _voiceModel = _prefs?.getString('voiceModel'),
+      _changedAt = DateTime.tryParse(
+        _prefs?.getString('settingsChangedAt') ?? '',
+      );
 
   /// In-memory settings for tests.
   AppSettings.memory() : this._(null);
@@ -72,23 +82,24 @@ class AppSettings extends ChangeNotifier {
 
   /// The settings shared between devices.
   Map<String, dynamic> toSyncJson() => {
-        'theme': _theme.name,
-        'coords': _showCoordinates,
-        'hints': _trainingHints,
-        'evalBar': _evalBar,
-        'autoStrength': _autoStrength,
-        'coachElo': _coachElo,
-        'boardScheme': ?_boardScheme,
-        'playerName': _playerName,
-        'coachName': _coachName,
-        'pieceSet': ?_pieceSet,
-      };
+    'theme': _theme.name,
+    'coords': _showCoordinates,
+    'hints': _trainingHints,
+    'evalBar': _evalBar,
+    'autoStrength': _autoStrength,
+    'coachElo': _coachElo,
+    'boardScheme': ?_boardScheme,
+    'playerName': _playerName,
+    'coachName': _coachName,
+    'pieceSet': ?_pieceSet,
+  };
 
   /// Takes the settings from another device if they changed later than ours.
   bool applySync(Map<String, dynamic> j, DateTime changed) {
     if (_changedAt != null && !changed.isAfter(_changedAt!)) return false;
     // Values of the wrong type or out of range (a damaged file) keep what this device has.
-    bool flag(String key, bool current) => j[key] is bool ? j[key] as bool : current;
+    bool flag(String key, bool current) =>
+        j[key] is bool ? j[key] as bool : current;
     _theme = AppTheme.values.asNameMap()[j['theme']] ?? _theme;
     _showCoordinates = flag('coords', _showCoordinates);
     _trainingHints = flag('hints', _trainingHints);
@@ -98,9 +109,15 @@ class AppSettings extends ChangeNotifier {
     // Only names this version knows (a newer version may offer more; keep ours then).
     String? choice(Object? v, bool Function(String) known, String? current) =>
         v == null ? null : (v is String && known(v) ? v : current);
-    _boardScheme = choice(j['boardScheme'], boardChoices.containsKey, _boardScheme);
-    if (j['playerName'] is String) _playerName = cleanName(j['playerName'] as String);
-    if (j['coachName'] is String) _coachName = cleanName(j['coachName'] as String);
+    _boardScheme = choice(
+      j['boardScheme'],
+      boardChoices.containsKey,
+      _boardScheme,
+    );
+    if (j['playerName'] is String)
+      _playerName = cleanName(j['playerName'] as String);
+    if (j['coachName'] is String)
+      _coachName = cleanName(j['coachName'] as String);
     _pieceSet = choice(j['pieceSet'], pieceChoices.containsKey, _pieceSet);
     _prefs
       ?..setString('theme', _theme.name)
@@ -109,8 +126,12 @@ class AppSettings extends ChangeNotifier {
       ..setBool('evalBar', _evalBar)
       ..setBool('autoStrength', _autoStrength)
       ..setInt('coachElo', _coachElo);
-    _boardScheme == null ? _prefs?.remove('boardScheme') : _prefs?.setString('boardScheme', _boardScheme!);
-    _pieceSet == null ? _prefs?.remove('pieceSet') : _prefs?.setString('pieceSet', _pieceSet!);
+    _boardScheme == null
+        ? _prefs?.remove('boardScheme')
+        : _prefs?.setString('boardScheme', _boardScheme!);
+    _pieceSet == null
+        ? _prefs?.remove('pieceSet')
+        : _prefs?.setString('pieceSet', _pieceSet!);
     _prefs
       ?..setString('playerName', _playerName)
       ..setString('coachName', _coachName);
@@ -121,7 +142,8 @@ class AppSettings extends ChangeNotifier {
   }
 
   /// Small stored values for other services (sync tokens, last sync time).
-  String? readValue(String key) => _prefs == null ? _memory[key] : _prefs.getString(key);
+  String? readValue(String key) =>
+      _prefs == null ? _memory[key] : _prefs.getString(key);
   void writeValue(String key, String? value) {
     if (_prefs == null) {
       value == null ? _memory.remove(key) : _memory[key] = value;
@@ -192,7 +214,9 @@ class AppSettings extends ChangeNotifier {
   String? get boardScheme => _boardScheme;
   set boardScheme(String? value) {
     _boardScheme = value;
-    value == null ? _prefs?.remove('boardScheme') : _prefs?.setString('boardScheme', value);
+    value == null
+        ? _prefs?.remove('boardScheme')
+        : _prefs?.setString('boardScheme', value);
     _touch();
     notifyListeners();
   }
@@ -201,7 +225,9 @@ class AppSettings extends ChangeNotifier {
   String? get pieceSet => _pieceSet;
   set pieceSet(String? value) {
     _pieceSet = value;
-    value == null ? _prefs?.remove('pieceSet') : _prefs?.setString('pieceSet', value);
+    value == null
+        ? _prefs?.remove('pieceSet')
+        : _prefs?.setString('pieceSet', value);
     _touch();
     notifyListeners();
   }
@@ -276,7 +302,9 @@ class AppSettings extends ChangeNotifier {
   String? get voiceModel => _voiceModel;
   set voiceModel(String? value) {
     _voiceModel = value;
-    value == null ? _prefs?.remove('voiceModel') : _prefs?.setString('voiceModel', value);
+    value == null
+        ? _prefs?.remove('voiceModel')
+        : _prefs?.setString('voiceModel', value);
     notifyListeners();
   }
 
@@ -303,6 +331,8 @@ class AppSettings extends ChangeNotifier {
   /// The unfinished game, as JSON (restored on the next start).
   String? get savedGame => _prefs?.getString('savedGame');
   set savedGame(String? value) {
-    value == null ? _prefs?.remove('savedGame') : _prefs?.setString('savedGame', value);
+    value == null
+        ? _prefs?.remove('savedGame')
+        : _prefs?.setString('savedGame', value);
   }
 }

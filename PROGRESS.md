@@ -66,11 +66,37 @@
   AppImage and .deb (`packaging/linux/build_deb.sh`, installs to /opt/chess-coach), Inno Setup installer with the VC++ runtime; pushing a `v*` tag publishes a GitHub Release.
 - GitHub Actions: analyze, test, screenshots, Linux tarball + AppImage, Android arm64 APK, Windows installer.
 
+## Current gameplay/security follow-up (20 Oct 2026)
+
+- [x] Checked the working tree, latest tag and recent Actions runs. `v1.0.10` is the latest release; its `main`
+  build passed. A previous `v1.0.9` release workflow failed, followed by a passing `v1.0.10` release.
+- [x] Checked GitHub visibility. It was public despite the owner's instruction; changed it to private and
+  verified GitHub reports `isPrivate: true`.
+- [x] Reviewed phone Play layouts at normal, narrow, split-screen and PiP-sized dimensions. Board stays large;
+  Coach's latest suggestion and Hint stay directly accessible; the compact two-player view now says whose turn
+  it is.
+- [x] Fixed reproduced layout overflow in the New Game dialog and added regressions for short windows,
+  suggestions, turn status and large text.
+- [x] Fixed stale review state leaking into two-player games; limited saved-game restore size and rating; made
+  engine search failures fall back to legal preview moves and rule-based hints instead of freezing a game.
+- [x] Added native Android picture-in-picture entry and made a missing native PiP handler degrade cleanly to
+  the regular game screen.
+- [x] Removed the Android release-to-debug signing fallback and added a release signing guard.
+- [x] Inspected the generated phone screenshot; board is the main visual area, with a tappable Coach/suggestion
+  strip and action controls. The full Coach panel remains optional.
+- [x] `flutter analyze` passed; the full Flutter suite passed (186 tests); all 8 screenshot cases passed. The
+  focused phone/PiP tests and the new two-player split-screen screenshot passed; the screenshot was inspected.
+- [ ] Verify native Android compilation and PiP on a device. This PC has no Android SDK or emulator configured;
+  `:app:assembleDebug` stops with “SDK location not found”, before compiling the Android activity.
+- [ ] Review the final diff, run the pre-push hook, commit and push to `main`, then verify the new Actions run.
+
 ## Next step
 
-All eight milestones are done, and the owner's feedback round shipped v1.0.0 (17 Oct 2026) and the look-and-feel
-update v1.0.1 (17 Oct 2026). The repo is public again, so GitHub Pages, public downloads and the in-app updater
-all work. Next: the owner's testing feedback on the v1.0.1 board layout, pieces and sounds.
+The latest release is v1.0.10 (18 Oct 2026). The repository is private per the owner's instruction. Continue with
+the unchecked gameplay/security follow-up above. Because this is a private repository on the free GitHub plan,
+GitHub's rulesets and native secret-scanning controls are unavailable (the API requires Pro or a public repo);
+local pre-push checks and workflow checks remain enabled. Private releases and the current in-app updater are
+not accessible to people who are not repository collaborators.
 
 ## Decisions
 
@@ -144,6 +170,9 @@ all work. Next: the owner's testing feedback on the v1.0.1 board layout, pieces 
   desugaring on), Windows runs the Inno installer silently, AppImage replaces itself, .deb uses pkexec.
 - Android sign-in uses Google Play services (`google_sign_in` 7) with a Web client as server client ID, falling
   back to the browser flow when Play services can't do it. Desktop keeps the loopback flow.
+- Private-repo preference (20 Oct 2026): keep `saad-rafeque/chess-coach` private until the owner says otherwise.
+  Recheck privacy after any repo-setting change. Do not enable paid GitHub or cloud features. The free plan does
+  not provide repository rulesets or native secret scanning while this repo is private.
 - First start (`lib/screens/onboarding_page.dart`): name, coach's name, level, look, optional sync. The level is
   stored as a `profile` event that sets every skill area's starting rating; the coach starts 100 below it.
   Names sync with the settings. Settings > Profile can run the setup again.

@@ -4,8 +4,12 @@ import 'dart:math' as math;
 import 'package:chessground/chessground.dart';
 import 'package:dartchess/dartchess.dart';
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/services.dart' show PlatformException;
 
 import '../app/board_style.dart';
+import '../app/picture_in_picture.dart';
 import '../app/settings.dart';
 import '../app/theme.dart';
 import '../coach/coach_player.dart';
@@ -23,7 +27,21 @@ import '../widgets/common.dart';
 import 'review_page.dart';
 
 /// Coach strengths offered in the New game dialog.
-const coachLevels = [400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000, 2200, 2500, 2800, 3200];
+const coachLevels = [
+  400,
+  600,
+  800,
+  1000,
+  1200,
+  1400,
+  1600,
+  1800,
+  2000,
+  2200,
+  2500,
+  2800,
+  3200,
+];
 
 class PlayPage extends StatefulWidget {
   const PlayPage({super.key});
@@ -99,13 +117,20 @@ class _PlayPageState extends State<PlayPage> {
       _chatLength = _game.chat.length;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_chatScroll.hasClients) {
-          _chatScroll.animateTo(_chatScroll.position.maxScrollExtent,
-              duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+          _chatScroll.animateTo(
+            _chatScroll.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOut,
+          );
         }
       });
     }
     final record = _game.lastRecord;
-    if (_game.isOver && !_wasOver && record != null && record.moves.length >= 2) {
+    if (_game.isOver &&
+        !_game.twoPlayers &&
+        !_wasOver &&
+        record != null &&
+        record.moves.length >= 2) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _offerReview(record));
     }
     _wasOver = _game.isOver;
@@ -127,35 +152,71 @@ class _PlayPageState extends State<PlayPage> {
             _ => 'It\'s a draw',
           }),
           constraints: const BoxConstraints(maxWidth: 440),
-          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Text('Go through the game with $coach? Pick what to look at.',
-                style: TextStyle(color: p.muted, height: 1.4)),
-            const SizedBox(height: 14),
-            for (final f in ReviewFocus.values)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Button(
-                  onPressed: () => Navigator.pop(context, f),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
-                    child: Row(children: [
-                      Expanded(
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(f.label, style: TextStyle(color: p.text, fontWeight: FontWeight.w600)),
-                          Text(f.detail, style: TextStyle(color: p.muted, fontSize: 12)),
-                        ]),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Go through the game with $coach? Pick what to look at.',
+                style: TextStyle(color: p.muted, height: 1.4),
+              ),
+              const SizedBox(height: 14),
+              for (final f in ReviewFocus.values)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Button(
+                    onPressed: () => Navigator.pop(context, f),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 6,
+                        horizontal: 2,
                       ),
-                      Icon(FluentIcons.chevron_right, size: 12, color: p.muted),
-                    ]),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  f.label,
+                                  style: TextStyle(
+                                    color: p.text,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                Text(
+                                  f.detail,
+                                  style: TextStyle(
+                                    color: p.muted,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            FluentIcons.chevron_right,
+                            size: 12,
+                            color: p.muted,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-              ),
-          ]),
-          actions: [Button(onPressed: () => Navigator.pop(context), child: const Text('Not now'))],
+            ],
+          ),
+          actions: [
+            Button(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Not now'),
+            ),
+          ],
         );
       },
     );
-    if (focus != null && mounted) await openReview(context, record, focus: focus);
+    if (focus != null && mounted)
+      await openReview(context, record, focus: focus);
   }
 
   void _onMove(Move move, {bool? viaDragAndDrop}) {
@@ -166,12 +227,15 @@ class _PlayPageState extends State<PlayPage> {
   }
 
   /// The coach's strength for a new game: tuned to the player, or the fixed choice.
-  int _strength(AppSettings settings, EventStore store) =>
-      settings.autoStrength ? SkillModel.of(store).recommendedCoachElo : settings.coachElo;
+  int _strength(AppSettings settings, EventStore store) => settings.autoStrength
+      ? SkillModel.of(store).recommendedCoachElo
+      : settings.coachElo;
 
   Future<void> _newGameDialog() async {
     final settings = SettingsScope.read(context);
-    final recommended = SkillModel.of(StoreScope.read(context)).recommendedCoachElo;
+    final recommended = SkillModel.of(
+      StoreScope.read(context),
+    ).recommendedCoachElo;
     var kind = 'coach';
     var side = 'white';
     var auto = settings.autoStrength;
@@ -181,65 +245,102 @@ class _PlayPageState extends State<PlayPage> {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialog) => ContentDialog(
           title: const Text('New game'),
-          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Opponent'),
-            const SizedBox(height: 8),
-            Segmented<String>(
-              options: const {'coach': 'The coach', 'two': 'Two players'},
-              value: kind,
-              onChanged: (v) => setDialog(() => kind = v),
-            ),
-            const SizedBox(height: 16),
-            if (kind == 'coach') ...[
-              const Text('Play as'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Opponent'),
               const SizedBox(height: 8),
               Segmented<String>(
-                options: const {'white': 'White', 'black': 'Black', 'random': 'Random'},
-                value: side,
-                onChanged: (v) => setDialog(() => side = v),
+                options: const {'coach': 'The coach', 'two': 'Two players'},
+                value: kind,
+                onChanged: (v) => setDialog(() => kind = v),
               ),
               const SizedBox(height: 16),
-              const Text('Coach strength'),
-              const SizedBox(height: 8),
-              ToggleSwitch(
-                checked: auto,
-                onChanged: (v) => setDialog(() => auto = v),
-                content: const Text('Match my level automatically'),
-              ),
-              const SizedBox(height: 8),
-              if (auto)
-                Text('Your coach plays at about $recommended, so you win a bit less than half of your games. '
-                    'It follows your results.',
-                    style: TextStyle(fontSize: 12, color: Palette.of(context).muted))
-              else ...[
-                ComboBox<int>(
-                  value: elo,
-                  isExpanded: true,
-                  items: [
-                    for (final l in coachLevels)
-                      ComboBoxItem(
-                        value: l,
-                        child: Text(l >= 3200
-                            ? 'Maximum (Stockfish)'
-                            : l <= MaiaPlayer.maxElo
-                                ? 'About $l · plays like a human'
-                                : 'About $l · Stockfish'),
-                      ),
-                  ],
-                  onChanged: (v) => setDialog(() => elo = v ?? elo),
+              if (kind == 'coach') ...[
+                const Text('Play as'),
+                const SizedBox(height: 8),
+                Segmented<String>(
+                  options: const {
+                    'white': 'White',
+                    'black': 'Black',
+                    'random': 'Random',
+                  },
+                  value: side,
+                  onChanged: (v) => setDialog(() => side = v),
+                ),
+                const SizedBox(height: 16),
+                const Text('Coach strength'),
+                const SizedBox(height: 8),
+                ToggleSwitch(
+                  checked: auto,
+                  onChanged: (v) => setDialog(() => auto = v),
+                  content: SizedBox(
+                    width: math.max(
+                      100.0,
+                      math.min(300.0, MediaQuery.sizeOf(context).width - 140),
+                    ),
+                    child: const Text('Match my level automatically'),
+                  ),
                 ),
                 const SizedBox(height: 8),
-                Text('Beginners: start around 600–800. Move up when you win most games.',
-                    style: TextStyle(fontSize: 12, color: Palette.of(context).muted)),
-              ],
-            ] else
-              Text('Two people play each other on this device. Pass it over after each move — and '
+                if (auto)
+                  Text(
+                    'Your coach plays at about $recommended, so you win a bit less than half of your games. '
+                    'It follows your results.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Palette.of(context).muted,
+                    ),
+                  )
+                else ...[
+                  ComboBox<int>(
+                    value: elo,
+                    isExpanded: true,
+                    items: [
+                      for (final l in coachLevels)
+                        ComboBoxItem(
+                          value: l,
+                          child: Text(
+                            l >= 3200
+                                ? 'Maximum (Stockfish)'
+                                : l <= MaiaPlayer.maxElo
+                                ? 'About $l · plays like a human'
+                                : 'About $l · Stockfish',
+                          ),
+                        ),
+                    ],
+                    onChanged: (v) => setDialog(() => elo = v ?? elo),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Beginners: start around 600–800. Move up when you win most games.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Palette.of(context).muted,
+                    ),
+                  ),
+                ],
+              ] else
+                Text(
+                  'Two people play each other on this device. Pass it over after each move — and '
                   'either player can tap Hint to ask the coach what to play.',
-                  style: TextStyle(fontSize: 12, color: Palette.of(context).muted)),
-          ]),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Palette.of(context).muted,
+                  ),
+                ),
+            ],
+          ),
           actions: [
-            Button(child: const Text('Cancel'), onPressed: () => Navigator.pop(context, false)),
-            FilledButton(child: const Text('Start'), onPressed: () => Navigator.pop(context, true)),
+            Button(
+              child: const Text('Cancel'),
+              onPressed: () => Navigator.pop(context, false),
+            ),
+            FilledButton(
+              child: const Text('Start'),
+              onPressed: () => Navigator.pop(context, true),
+            ),
           ],
         ),
       ),
@@ -256,9 +357,49 @@ class _PlayPageState extends State<PlayPage> {
     } else {
       settings.coachElo = elo;
     }
-    final s = side == 'random' ? (math.Random().nextBool() ? Side.white : Side.black) : Side.values.byName(side);
+    final s = side == 'random'
+        ? (math.Random().nextBool() ? Side.white : Side.black)
+        : Side.values.byName(side);
     setState(() => _flipped = false);
     _game.newGame(side: s, elo: elo);
+  }
+
+  Future<void> _enterPictureInPicture() async {
+    try {
+      final entered = await PictureInPicture.enter();
+      if (!entered && mounted) {
+        await showDialog<void>(
+          context: context,
+          builder: (context) => ContentDialog(
+            title: const Text('Picture-in-picture unavailable'),
+            content: const Text(
+              'This Android version or device does not support picture-in-picture.',
+            ),
+            actions: [
+              Button(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+    } on PlatformException {
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => ContentDialog(
+          title: const Text('Could not open the floating board'),
+          content: const Text('Keep Chess Coach open and try again.'),
+          actions: [
+            Button(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   @override
@@ -268,20 +409,38 @@ class _PlayPageState extends State<PlayPage> {
     final style = BoardStyle.of(s);
     final g = _game;
     final orientation = _flipped ? g.playerSide.opposite : g.playerSide;
-    final coachToMove = !g.twoPlayers && !g.isOver && g.position.turn != g.playerSide;
+    final coachToMove =
+        !g.twoPlayers && !g.isOver && g.position.turn != g.playerSide;
     final whiteBar = PlayerBar(
-        name: g.twoPlayers ? 'White' : s.coachName,
-        detail: g.twoPlayers ? 'Player 1' : '~${g.coachElo}',
-        icon: g.twoPlayers ? FluentIcons.contact : FluentIcons.robot,
-        active: !g.isOver && (g.twoPlayers ? g.position.turn == Side.white : coachToMove));
+      name: g.twoPlayers ? 'White' : s.coachName,
+      detail: g.twoPlayers ? 'Player 1' : '~${g.coachElo}',
+      icon: g.twoPlayers ? FluentIcons.contact : FluentIcons.robot,
+      active:
+          !g.isOver &&
+          (g.twoPlayers ? g.position.turn == Side.white : coachToMove),
+    );
     final blackBar = PlayerBar(
-        name: g.twoPlayers ? 'Black' : (s.playerName.isEmpty ? 'You' : s.playerName),
-        detail: g.twoPlayers ? 'Player 2' : (g.playerSide == Side.white ? 'White' : 'Black'),
-        icon: FluentIcons.contact,
-        active: !g.isOver && (g.twoPlayers ? g.position.turn == Side.black : !coachToMove));
-    final whiteAtBottom = g.twoPlayers ? orientation == Side.white : orientation == g.playerSide;
+      name: g.twoPlayers
+          ? 'Black'
+          : (s.playerName.isEmpty ? 'You' : s.playerName),
+      detail: g.twoPlayers
+          ? 'Player 2'
+          : (g.playerSide == Side.white ? 'White' : 'Black'),
+      icon: FluentIcons.contact,
+      active:
+          !g.isOver &&
+          (g.twoPlayers ? g.position.turn == Side.black : !coachToMove),
+    );
+    final whiteAtBottom = g.twoPlayers
+        ? orientation == Side.white
+        : orientation == g.playerSide;
     final training = g.mode == PlayMode.training;
     final eval = g.evaluation;
+    final latestCoachMessage = g.chat.isEmpty ? null : g.chat.last.text;
+    final compactMessage = g.twoPlayers
+        ? '${g.position.turn == Side.white ? 'White' : 'Black'} to move'
+              '${latestCoachMessage == null ? '' : ' · $latestCoachMessage'}'
+        : latestCoachMessage;
 
     final panel = SurfaceCard(
       padding: const EdgeInsets.all(16),
@@ -295,28 +454,47 @@ class _PlayPageState extends State<PlayPage> {
             )
           else
             Segmented<PlayMode>(
-              options: const {PlayMode.training: 'Training', PlayMode.real: 'Real game'},
+              options: const {
+                PlayMode.training: 'Training',
+                PlayMode.real: 'Real game',
+              },
               value: g.mode,
               onChanged: g.setMode,
             ),
           const SizedBox(height: 14),
-          Row(children: [
-            Text(g.twoPlayers ? 'Two players' : s.coachName, style: TextStyle(color: p.text, fontWeight: FontWeight.w600)),
-            const SizedBox(width: 8),
-            if (g.thinking && coachToMove) const SizedBox(width: 14, height: 14, child: ProgressRing(strokeWidth: 2)),
-            Expanded(
-              child: Align(alignment: Alignment.centerRight, child: _EngineStatus(host: EngineScope.of(context))),
-            ),
-          ]),
+          Row(
+            children: [
+              Text(
+                g.twoPlayers ? 'Two players' : s.coachName,
+                style: TextStyle(color: p.text, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(width: 8),
+              if (g.thinking && coachToMove)
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: ProgressRing(strokeWidth: 2),
+                ),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: _EngineStatus(host: EngineScope.of(context)),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 8),
           Expanded(
             child: ListView.builder(
               controller: _chatScroll,
               itemCount: g.chat.length,
-              itemBuilder: (context, i) => CoachBubble(text: g.chat[i].text, tone: _bubbleTone(g.chat[i].tone)),
+              itemBuilder: (context, i) => CoachBubble(
+                text: g.chat[i].text,
+                tone: _bubbleTone(g.chat[i].tone),
+              ),
             ),
           ),
-          if (g.isOver && g.lastRecord != null) ...[
+          if (g.isOver && !g.twoPlayers && g.lastRecord != null) ...[
             const SizedBox(height: 8),
             FilledButton(
               onPressed: () => openReview(context, g.lastRecord!),
@@ -327,16 +505,25 @@ class _PlayPageState extends State<PlayPage> {
             ),
           ],
           const SizedBox(height: 8),
-          Text('Moves', style: TextStyle(color: p.text, fontWeight: FontWeight.w600)),
+          Text(
+            'Moves',
+            style: TextStyle(color: p.text, fontWeight: FontWeight.w600),
+          ),
           const SizedBox(height: 6),
           Container(
             height: 64,
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: p.surfaceAlt, borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(
+              color: p.surfaceAlt,
+              borderRadius: BorderRadius.circular(8),
+            ),
             child: SingleChildScrollView(
               reverse: true,
               child: g.sans.isEmpty
-                  ? Text('No moves yet', style: TextStyle(color: p.muted, fontSize: 13))
+                  ? Text(
+                      'No moves yet',
+                      style: TextStyle(color: p.muted, fontSize: 13),
+                    )
                   : _MoveList(game: g),
             ),
           ),
@@ -348,47 +535,96 @@ class _PlayPageState extends State<PlayPage> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         for (final a in [
-          _Action(icon: FluentIcons.add, label: 'New', onPressed: _newGameDialog),
-          _Action(icon: FluentIcons.undo, label: 'Undo', onPressed: g.canUndo ? g.undo : null),
-          _Action(icon: FluentIcons.lightbulb, label: 'Hint',
-              onPressed: (training || g.twoPlayers) && g.playerToMove ? g.hint : null),
-          _Action(icon: FluentIcons.sync, label: 'Flip', onPressed: () => setState(() => _flipped = !_flipped)),
-          _Action(icon: FluentIcons.flag, label: 'Resign', onPressed: g.isOver || g.moves.isEmpty ? null : g.resign),
+          _Action(
+            icon: FluentIcons.add,
+            label: 'New',
+            onPressed: _newGameDialog,
+          ),
+          _Action(
+            icon: FluentIcons.undo,
+            label: 'Undo',
+            onPressed: g.canUndo ? g.undo : null,
+          ),
+          _Action(
+            icon: FluentIcons.lightbulb,
+            label: 'Hint',
+            onPressed: (training || g.twoPlayers) && g.playerToMove
+                ? g.hint
+                : null,
+          ),
+          _Action(
+            icon: FluentIcons.sync,
+            label: 'Flip',
+            onPressed: () => setState(() => _flipped = !_flipped),
+          ),
+          _Action(
+            icon: FluentIcons.flag,
+            label: 'Resign',
+            onPressed: g.isOver || g.moves.isEmpty ? null : g.resign,
+          ),
+          if (defaultTargetPlatform == TargetPlatform.android)
+            _Action(
+              icon: FluentIcons.open_in_new_window,
+              label: 'PiP',
+              onPressed: _enterPictureInPicture,
+            ),
         ])
           Flexible(child: a),
       ],
     );
 
     final shapes = <Shape>{
-      if (g.arrow != null) Arrow(color: p.success.withValues(alpha: 0.8), orig: g.arrow!.from, dest: g.arrow!.to),
-      if (g.highlight != null) Circle(color: p.accent.withValues(alpha: 0.9), orig: g.highlight!),
+      if (g.arrow != null)
+        Arrow(
+          color: p.success.withValues(alpha: 0.8),
+          orig: g.arrow!.from,
+          dest: g.arrow!.to,
+        ),
+      if (g.highlight != null)
+        Circle(color: p.accent.withValues(alpha: 0.9), orig: g.highlight!),
     };
 
     return PageFrame(
       title: 'Play',
-      subtitle: isMobile(context) ? null : 'Play the coach and learn from every move',
+      subtitle: isMobile(context)
+          ? null
+          : 'Play the coach and learn from every move',
       scroll: false,
       compactOnPhone: true,
       child: BoardLayout(
-        panelTitle: g.twoPlayers ? 'Two players' : s.coachName,
+        panelTitle: s.coachName,
+        compactMessage: compactMessage,
+        compactHint: (training || g.twoPlayers) && g.playerToMove
+            ? g.hint
+            : null,
         // The coach's latest message stays visible under the board; tapping it opens the panel.
         peek: g.chat.isEmpty
             ? null
-            : PeekBubble(text: g.chat.last.text, tone: _bubbleTone(g.chat.last.tone)),
+            : PeekBubble(
+                text: compactMessage ?? g.chat.last.text,
+                tone: _bubbleTone(g.chat.last.tone),
+              ),
         boardLabel: g.twoPlayers
             ? 'Two players: pass the device after each move. ${g.position.turn == Side.white ? 'White' : 'Black'} to move.'
             : 'Your game against the coach. ${g.playerToMove ? 'Your move' : 'The coach is thinking'}.',
         top: whiteAtBottom ? blackBar : whiteBar,
         bottom: whiteAtBottom ? whiteBar : blackBar,
         overBoard: training && !g.twoPlayers && s.evalBar && eval != null
-            ? EvalBar(whitePercent: eval.whiteWinPercent, label: eval.label, flipped: orientation == Side.black)
+            ? EvalBar(
+                whitePercent: eval.whiteWinPercent,
+                label: eval.label,
+                flipped: orientation == Side.black,
+              )
             : null,
         actions: actions,
         board: (size) => CheckPulse(
           size: size,
           orientation: orientation,
-          kingSquare: g.position.isCheck ? g.position.board.kingOf(g.position.turn) : null,
+          kingSquare: g.position.isCheck
+              ? g.position.board.kingOf(g.position.turn)
+              : null,
           child: Chessboard(
+            key: const ValueKey('play-board'),
             size: size,
             controller: _board,
             settings: style.settings(coordinates: s.showCoordinates),
@@ -403,11 +639,11 @@ class _PlayPageState extends State<PlayPage> {
   }
 
   static BubbleTone _bubbleTone(CoachTone t) => switch (t) {
-        CoachTone.info => BubbleTone.info,
-        CoachTone.good => BubbleTone.good,
-        CoachTone.warning || CoachTone.error => BubbleTone.warning,
-        CoachTone.move => BubbleTone.move,
-      };
+    CoachTone.info => BubbleTone.info,
+    CoachTone.good => BubbleTone.good,
+    CoachTone.warning || CoachTone.error => BubbleTone.warning,
+    CoachTone.move => BubbleTone.move,
+  };
 }
 
 /// Numbered move list; the player's errors are coloured.
@@ -420,21 +656,37 @@ class _MoveList extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = Palette.of(context);
     Color? colorFor(MoveQuality? q) => switch (q) {
-          MoveQuality.inaccuracy => p.warning,
-          MoveQuality.mistake => const Color(0xFFF97316),
-          MoveQuality.blunder => p.danger,
-          _ => null,
-        };
+      MoveQuality.inaccuracy => p.warning,
+      MoveQuality.mistake => const Color(0xFFF97316),
+      MoveQuality.blunder => p.danger,
+      _ => null,
+    };
     final firstWhite = game.positions.first.turn == Side.white;
     return Text.rich(
       TextSpan(
         style: TextStyle(color: p.text, fontSize: 13, height: 1.5),
         children: [
           for (var i = 0; i < game.sans.length; i++) ...[
-            if ((i.isEven) == firstWhite) TextSpan(text: '${i ~/ 2 + 1}. ', style: TextStyle(color: p.muted)),
+            if ((i.isEven) == firstWhite)
+              TextSpan(
+                text: '${i ~/ 2 + 1}. ',
+                style: TextStyle(color: p.muted),
+              ),
             TextSpan(
-              text: '${game.sans[i]}${game.grades[i] == MoveQuality.blunder ? '??' : game.grades[i] == MoveQuality.mistake ? '?' : game.grades[i] == MoveQuality.inaccuracy ? '?!' : ''}  ',
-              style: TextStyle(color: colorFor(game.grades[i]), fontWeight: game.grades[i] != null && game.grades[i]!.isError ? FontWeight.w600 : null),
+              text:
+                  '${game.sans[i]}${game.grades[i] == MoveQuality.blunder
+                      ? '??'
+                      : game.grades[i] == MoveQuality.mistake
+                      ? '?'
+                      : game.grades[i] == MoveQuality.inaccuracy
+                      ? '?!'
+                      : ''}  ',
+              style: TextStyle(
+                color: colorFor(game.grades[i]),
+                fontWeight: game.grades[i] != null && game.grades[i]!.isError
+                    ? FontWeight.w600
+                    : null,
+              ),
             ),
           ],
         ],
@@ -463,7 +715,11 @@ class _EngineStatus extends StatelessWidget {
 }
 
 class _Action extends StatelessWidget {
-  const _Action({required this.icon, required this.label, required this.onPressed});
+  const _Action({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
 
   final IconData icon;
   final String label;
@@ -479,14 +735,35 @@ class _Action extends StatelessWidget {
         child: Button(
           onPressed: onPressed,
           style: ButtonStyle(
-              padding: WidgetStatePropertyAll(
-                  EdgeInsets.symmetric(horizontal: isMobile(context) ? 6 : 12, vertical: 8))),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(icon, size: 16, color: onPressed == null ? p.muted.withValues(alpha: 0.5) : p.text),
-            const SizedBox(height: 2),
-            Text(label,
-                style: TextStyle(fontSize: 11, color: onPressed == null ? p.muted.withValues(alpha: 0.5) : p.muted)),
-          ]),
+            padding: WidgetStatePropertyAll(
+              EdgeInsets.symmetric(
+                horizontal: isMobile(context) ? 6 : 12,
+                vertical: 8,
+              ),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: onPressed == null
+                    ? p.muted.withValues(alpha: 0.5)
+                    : p.text,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: onPressed == null
+                      ? p.muted.withValues(alpha: 0.5)
+                      : p.muted,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

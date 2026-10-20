@@ -7,7 +7,7 @@ plugins {
 }
 
 // Release signing: CI passes the key through environment variables, local builds read
-// android/key.properties (never committed). Without either, the debug key is used.
+// android/key.properties (never committed). Release builds must never use the debug key.
 val keyProps = Properties().apply {
     val f = rootProject.file("key.properties")
     if (f.exists()) f.inputStream().use { load(it) }
@@ -54,8 +54,25 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release")
         }
+    }
+}
+
+val verifyReleaseSigning = tasks.register("verifyReleaseSigning") {
+    doLast {
+        check(android.signingConfigs.findByName("release") != null) {
+            "Release signing is not configured. Provide the release keystore before building a release."
+        }
+    }
+}
+
+tasks.configureEach {
+    if (
+        (name.startsWith("assemble") || name.startsWith("bundle")) &&
+            name.endsWith("Release")
+    ) {
+        dependsOn(verifyReleaseSigning)
     }
 }
 

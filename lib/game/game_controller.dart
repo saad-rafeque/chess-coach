@@ -107,15 +107,23 @@ class GameController extends ChangeNotifier {
 
   Position get position => positions.last;
   bool get isOver => resigned || position.isGameOver;
-  bool get playerToMove => !isOver && !thinking && (twoPlayers || position.turn == playerSide);
+  bool get playerToMove =>
+      !isOver && !thinking && (twoPlayers || position.turn == playerSide);
   bool get canUndo => _playerMoveCount > 0;
-  int get _playerMoveCount => [for (var i = 0; i < moves.length; i++) positions[i].turn].where((s) => s == playerSide).length;
+  int get _playerMoveCount => [
+    for (var i = 0; i < moves.length; i++) positions[i].turn,
+  ].where((s) => s == playerSide).length;
   NormalMove? get lastMove => moves.isEmpty ? null : moves.last;
 
   // ---- game flow ----
 
-  void newGame({required Side side, required int elo, bool twoPlayers = false}) {
+  void newGame({
+    required Side side,
+    required int elo,
+    bool twoPlayers = false,
+  }) {
     _token++;
+    lastRecord = null;
     positions
       ..clear()
       ..add(Chess.initial);
@@ -124,22 +132,25 @@ class GameController extends ChangeNotifier {
     chat.clear();
     grades.clear();
     playerSide = side;
-    coachElo = elo;
+    coachElo = elo.clamp(400, 3200);
     resigned = false;
     thinking = false;
     this.twoPlayers = twoPlayers;
     _clearMarks();
     evaluation = null;
     _analysis = null;
-    _say(twoPlayers
-        ? 'Two players on one board: pass the device after each move. Either player can tap Hint '
-            'and the coach suggests what to play.'
-        : 'New game! You play ${_name(side)}, I play at about $elo. '
-            '${mode == PlayMode.training ? 'In Training mode I comment on every move.' : 'Real game: I stay quiet until the end.'}',
-        CoachTone.info);
+    _say(
+      twoPlayers
+          ? 'Two players on one board: pass the device after each move. Either player can tap Hint '
+                'and the coach suggests what to play.'
+          : 'New game! You play ${_name(side)}, I play at about $coachElo. '
+                '${mode == PlayMode.training ? 'In Training mode I comment on every move.' : 'Real game: I stay quiet until the end.'}',
+      CoachTone.info,
+    );
     _save();
     notifyListeners();
-    if (twoPlayers) return; // both sides are human; nothing to analyse in the background
+    if (twoPlayers)
+      return; // both sides are human; nothing to analyse in the background
     if (side == Side.black) {
       unawaited(_coachMove(_token));
     } else {
@@ -152,10 +163,16 @@ class GameController extends ChangeNotifier {
     try {
       final data = jsonDecode(json) as Map<String, dynamic>;
       final side = data['side'] == 'black' ? Side.black : Side.white;
+      final rawMoves = data['moves'];
+      if (rawMoves is! List ||
+          rawMoves.length > 1000 ||
+          rawMoves.any((move) => move is! String)) {
+        return false;
+      }
       final restored = <Position>[Chess.initial];
       final restoredMoves = <NormalMove>[];
       final restoredSans = <String>[];
-      for (final uci in (data['moves'] as List<dynamic>).cast<String>()) {
+      for (final uci in rawMoves.cast<String>()) {
         final m = NormalMove.fromUci(uci);
         if (!restored.last.isLegal(m)) return false;
         final (next, san) = restored.last.makeSan(m);
@@ -164,6 +181,7 @@ class GameController extends ChangeNotifier {
         restoredSans.add(san);
       }
       _token++;
+      lastRecord = null;
       positions
         ..clear()
         ..addAll(restored);
@@ -176,7 +194,8 @@ class GameController extends ChangeNotifier {
       chat.clear();
       grades.clear();
       playerSide = side;
-      coachElo = data['elo'] as int? ?? 800;
+      final rawElo = data['elo'];
+      coachElo = (rawElo is int ? rawElo : 800).clamp(400, 3200);
       mode = data['mode'] == 'real' ? PlayMode.real : PlayMode.training;
       twoPlayers = data['two'] == true;
       resigned = false;
@@ -199,8 +218,12 @@ class GameController extends ChangeNotifier {
     if (m == mode) return;
     mode = m;
     if (m == PlayMode.real) _clearMarks();
-    _say(m == PlayMode.training ? 'Training mode: I\'ll comment on your moves.' : 'Real game: I\'ll stay quiet until the game ends.',
-        CoachTone.info);
+    _say(
+      m == PlayMode.training
+          ? 'Training mode: I\'ll comment on your moves.'
+          : 'Real game: I\'ll stay quiet until the game ends.',
+      CoachTone.info,
+    );
     _save();
     notifyListeners();
   }
@@ -212,9 +235,12 @@ class GameController extends ChangeNotifier {
     final beforeAnalysis = _analysis?.fen == before.fen ? _analysis : null;
     _push(move);
     final captured = before.board.pieceAt(move.to);
-    _sound(captured != null ? BoardSoundKind.capture : BoardSoundKind.move,
-        buzz: captured != null ? BuzzKind.thud : BuzzKind.tap);
-    if (position.isCheck && !position.isGameOver) _sound(BoardSoundKind.check, buzz: BuzzKind.alarm);
+    _sound(
+      captured != null ? BoardSoundKind.capture : BoardSoundKind.move,
+      buzz: captured != null ? BuzzKind.thud : BuzzKind.tap,
+    );
+    if (position.isCheck && !position.isGameOver)
+      _sound(BoardSoundKind.check, buzz: BuzzKind.alarm);
     _clearMarks();
     thinking = true;
     _save();
@@ -237,23 +263,41 @@ class GameController extends ChangeNotifier {
     await _coachMove(token);
   }
 
-  Future<void> _feedback(Position before, NormalMove move, Analysis? beforeAnalysis, int token) async {
+  Future<void> _feedback(
+    Position before,
+    NormalMove move,
+    Analysis? beforeAnalysis,
+    int token,
+  ) async {
     final after = position;
     final engine = await host.engine;
     if (engine == null || after.isGameOver) {
-      _engineNotice(engine == null);
+      if (engine == null) _engineNotice();
       final tip = tipForMove(before, move, after);
       if (tip != null) _say(tip.text, _toneFor(tip.kind));
       notifyListeners();
       return;
     }
-    beforeAnalysis ??= await engine.analyse(before.fen, depth: feedbackDepth);
-    final afterAnalysis = await engine.analyse(after.fen, depth: feedbackDepth);
+    beforeAnalysis ??= await _analyseSafely(
+      () => engine.analyse(before.fen, depth: feedbackDepth),
+    );
+    final afterAnalysis = await _analyseSafely(
+      () => engine.analyse(after.fen, depth: feedbackDepth),
+    );
     if (token != _token) return;
+    if (beforeAnalysis == null || afterAnalysis == null) {
+      final tip = tipForMove(before, move, after);
+      if (tip != null) _say(tip.text, _toneFor(tip.kind));
+      notifyListeners();
+      return;
+    }
     evaluation = afterAnalysis.score ?? evaluation;
     final best = beforeAnalysis.bestMove;
     final bestMove = best == null ? null : Move.parse(best);
-    final playedBest = bestMove != null && before.isLegal(bestMove) && before.play(bestMove).fen == after.fen;
+    final playedBest =
+        bestMove != null &&
+        before.isLegal(bestMove) &&
+        before.play(bestMove).fen == after.fen;
     final quality = classifyMove(
       before: beforeAnalysis.score ?? const Score.cp(0),
       after: afterAnalysis.score ?? const Score.cp(0),
@@ -263,8 +307,15 @@ class GameController extends ChangeNotifier {
     grades[moves.length - 1] = quality;
     if (quality.isError) {
       final why = explainError(
-          quality: quality, before: before, beforeAnalysis: beforeAnalysis, after: after, afterAnalysis: afterAnalysis);
-      final tone = quality == MoveQuality.blunder ? CoachTone.error : CoachTone.warning;
+        quality: quality,
+        before: before,
+        beforeAnalysis: beforeAnalysis,
+        after: after,
+        afterAnalysis: afterAnalysis,
+      );
+      final tone = quality == MoveQuality.blunder
+          ? CoachTone.error
+          : CoachTone.warning;
       _say('${quality.label}. $why', tone);
       _polishLast(why, (text) => '${quality.label}. $text', tone, token);
       if (bestMove is NormalMove) arrow = bestMove;
@@ -286,7 +337,11 @@ class GameController extends ChangeNotifier {
     NormalMove? chosen;
     if (maia != null && coachElo <= MaiaPlayer.maxElo) {
       try {
-        chosen = await maia!.pick([for (final m in moves) m.uci], coachElo, _rnd);
+        chosen = await maia!.pick(
+          [for (final m in moves) m.uci],
+          coachElo,
+          _rnd,
+        );
       } catch (e) {
         debugPrint('Maia failed, using Stockfish: $e');
       }
@@ -295,18 +350,29 @@ class GameController extends ChangeNotifier {
     if (chosen == null) {
       final engine = await host.engine;
       if (engine != null) {
-        final a = await engine.analyse(position.fen,
-            depth: depthForElo(coachElo), multiPv: candidatesForElo(coachElo));
+        final a = await _analyseSafely(
+          () => engine.analyse(
+            position.fen,
+            depth: depthForElo(coachElo),
+            multiPv: candidatesForElo(coachElo),
+          ),
+        );
         if (token != _token) return;
-        final picked = Move.parse(pickHumanMove(a, coachElo, _rnd));
-        if (picked is NormalMove) chosen = picked;
+        if (a != null) {
+          final picked = Move.parse(pickHumanMove(a, coachElo, _rnd));
+          if (picked is NormalMove) chosen = picked;
+        }
       } else {
-        _engineNotice(true);
+        _engineNotice();
       }
     }
-    var move = chosen != null && position.isLegal(chosen) ? chosen : pickPreviewMove(position, _rnd);
+    var move = chosen != null && position.isLegal(chosen)
+        ? chosen
+        : pickPreviewMove(position, _rnd);
     final lastWasError = grades[moves.length - 1]?.isError ?? false;
-    final wait = Duration(milliseconds: 450 + _rnd.nextInt(500) + (lastWasError ? 1500 : 0));
+    final wait = Duration(
+      milliseconds: 450 + _rnd.nextInt(500) + (lastWasError ? 1500 : 0),
+    );
     final elapsed = DateTime.now().difference(started);
     if (elapsed < wait) await Future<void>.delayed(wait - elapsed);
     if (token != _token) return;
@@ -316,7 +382,9 @@ class GameController extends ChangeNotifier {
     if (position.isCheck && !position.isGameOver) _sound(BoardSoundKind.check);
     _clearMarks();
     if (mode == PlayMode.training) {
-      final took = captured != null && captured.color == playerSide ? ', taking your ${captured.role.name}' : '';
+      final took = captured != null && captured.color == playerSide
+          ? ', taking your ${captured.role.name}'
+          : '';
       _say('I played ${sans.last}$took.', CoachTone.move);
     }
     thinking = false;
@@ -334,8 +402,10 @@ class GameController extends ChangeNotifier {
     final engine = await host.engine;
     if (engine == null || position.isGameOver) return;
     final fen = position.fen;
-    final a = await engine.analyse(fen, depth: feedbackDepth);
-    if (token != _token || position.fen != fen) return;
+    final a = await _analyseSafely(
+      () => engine.analyse(fen, depth: feedbackDepth),
+    );
+    if (token != _token || position.fen != fen || a == null) return;
     _analysis = a;
     evaluation = a.score ?? evaluation;
     notifyListeners();
@@ -349,21 +419,18 @@ class GameController extends ChangeNotifier {
     final turnName = twoPlayers ? '${_name(position.turn)}: ' : '';
     final engine = await host.engine;
     if (engine == null) {
-      for (final m in legalMoves(position)) {
-        final piece = freeCapture(position, m);
-        if (piece != null) {
-          _say('Hint: ${turnName}the ${piece.role.name} on ${m.to.name} is not defended.', CoachTone.info);
-          notifyListeners();
-          return;
-        }
-      }
-      _say('Hint: ${turnName}develop a piece, control the centre or make your king safer.', CoachTone.info);
-      notifyListeners();
+      _ruleHint(turnName);
       return;
     }
     final fen = position.fen;
-    final a = _analysis?.fen == fen ? _analysis! : await engine.analyse(fen, depth: feedbackDepth);
-    if (position.fen != fen || a.bestMove == null) return;
+    final a = _analysis?.fen == fen
+        ? _analysis
+        : await _analyseSafely(() => engine.analyse(fen, depth: feedbackDepth));
+    if (position.fen != fen) return;
+    if (a == null || a.bestMove == null) {
+      _ruleHint(turnName);
+      return;
+    }
     _analysis = a;
     final m = Move.parse(a.bestMove!);
     if (m is! NormalMove) return;
@@ -371,7 +438,10 @@ class GameController extends ChangeNotifier {
     if (_hintLevel == 0 && piece != null) {
       highlight = m.from;
       _hintLevel = 1;
-      _say('Hint: ${turnName}look at your ${piece.role.name} on ${m.from.name}. Tap Hint again for the move.', CoachTone.info);
+      _say(
+        'Hint: ${turnName}look at your ${piece.role.name} on ${m.from.name}. Tap Hint again for the move.',
+        CoachTone.info,
+      );
     } else {
       arrow = m;
       highlight = null;
@@ -393,8 +463,10 @@ class GameController extends ChangeNotifier {
       grades.remove(moves.length);
     } else {
       var removedPlayerMove = false;
-      while (moves.isNotEmpty && !(removedPlayerMove && position.turn == playerSide)) {
-        if (positions[positions.length - 2].turn == playerSide) removedPlayerMove = true;
+      while (moves.isNotEmpty &&
+          !(removedPlayerMove && position.turn == playerSide)) {
+        if (positions[positions.length - 2].turn == playerSide)
+          removedPlayerMove = true;
         positions.removeLast();
         moves.removeLast();
         sans.removeLast();
@@ -404,7 +476,10 @@ class GameController extends ChangeNotifier {
     resigned = false;
     _clearMarks();
     _analysis = null;
-    _say('Move taken back. Take your time and check for threats.', CoachTone.info);
+    _say(
+      'Move taken back. Take your time and check for threats.',
+      CoachTone.info,
+    );
     _save();
     notifyListeners();
     if (twoPlayers) return;
@@ -432,12 +507,20 @@ class GameController extends ChangeNotifier {
       // Two humans: just the verdict. No record, no grading, no archive.
       if (resigned) {
         final loser = _name(p.turn);
-        _say('$loser resigned. ${_name(p.turn.opposite)} wins.', CoachTone.info);
+        _say(
+          '$loser resigned. ${_name(p.turn.opposite)} wins.',
+          CoachTone.info,
+        );
       } else if (p.isCheckmate) {
         _sound(BoardSoundKind.victory);
         _say('Checkmate! ${_name(p.turn.opposite)} wins.', CoachTone.good);
       } else {
-        _say(p.isStalemate ? 'Stalemate: the game is a draw.' : 'The game is a draw.', CoachTone.info);
+        _say(
+          p.isStalemate
+              ? 'Stalemate: the game is a draw.'
+              : 'The game is a draw.',
+          CoachTone.info,
+        );
       }
       _save();
       notifyListeners();
@@ -457,10 +540,19 @@ class GameController extends ChangeNotifier {
           ? _say('Checkmate! You won. Excellent finish.', CoachTone.good)
           : _say('Checkmate. Let\'s learn from it.', CoachTone.warning);
     } else {
-      _say(p.isStalemate ? 'Stalemate: the game is a draw.' : 'The game is a draw.', CoachTone.info);
+      _say(
+        p.isStalemate
+            ? 'Stalemate: the game is a draw.'
+            : 'The game is a draw.',
+        CoachTone.info,
+      );
     }
-    final whiteLost = resigned ? playerSide == Side.white : p.isCheckmate && p.turn == Side.white;
-    final blackLost = resigned ? playerSide == Side.black : p.isCheckmate && p.turn == Side.black;
+    final whiteLost = resigned
+        ? playerSide == Side.white
+        : p.isCheckmate && p.turn == Side.white;
+    final blackLost = resigned
+        ? playerSide == Side.black
+        : p.isCheckmate && p.turn == Side.black;
     lastRecord = GameRecord(
       id: newId(),
       date: DateTime.now(),
@@ -468,7 +560,11 @@ class GameController extends ChangeNotifier {
       coachElo: coachElo,
       moves: [for (final m in moves) m.uci],
       result: whiteLost ? '0-1' : (blackLost ? '1-0' : '1/2-1/2'),
-      ending: resigned ? 'resignation' : (p.isCheckmate ? 'checkmate' : (p.isStalemate ? 'stalemate' : 'draw')),
+      ending: resigned
+          ? 'resignation'
+          : (p.isCheckmate
+                ? 'checkmate'
+                : (p.isStalemate ? 'stalemate' : 'draw')),
       grades: Map.of(grades),
     );
     onFinished?.call(lastRecord!);
@@ -476,9 +572,10 @@ class GameController extends ChangeNotifier {
     if (grades.isNotEmpty) {
       int count(MoveQuality q) => errors.where((e) => e == q).length;
       _say(
-          'Your game: ${count(MoveQuality.blunder)} blunders, ${count(MoveQuality.mistake)} mistakes, '
-          '${count(MoveQuality.inaccuracy)} inaccuracies.',
-          CoachTone.info);
+        'Your game: ${count(MoveQuality.blunder)} blunders, ${count(MoveQuality.mistake)} mistakes, '
+        '${count(MoveQuality.inaccuracy)} inaccuracies.',
+        CoachTone.info,
+      );
     }
     _save();
     notifyListeners();
@@ -497,51 +594,99 @@ class GameController extends ChangeNotifier {
     _hintLevel = 0;
   }
 
+  Future<Analysis?> _analyseSafely(Future<Analysis> Function() analyse) async {
+    try {
+      return await analyse();
+    } catch (e) {
+      debugPrint('Stockfish analysis failed: $e');
+      _engineNotice(
+        'Stockfish had a problem. I will keep the game going with simple advice.',
+      );
+      return null;
+    }
+  }
+
+  void _ruleHint(String turnName) {
+    for (final m in legalMoves(position)) {
+      final piece = freeCapture(position, m);
+      if (piece != null) {
+        _say(
+          'Hint: ${turnName}the ${piece.role.name} on ${m.to.name} is not defended.',
+          CoachTone.info,
+        );
+        notifyListeners();
+        return;
+      }
+    }
+    _say(
+      'Hint: ${turnName}develop a piece, control the centre or make your king safer.',
+      CoachTone.info,
+    );
+    notifyListeners();
+  }
+
   void _say(String text, CoachTone tone) => chat.add(CoachMessage(text, tone));
 
   /// Plays a board sound, and the matching phone buzz for the player's own moves.
   void _sound(BoardSoundKind kind, {BuzzKind? buzz}) {
     final s = settings;
     BoardSound.instance.play(kind, soundOn: s?.boardSounds ?? true);
-    if (buzz != null) BoardSound.instance.buzz(buzz, buzzOn: s?.haptics ?? true);
+    if (buzz != null)
+      BoardSound.instance.buzz(buzz, buzzOn: s?.haptics ?? true);
   }
 
   /// Replaces the last chat message with the language model's wording when it arrives.
-  void _polishLast(String facts, String Function(String) wrap, CoachTone tone, int token) {
+  void _polishLast(
+    String facts,
+    String Function(String) wrap,
+    CoachTone tone,
+    int token,
+  ) {
     final p = polish;
     if (p == null) return;
     final index = chat.length - 1;
     final original = chat[index];
-    unawaited(p(facts).then((text) {
-      if (text == null || token != _token || index >= chat.length || !identical(chat[index], original)) return;
-      chat[index] = CoachMessage(wrap(text), tone);
-      notifyListeners();
-    }));
+    unawaited(
+      p(facts).then((text) {
+        if (text == null ||
+            token != _token ||
+            index >= chat.length ||
+            !identical(chat[index], original))
+          return;
+        chat[index] = CoachMessage(wrap(text), tone);
+        notifyListeners();
+      }),
+    );
   }
 
-  void _engineNotice(bool missing) {
-    if (!missing || _engineNoticeShown) return;
+  void _engineNotice([
+    String message =
+        'Stockfish isn\'t available here, so I\'m using simple rules for now.',
+  ]) {
+    if (_engineNoticeShown) return;
     _engineNoticeShown = true;
-    _say('Stockfish isn\'t available here, so I\'m using simple rules for now.', CoachTone.warning);
+    _say(message, CoachTone.warning);
   }
 
   void _save() {
-    onSave?.call(isOver
-        ? null
-        : jsonEncode({
-            'side': playerSide.name,
-            'elo': coachElo,
-            'mode': mode.name,
-            if (twoPlayers) 'two': true,
-            'moves': [for (final m in moves) m.uci],
-          }));
+    onSave?.call(
+      isOver
+          ? null
+          : jsonEncode({
+              'side': playerSide.name,
+              'elo': coachElo,
+              'mode': mode.name,
+              if (twoPlayers) 'two': true,
+              'moves': [for (final m in moves) m.uci],
+            }),
+    );
   }
 
   static CoachTone _toneFor(TipKind k) => switch (k) {
-        TipKind.good => CoachTone.good,
-        TipKind.warning => CoachTone.warning,
-        TipKind.info => CoachTone.info,
-      };
+    TipKind.good => CoachTone.good,
+    TipKind.warning => CoachTone.warning,
+    TipKind.info => CoachTone.info,
+  };
 
   static String _name(Side s) => s == Side.white ? 'White' : 'Black';
 

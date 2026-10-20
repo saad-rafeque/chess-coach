@@ -25,6 +25,8 @@ class BoardLayout extends StatefulWidget {
     this.boardLabel,
     this.panelTitle,
     this.peek,
+    this.compactMessage,
+    this.compactHint,
   });
 
   final Widget Function(double size) board;
@@ -36,6 +38,12 @@ class BoardLayout extends StatefulWidget {
   /// Phones: a compact strip under the board instead of the panel button
   /// (e.g. the coach's latest message); tapping it opens the panel.
   final Widget? peek;
+
+  /// Latest coach text for short split-screen and PiP layouts.
+  final String? compactMessage;
+
+  /// Optional primary action beside the coach strip in short layouts.
+  final VoidCallback? compactHint;
 
   /// Slim strip directly above the board (the evaluation bar).
   final Widget? overBoard;
@@ -64,7 +72,11 @@ class _BoardLayoutState extends State<BoardLayout> {
 
   Widget _board(double size) => widget.boardLabel == null
       ? widget.board(size)
-      : Semantics(container: true, label: widget.boardLabel, child: widget.board(size));
+      : Semantics(
+          container: true,
+          label: widget.boardLabel,
+          child: widget.board(size),
+        );
 
   static const _barHeight = 44.0;
   static const _overBoardHeight = 14.0;
@@ -72,154 +84,411 @@ class _BoardLayoutState extends State<BoardLayout> {
 
   @override
   Widget build(BuildContext context) {
-    final underBoard = widget.panelTitle == null || SettingsScope.of(context).panelUnderBoard;
-    return LayoutBuilder(builder: (context, c) {
-      final mobile = c.maxWidth < mobileBreakpoint || c.maxWidth < c.maxHeight * 0.9;
-      final bars = (top != null ? _barHeight : 0) + (bottom != null ? _barHeight : 0) + _overBoardHeight;
-      final strip = SizedBox(
-        height: _overBoardHeight,
-        child: Align(alignment: Alignment.topCenter, child: overBoard ?? const SizedBox.shrink()),
-      );
-      if (!mobile) {
-        // The panel can be hidden so the board gets the whole window and stays centred.
-        // (The strip row with the dock button is 14 px taller than a plain strip.)
-        final size = _panelHidden
-            ? math.min(c.maxWidth - 24, c.maxHeight - bars - 14 - (actions != null ? 68 : 0))
-            : math.min(c.maxWidth - _panelWidth - 24, c.maxHeight - bars - 14);
-        final boardColumn = SizedBox(
-          width: size,
-          child: Column(children: [
-            if (top != null) SizedBox(height: _barHeight, child: top),
-            SizedBox(
-              height: 28,
-              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Expanded(child: strip),
-                SizedBox(
-                  width: 28,
-                  height: 28,
-                  child: Center(
-                    child: Button(
-                      style: const ButtonStyle(padding: WidgetStatePropertyAll(EdgeInsets.all(4))),
-                      onPressed: () => setState(() => _panelHidden = !_panelHidden),
-                      child: Icon(_panelHidden ? FluentIcons.dock_right : FluentIcons.dock_left, size: 14),
+    final underBoard =
+        widget.panelTitle == null || SettingsScope.of(context).panelUnderBoard;
+    return LayoutBuilder(
+      builder: (context, c) {
+        final mobile =
+            c.maxWidth < mobileBreakpoint || c.maxWidth < c.maxHeight * 0.9;
+        final bars =
+            (top != null ? _barHeight : 0) +
+            (bottom != null ? _barHeight : 0) +
+            _overBoardHeight;
+        final strip = SizedBox(
+          height: _overBoardHeight,
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: overBoard ?? const SizedBox.shrink(),
+          ),
+        );
+        // PiP and split-screen windows can be shorter than a phone's normal app view.
+        // Keep the board square and as large as fits, with the coach suggestion and
+        // a dedicated Hint button directly beneath it. Never derive a negative size.
+        if (mobile && c.maxHeight < 430 && widget.panelTitle != null) {
+          final footerHeight = math.min(
+            52.0,
+            math.max(38.0, c.maxHeight * 0.26),
+          );
+          final p = Palette.of(context);
+          return Stack(
+            children: [
+              Column(
+                children: [
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, area) {
+                        final size = math.max(
+                          1.0,
+                          math.min(area.maxWidth, area.maxHeight),
+                        );
+                        return Center(
+                          child: SizedBox.square(
+                            dimension: size,
+                            child: _board(size),
+                          ),
+                        );
+                      },
                     ),
                   ),
-                ),
-              ]),
-            ),
-            _board(size),
-            if (bottom != null) SizedBox(height: _barHeight, child: bottom),
-            if (_panelHidden && actions != null) ...[const SizedBox(height: 12), actions!],
-          ]),
-        );
-        if (_panelHidden) return Center(child: boardColumn);
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            boardColumn,
-            const SizedBox(width: 24),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [Expanded(child: panel), if (actions != null) ...[const SizedBox(height: 12), actions!]],
+                  SizedBox(
+                    height: math.min(footerHeight, c.maxHeight),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Semantics(
+                            button: true,
+                            label: 'Open ${widget.panelTitle} suggestions',
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () => setState(() => _sheet = true),
+                              child: Container(
+                                margin: const EdgeInsets.only(right: 6),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: p.surface,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: p.border),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      FluentIcons.robot,
+                                      size: 16,
+                                      color: p.accent,
+                                    ),
+                                    const SizedBox(width: 7),
+                                    Text(
+                                      widget.panelTitle!,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: p.text,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    if (widget.compactMessage?.isNotEmpty ==
+                                        true) ...[
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          widget.compactMessage!,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: p.muted,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ),
+                                    ] else
+                                      const Spacer(),
+                                    Icon(
+                                      FluentIcons.chevron_up,
+                                      size: 12,
+                                      color: p.muted,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (widget.compactHint != null)
+                          Button(
+                            onPressed: widget.compactHint,
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 6),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(FluentIcons.lightbulb, size: 15),
+                                  SizedBox(width: 5),
+                                  Text('Hint'),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
+              ..._sheetOverlay(0, c.maxHeight, compact: true),
+            ],
+          );
+        }
+        if (!mobile) {
+          // The panel can be hidden so the board gets the whole window and stays centred.
+          // (The strip row with the dock button is 14 px taller than a plain strip.)
+          final size = _boardSize(
+            _panelHidden ? c.maxWidth - 24 : c.maxWidth - _panelWidth - 24,
+            c.maxHeight -
+                bars -
+                14 -
+                (_panelHidden && actions != null ? 68 : 0),
+          );
+          final boardColumn = SizedBox(
+            width: size,
+            child: Column(
+              children: [
+                if (top != null) SizedBox(height: _barHeight, child: top),
+                SizedBox(
+                  height: 28,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: strip),
+                      SizedBox(
+                        width: 28,
+                        height: 28,
+                        child: Center(
+                          child: Button(
+                            style: const ButtonStyle(
+                              padding: WidgetStatePropertyAll(
+                                EdgeInsets.all(4),
+                              ),
+                            ),
+                            onPressed: () =>
+                                setState(() => _panelHidden = !_panelHidden),
+                            child: Icon(
+                              _panelHidden
+                                  ? FluentIcons.dock_right
+                                  : FluentIcons.dock_left,
+                              size: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _board(size),
+                if (bottom != null) SizedBox(height: _barHeight, child: bottom),
+                if (_panelHidden && actions != null) ...[
+                  const SizedBox(height: 12),
+                  actions!,
+                ],
+              ],
             ),
-          ],
+          );
+          if (_panelHidden) return Center(child: boardColumn);
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              boardColumn,
+              const SizedBox(width: 24),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(child: panel),
+                    if (actions != null) ...[
+                      const SizedBox(height: 12),
+                      actions!,
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          );
+        }
+        // Board pages on phones get the full width from PageFrame; everything except the board keeps a margin.
+        final inset = math.max(
+          0.0,
+          16 - (MediaQuery.sizeOf(context).width - c.maxWidth) / 2,
         );
-      }
-      // Board pages on phones get the full width from PageFrame; everything except the board keeps a margin.
-      final inset = math.max(0.0, 16 - (MediaQuery.sizeOf(context).width - c.maxWidth) / 2);
-      Widget padded(Widget w) => inset == 0 ? w : Padding(padding: EdgeInsets.symmetric(horizontal: inset), child: w);
-      if (!underBoard) {
-        // Phones: the board spans the screen, edge to edge; the panel slides up on request.
-        final size = math.max(160.0, math.min(c.maxWidth, c.maxHeight - bars - (actions != null ? 64 : 0) - 48));
+        Widget padded(Widget w) => inset == 0
+            ? w
+            : Padding(
+                padding: EdgeInsets.symmetric(horizontal: inset),
+                child: w,
+              );
+        if (!underBoard) {
+          // Phones: the board spans the screen, edge to edge; the panel slides up on request.
+          final size = _boardSize(
+            c.maxWidth,
+            c.maxHeight - bars - (actions != null ? 64 : 0) - 48,
+          );
+          final content = ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              if (top != null) padded(SizedBox(height: _barHeight, child: top)),
+              padded(strip),
+              Center(
+                child: SizedBox(width: size, height: size, child: _board(size)),
+              ),
+              if (bottom != null)
+                padded(SizedBox(height: _barHeight, child: bottom)),
+              if (actions != null) ...[
+                const SizedBox(height: 4),
+                padded(actions!),
+              ],
+              const SizedBox(height: 8),
+              Center(
+                child: Button(
+                  onPressed: () => setState(() => _sheet = true),
+                  child: widget.peek == null
+                      ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(FluentIcons.chevron_up, size: 12),
+                            const SizedBox(width: 8),
+                            Text(widget.panelTitle!),
+                          ],
+                        )
+                      : Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              widget.panelTitle!,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            widget.peek!,
+                          ],
+                        ),
+                ),
+              ),
+            ],
+          );
+          return Stack(
+            children: [
+              Positioned.fill(child: content),
+              ..._sheetOverlay(inset, c.maxHeight),
+            ],
+          );
+        }
+        if (widget.panelTitle == null) {
+          // Lessons and review cards need the panel right under the board, no matter the choice.
+          final size = _boardSize(
+            c.maxWidth,
+            c.maxHeight - bars - (actions != null ? 64 : 0) - 72,
+          );
+          // The panel's minimum grows with the font size, so large text never overflows it.
+          final minPanel =
+              230.0 * (MediaQuery.textScalerOf(context).scale(14) / 14);
+          final panelHeight = math.max(
+            minPanel,
+            c.maxHeight - size - bars - 76,
+          );
+          return ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              if (top != null) padded(SizedBox(height: _barHeight, child: top)),
+              padded(strip),
+              Center(child: _board(size)),
+              if (bottom != null)
+                padded(SizedBox(height: _barHeight, child: bottom)),
+              if (actions != null) ...[
+                const SizedBox(height: 4),
+                padded(actions!),
+              ],
+              const SizedBox(height: 12),
+              padded(SizedBox(height: panelHeight, child: panel)),
+            ],
+          );
+        }
+        // Phones, panel kept under the board: the board sits exactly centred on the screen
+        // with a slim panel peek below; tapping the peek slides the full panel up.
+        final size = _boardSize(
+          c.maxWidth,
+          c.maxHeight - bars - (actions != null ? 60 : 0) - 112,
+        );
+        const peek = 96.0;
+        // The screen's bottom bar and page padding are taller than the page header, so the board
+        // would sit a little high; this shift puts it on the true centre of the phone screen.
+        final topGap = math.max(0.0, c.maxHeight / 2 - bars - size / 2 + 22);
         final content = ListView(
           padding: EdgeInsets.zero,
           children: [
-            if (top != null) padded(SizedBox(height: _barHeight, child: top)),
-            padded(strip),
-            Center(child: SizedBox(width: size, height: size, child: _board(size))),
-            if (bottom != null) padded(SizedBox(height: _barHeight, child: bottom)),
-            if (actions != null) ...[const SizedBox(height: 4), padded(actions!)],
-            const SizedBox(height: 8),
-            Center(
-              child: Button(
-                onPressed: () => setState(() => _sheet = true),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(FluentIcons.chevron_up, size: 12),
-                  const SizedBox(width: 8),
-                  Text(widget.panelTitle!),
-                ]),
-              ),
-            ),
-          ],
-        );
-        return Stack(children: [Positioned.fill(child: content), ..._sheetOverlay(inset, c.maxHeight)]);
-      }
-      if (widget.panelTitle == null) {
-        // Lessons and review cards need the panel right under the board, no matter the choice.
-        final size = math.min(c.maxWidth, c.maxHeight - bars - (actions != null ? 64 : 0) - 72);
-        // The panel's minimum grows with the font size, so large text never overflows it.
-        final minPanel = 230.0 * (MediaQuery.textScalerOf(context).scale(14) / 14);
-        final panelHeight = math.max(minPanel, c.maxHeight - size - bars - 76);
-        return ListView(
-          padding: EdgeInsets.zero,
-          children: [
+            SizedBox(height: topGap),
             if (top != null) padded(SizedBox(height: _barHeight, child: top)),
             padded(strip),
             Center(child: _board(size)),
-            if (bottom != null) padded(SizedBox(height: _barHeight, child: bottom)),
-            if (actions != null) ...[const SizedBox(height: 4), padded(actions!)],
-            const SizedBox(height: 12),
-            padded(SizedBox(height: panelHeight, child: panel)),
+            if (bottom != null)
+              padded(SizedBox(height: _barHeight, child: bottom)),
+            if (actions != null) ...[
+              const SizedBox(height: 4),
+              padded(actions!),
+            ],
+            const SizedBox(height: 10),
+            padded(
+              SizedBox(
+                height: peek,
+                child: widget.peek == null
+                    ? Center(
+                        child: Button(
+                          onPressed: () => setState(() => _sheet = true),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(FluentIcons.chevron_up, size: 12),
+                              const SizedBox(width: 8),
+                              Text(widget.panelTitle!),
+                            ],
+                          ),
+                        ),
+                      )
+                    : GestureDetector(
+                        onTap: () => setState(() => _sheet = true),
+                        child: Center(child: widget.peek!),
+                      ),
+              ),
+            ),
+            const SizedBox(height: 8),
           ],
         );
-      }
-      // Phones, panel kept under the board: the board sits exactly centred on the screen
-      // with a slim panel peek below; tapping the peek slides the full panel up.
-      final size = math.min(c.maxWidth, c.maxHeight - bars - (actions != null ? 60 : 0) - 112);
-      const peek = 96.0;
-      // The screen's bottom bar and page padding are taller than the page header, so the board
-      // would sit a little high; this shift puts it on the true centre of the phone screen.
-      final topGap = math.max(0.0, c.maxHeight / 2 - bars - size / 2 + 22);
-      final content = ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          SizedBox(height: topGap),
-          if (top != null) padded(SizedBox(height: _barHeight, child: top)),
-          padded(strip),
-          Center(child: _board(size)),
-          if (bottom != null) padded(SizedBox(height: _barHeight, child: bottom)),
-          if (actions != null) ...[const SizedBox(height: 4), padded(actions!)],
-          const SizedBox(height: 10),
-          padded(SizedBox(
-            height: peek,
-            child: widget.peek == null
-                ? Center(
-                    child: Button(
-                      onPressed: () => setState(() => _sheet = true),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        const Icon(FluentIcons.chevron_up, size: 12),
-                        const SizedBox(width: 8),
-                        Text(widget.panelTitle!),
-                      ]),
-                    ),
-                  )
-                : GestureDetector(
-                    onTap: () => setState(() => _sheet = true),
-                    child: Center(child: widget.peek!),
-                  ),
-          )),
-          const SizedBox(height: 8),
-        ],
-      );
-      return Stack(children: [Positioned.fill(child: content), ..._sheetOverlay(inset, c.maxHeight)]);
-    });
+        return Stack(
+          children: [
+            Positioned.fill(child: content),
+            ..._sheetOverlay(inset, c.maxHeight),
+          ],
+        );
+      },
+    );
   }
 
+  double _boardSize(double width, double height) =>
+      math.max(1.0, math.min(width, height));
+
   /// The panel as a bottom sheet (phones); it stays part of this page, so it updates live.
-  List<Widget> _sheetOverlay(double inset, double maxHeight) {
+  List<Widget> _sheetOverlay(
+    double inset,
+    double maxHeight, {
+    bool compact = false,
+  }) {
     final p = Palette.of(context);
+    final sheetContent = compact
+        ? SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(4, 2, 4, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  '${widget.panelTitle ?? 'Coach'} suggestion',
+                  style: TextStyle(
+                    color: p.text,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  widget.compactMessage?.trim().isNotEmpty == true
+                      ? widget.compactMessage!.trim()
+                      : 'Ask the coach for a hint when it is your turn.',
+                  style: TextStyle(color: p.muted, height: 1.4),
+                ),
+              ],
+            ),
+          )
+        : panel;
     return [
       IgnorePointer(
         ignoring: !_sheet,
@@ -247,27 +516,37 @@ class _BoardLayoutState extends State<BoardLayout> {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             decoration: BoxDecoration(
               color: p.background,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-              boxShadow: const [BoxShadow(color: Color(0x55000000), blurRadius: 24)],
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(20),
+              ),
+              boxShadow: const [
+                BoxShadow(color: Color(0x55000000), blurRadius: 24),
+              ],
             ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Center(
-                child: Semantics(
-                  button: true,
-                  label: 'Close ${widget.panelTitle}',
-                  child: GestureDetector(
-                    onTap: () => setState(() => _sheet = false),
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(vertical: 8),
-                      width: 44,
-                      height: 5,
-                      decoration: BoxDecoration(color: p.border, borderRadius: BorderRadius.circular(3)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Semantics(
+                    button: true,
+                    label: 'Close ${widget.panelTitle}',
+                    child: GestureDetector(
+                      onTap: () => setState(() => _sheet = false),
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(vertical: 8),
+                        width: 44,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: p.border,
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-              Expanded(child: panel),
-            ]),
+                Expanded(child: sheetContent),
+              ],
+            ),
           ),
         ),
       ),
@@ -277,7 +556,13 @@ class _BoardLayoutState extends State<BoardLayout> {
 
 /// Name, rating and status shown above or below the board.
 class PlayerBar extends StatelessWidget {
-  const PlayerBar({super.key, required this.name, required this.detail, required this.icon, this.active = false});
+  const PlayerBar({
+    super.key,
+    required this.name,
+    required this.detail,
+    required this.icon,
+    this.active = false,
+  });
 
   final String name;
   final String detail;
@@ -287,40 +572,61 @@ class PlayerBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = Palette.of(context);
-    return Row(children: [
-      AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: 34,
-        height: 34,
-        decoration: BoxDecoration(
-          color: active ? p.accent : p.surfaceAlt,
-          borderRadius: BorderRadius.circular(9),
+    return Row(
+      children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: active ? p.accent : p.surfaceAlt,
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Icon(icon, size: 16, color: active ? p.onAccent : p.muted),
         ),
-        child: Icon(icon, size: 16, color: active ? p.onAccent : p.muted),
-      ),
-      const SizedBox(width: 10),
-      Text(name, style: TextStyle(color: p.text, fontWeight: FontWeight.w600)),
-      const SizedBox(width: 8),
-      Expanded(
-        child: Text(detail, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: p.muted, fontSize: 12)),
-      ),
-      if (active)
-        Text('to move', style: TextStyle(color: p.accent, fontSize: 12, fontWeight: FontWeight.w600)),
-    ]);
+        const SizedBox(width: 10),
+        Text(
+          name,
+          style: TextStyle(color: p.text, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            detail,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: p.muted, fontSize: 12),
+          ),
+        ),
+        if (active)
+          Text(
+            'to move',
+            style: TextStyle(
+              color: p.accent,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+      ],
+    );
   }
 }
 
 /// The colour and icon of a [CoachBubble] tone.
 (Color, IconData) bubbleStyle(Palette p, BubbleTone tone) => switch (tone) {
-      BubbleTone.info => (p.accent, FluentIcons.chat),
-      BubbleTone.good => (p.success, FluentIcons.like),
-      BubbleTone.warning => (p.warning, FluentIcons.warning),
-      BubbleTone.move => (p.muted, FluentIcons.robot),
-    };
+  BubbleTone.info => (p.accent, FluentIcons.chat),
+  BubbleTone.good => (p.success, FluentIcons.like),
+  BubbleTone.warning => (p.warning, FluentIcons.warning),
+  BubbleTone.move => (p.muted, FluentIcons.robot),
+};
 
 /// Chat bubble from the coach (or the system).
 class CoachBubble extends StatelessWidget {
-  const CoachBubble({super.key, required this.text, this.tone = BubbleTone.info});
+  const CoachBubble({
+    super.key,
+    required this.text,
+    this.tone = BubbleTone.info,
+  });
 
   final String text;
   final BubbleTone tone;
@@ -341,11 +647,19 @@ class CoachBubble extends StatelessWidget {
           topLeft: Radius.circular(4),
         ),
       ),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Padding(padding: const EdgeInsets.only(top: 2), child: Icon(icon, size: 14, color: color)),
-        const SizedBox(width: 10),
-        Expanded(child: Text(text, style: TextStyle(color: p.text, height: 1.35))),
-      ]),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(icon, size: 14, color: color),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(text, style: TextStyle(color: p.text, height: 1.35)),
+          ),
+        ],
+      ),
     );
     // New messages fade and slide in (skipped when the system asks for less motion).
     return TweenAnimationBuilder<double>(
@@ -354,7 +668,10 @@ class CoachBubble extends StatelessWidget {
       curve: Curves.easeOutCubic,
       builder: (context, t, child) => Opacity(
         opacity: t,
-        child: Transform.translate(offset: Offset(0, (1 - t) * 8), child: child),
+        child: Transform.translate(
+          offset: Offset(0, (1 - t) * 8),
+          child: child,
+        ),
       ),
       child: bubble,
     );
@@ -366,7 +683,11 @@ enum BubbleTone { info, good, warning, move }
 /// One compact chat line for the strip under the board on phones; the whole
 /// strip opens the full panel.
 class PeekBubble extends StatelessWidget {
-  const PeekBubble({super.key, required this.text, this.tone = BubbleTone.info});
+  const PeekBubble({
+    super.key,
+    required this.text,
+    this.tone = BubbleTone.info,
+  });
 
   final String text;
   final BubbleTone tone;
@@ -375,24 +696,33 @@ class PeekBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = Palette.of(context);
     final (color, icon) = bubbleStyle(p, tone);
-    return Row(children: [
-      Icon(icon, size: 14, color: color),
-      const SizedBox(width: 8),
-      Expanded(
-        child: Text(text,
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: color),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: p.text, fontSize: 13, height: 1.3)),
-      ),
-      const SizedBox(width: 8),
-      Icon(FluentIcons.chevron_up, size: 12, color: p.muted),
-    ]);
+            style: TextStyle(color: p.text, fontSize: 13, height: 1.3),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Icon(FluentIcons.chevron_up, size: 12, color: p.muted),
+      ],
+    );
   }
 }
 
 /// Thin horizontal bar: White's share of the winning chances.
 class EvalBar extends StatelessWidget {
-  const EvalBar({super.key, required this.whitePercent, required this.label, this.flipped = false});
+  const EvalBar({
+    super.key,
+    required this.whitePercent,
+    required this.label,
+    this.flipped = false,
+  });
 
   final double whitePercent;
   final String label;
@@ -404,39 +734,56 @@ class EvalBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = Palette.of(context);
     final share = (whitePercent / 100).clamp(0.02, 0.98);
-    return Row(children: [
-      Expanded(
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: SizedBox(
-            height: 8,
-            child: Stack(children: [
-              Container(color: const Color(0xFF2B2B2E)),
-              AnimatedFractionallySizedBox(
-                duration: const Duration(milliseconds: 400),
-                curve: Curves.easeOutCubic,
-                alignment: flipped ? Alignment.centerRight : Alignment.centerLeft,
-                widthFactor: share,
-                child: Container(color: const Color(0xFFF2F2F2)),
+    return Row(
+      children: [
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: SizedBox(
+              height: 8,
+              child: Stack(
+                children: [
+                  Container(color: const Color(0xFF2B2B2E)),
+                  AnimatedFractionallySizedBox(
+                    duration: const Duration(milliseconds: 400),
+                    curve: Curves.easeOutCubic,
+                    alignment: flipped
+                        ? Alignment.centerRight
+                        : Alignment.centerLeft,
+                    widthFactor: share,
+                    child: Container(color: const Color(0xFFF2F2F2)),
+                  ),
+                ],
               ),
-            ]),
+            ),
           ),
         ),
-      ),
-      const SizedBox(width: 8),
-      SizedBox(
-        width: 42,
-        child: Text(label,
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 42,
+          child: Text(
+            label,
             textAlign: TextAlign.right,
-            style: TextStyle(color: p.muted, fontSize: 12, fontWeight: FontWeight.w600)),
-      ),
-    ]);
+            style: TextStyle(
+              color: p.muted,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
 /// Two-option segmented switch.
 class Segmented<T> extends StatelessWidget {
-  const Segmented({super.key, required this.options, required this.value, required this.onChanged});
+  const Segmented({
+    super.key,
+    required this.options,
+    required this.value,
+    required this.onChanged,
+  });
 
   final Map<T, String> options;
   final T value;
@@ -447,31 +794,48 @@ class Segmented<T> extends StatelessWidget {
     final p = Palette.of(context);
     return Container(
       padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(color: p.surfaceAlt, borderRadius: BorderRadius.circular(10)),
-      child: Row(children: [
-        for (final e in options.entries)
-          Expanded(
-            child: HoverButton(
-              onPressed: () => onChanged(e.key),
-              builder: (context, states) => AnimatedContainer(
-                duration: const Duration(milliseconds: 160),
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                decoration: BoxDecoration(
-                  color: e.key == value ? p.surface : null,
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: e.key == value
-                      ? [BoxShadow(color: const Color(0xFF000000).withValues(alpha: 0.12), blurRadius: 6)]
-                      : null,
-                ),
-                alignment: Alignment.center,
-                child: Text(e.value,
+      decoration: BoxDecoration(
+        color: p.surfaceAlt,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          for (final e in options.entries)
+            Expanded(
+              child: HoverButton(
+                onPressed: () => onChanged(e.key),
+                builder: (context, states) => AnimatedContainer(
+                  duration: const Duration(milliseconds: 160),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    color: e.key == value ? p.surface : null,
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: e.key == value
+                        ? [
+                            BoxShadow(
+                              color: const Color(
+                                0xFF000000,
+                              ).withValues(alpha: 0.12),
+                              blurRadius: 6,
+                            ),
+                          ]
+                        : null,
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    e.value,
                     style: TextStyle(
-                        color: e.key == value ? p.text : p.muted,
-                        fontWeight: e.key == value ? FontWeight.w600 : FontWeight.w400)),
+                      color: e.key == value ? p.text : p.muted,
+                      fontWeight: e.key == value
+                          ? FontWeight.w600
+                          : FontWeight.w400,
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
-      ]),
+        ],
+      ),
     );
   }
 }

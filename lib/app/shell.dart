@@ -51,12 +51,19 @@ class _AppShellState extends State<AppShell> {
     final p = Palette.of(context);
     final width = MediaQuery.sizeOf(context).width;
     if (width < mobileBreakpoint) {
-      return Column(children: [
-        Expanded(child: _stack),
-        _BottomNav(index: _index, onTap: _go),
-      ]);
+      final shortWindow = MediaQuery.sizeOf(context).height < 430;
+      return Column(
+        children: [
+          Expanded(child: _stack),
+          if (!shortWindow) _BottomNav(index: _index, onTap: _go),
+        ],
+      );
     }
-    PaneItem item(_Dest d) => PaneItem(icon: Icon(d.icon), title: Text(d.label), body: const SizedBox.shrink());
+    PaneItem item(_Dest d) => PaneItem(
+      icon: Icon(d.icon),
+      title: Text(d.label),
+      body: const SizedBox.shrink(),
+    );
     return NavigationView(
       paneBodyBuilder: (item, body) => _stack,
       pane: NavigationPane(
@@ -64,14 +71,25 @@ class _AppShellState extends State<AppShell> {
         onChanged: _go,
         // The toggle does nothing while the pane is already expanded, so hide it there.
         toggleButton: width >= 1200 ? null : const PaneToggleButton(),
-        displayMode: width >= 1200 ? PaneDisplayMode.expanded : PaneDisplayMode.compact,
+        displayMode: width >= 1200
+            ? PaneDisplayMode.expanded
+            : PaneDisplayMode.compact,
         header: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: Row(children: [
-            const AppLogo(size: 26),
-            const SizedBox(width: 10),
-            Text('Chess Coach', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: p.text)),
-          ]),
+          child: Row(
+            children: [
+              const AppLogo(size: 26),
+              const SizedBox(width: 10),
+              Text(
+                'Chess Coach',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                  color: p.text,
+                ),
+              ),
+            ],
+          ),
         ),
         items: [for (final d in _dests.take(4)) item(d)],
         footerItems: [item(_dests.last)],
@@ -101,38 +119,56 @@ class _BottomNav extends StatelessWidget {
           maxScaleFactor: 1.15,
           child: SizedBox(
             height: 56,
-            child: Row(children: [
-              for (final (i, d) in _dests.indexed)
-                Expanded(
-                  child: HoverButton(
-                    onPressed: () => onTap(i),
-                    builder: (context, states) {
-                      final selected = i == index;
-                      final color = selected ? p.accent : p.muted;
-                      return Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        AnimatedContainer(
-                          duration: motion(context, const Duration(milliseconds: 180)),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: selected ? p.accent.withValues(alpha: 0.15) : null,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Icon(d.icon, size: 18, color: color),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(d.label,
-                            maxLines: 1,
-                            overflow: TextOverflow.fade,
-                            softWrap: false,
-                            style: TextStyle(
+            child: Row(
+              children: [
+                for (final (i, d) in _dests.indexed)
+                  Expanded(
+                    child: HoverButton(
+                      onPressed: () => onTap(i),
+                      builder: (context, states) {
+                        final selected = i == index;
+                        final color = selected ? p.accent : p.muted;
+                        return Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            AnimatedContainer(
+                              duration: motion(
+                                context,
+                                const Duration(milliseconds: 180),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: selected
+                                    ? p.accent.withValues(alpha: 0.15)
+                                    : null,
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Icon(d.icon, size: 18, color: color),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              d.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.fade,
+                              softWrap: false,
+                              style: TextStyle(
                                 fontSize: 11,
                                 color: color,
-                                fontWeight: selected ? FontWeight.w600 : FontWeight.w400)),
-                      ]);
-                    },
+                                fontWeight: selected
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
                   ),
-                ),
-            ]),
+              ],
+            ),
           ),
         ),
       ),

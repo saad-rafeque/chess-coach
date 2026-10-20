@@ -20,11 +20,17 @@ import '../test/fixtures.dart';
 final _root = GlobalKey();
 
 Future<void> _loadFonts() async {
-  final flutterRoot = Platform.environment['FLUTTER_ROOT'] ??
-      File(Platform.resolvedExecutable).parent.parent.parent.parent.parent.parent.path;
+  final flutterRoot =
+      Platform.environment['FLUTTER_ROOT'] ??
+      File(
+        Platform.resolvedExecutable,
+      ).parent.parent.parent.parent.parent.parent.path;
   final fonts = Directory('$flutterRoot/bin/cache/artifacts/material_fonts');
   final roboto = FontLoader('Roboto');
-  for (final f in fonts.existsSync() ? fonts.listSync().whereType<File>() : const <File>[]) {
+  for (final f
+      in fonts.existsSync()
+          ? fonts.listSync().whereType<File>()
+          : const <File>[]) {
     final name = f.uri.pathSegments.last;
     if (name.startsWith('Roboto-') && name.endsWith('.ttf')) {
       roboto.addFont(Future.value(ByteData.sublistView(f.readAsBytesSync())));
@@ -42,7 +48,10 @@ Future<void> _settle(WidgetTester tester, AppTheme theme, double dpr) async {
   await tester.pumpAndSettle();
   await tester.runAsync(() async {
     final style = BoardStyle.forTheme(theme);
-    await ChessgroundImages.instance.loadAll(style.pieces, devicePixelRatio: dpr);
+    await ChessgroundImages.instance.loadAll(
+      style.pieces,
+      devicePixelRatio: dpr,
+    );
     final bg = style.colors.background;
     if (bg is ImageChessboardBackground) {
       await precacheImage(bg.image, _root.currentContext!);
@@ -56,7 +65,8 @@ Future<void> _settle(WidgetTester tester, AppTheme theme, double dpr) async {
 }
 
 Future<void> _capture(WidgetTester tester, String name, double dpr) async {
-  final boundary = _root.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+  final boundary =
+      _root.currentContext!.findRenderObject()! as RenderRepaintBoundary;
   await tester.runAsync(() async {
     final image = await boundary.toImage(pixelRatio: dpr);
     final data = await image.toByteData(format: ui.ImageByteFormat.png);
@@ -81,10 +91,16 @@ Future<void> _shoot(
   TrainingSession.current.value = null;
   final settings = AppSettings.memory()..theme = theme;
   await tester.runAsync(PuzzleBank.shared);
-  await tester.pumpWidget(RepaintBoundary(
-    key: _root,
-    child: ChessCoachApp(settings: settings, store: store ?? EventStore.memory(), fontFamily: 'Roboto'),
-  ));
+  await tester.pumpWidget(
+    RepaintBoundary(
+      key: _root,
+      child: ChessCoachApp(
+        settings: settings,
+        store: store ?? EventStore.memory(),
+        fontFamily: 'Roboto',
+      ),
+    ),
+  );
   for (final page in pages) {
     final nav = tester.state<NavigatorState>(find.byType(Navigator).first);
     if (nav.canPop()) {
@@ -124,7 +140,11 @@ Future<void> _shoot(
       await tester.tap(find.text(page).last);
     }
     await _settle(tester, theme, dpr);
-    await _capture(tester, '${device}_${theme.name}_${page.toLowerCase()}', dpr);
+    await _capture(
+      tester,
+      '${device}_${theme.name}_${page.toLowerCase()}',
+      dpr,
+    );
   }
 }
 
@@ -135,10 +155,16 @@ Future<void> _shootSetup(WidgetTester tester) async {
   tester.view.devicePixelRatio = dpr;
   addTearDown(tester.view.reset);
   final settings = AppSettings.memory()..onboarded = false;
-  await tester.pumpWidget(RepaintBoundary(
-    key: _root,
-    child: ChessCoachApp(settings: settings, store: EventStore.memory(), fontFamily: 'Roboto'),
-  ));
+  await tester.pumpWidget(
+    RepaintBoundary(
+      key: _root,
+      child: ChessCoachApp(
+        settings: settings,
+        store: EventStore.memory(),
+        fontFamily: 'Roboto',
+      ),
+    ),
+  );
   Future<void> shot(String name) async {
     await _settle(tester, settings.theme, dpr);
     await _capture(tester, 'phone_setup_$name', dpr);
@@ -162,30 +188,77 @@ Future<void> _shootSetup(WidgetTester tester) async {
   await shot('done');
 }
 
+Future<void> _shootTwoPlayerCompact(WidgetTester tester) async {
+  const dpr = 2.0;
+  tester.view.physicalSize = const Size(390, 844) * dpr;
+  tester.view.devicePixelRatio = dpr;
+  addTearDown(tester.view.reset);
+  final settings = AppSettings.memory()..theme = AppTheme.dark;
+  await tester.runAsync(PuzzleBank.shared);
+  await tester.pumpWidget(
+    RepaintBoundary(
+      key: _root,
+      child: ChessCoachApp(
+        settings: settings,
+        store: EventStore.memory(),
+        fontFamily: 'Roboto',
+      ),
+    ),
+  );
+  // The offstage Puzzles tab schedules its startup session even though Play is
+  // selected. Let that timer fire so the widget test can dispose cleanly.
+  await tester.pump(const Duration(seconds: 1));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Play').last);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('New').last);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Two players'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Start'));
+  await tester.pumpAndSettle();
+
+  tester.view.physicalSize = const Size(390, 380) * dpr;
+  tester.binding.handleMetricsChanged();
+  await _settle(tester, AppTheme.dark, dpr);
+  await _capture(tester, 'phone_dark_two_player_split', dpr);
+  await tester.pump(const Duration(seconds: 1));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   setUpAll(_loadFonts);
 
   testWidgets('phone setup', _shootSetup);
+  testWidgets('phone compact two-player game', _shootTwoPlayerCompact);
 
   const all = ['Home', 'Play', 'Puzzles', 'Lessons', 'Settings'];
   for (final theme in AppTheme.values) {
     testWidgets('desktop ${theme.name}', (tester) async {
-      await _shoot(tester,
-          device: 'desktop',
-          size: const Size(1440, 900),
-          dpr: 1,
-          theme: theme,
-          store: await storeWithReviewedGame(),
-          pages: theme == AppTheme.dark ? [...all, 'Review', 'Lesson', 'Session', 'Cards'] : const ['Home', 'Play', 'Settings']);
+      await _shoot(
+        tester,
+        device: 'desktop',
+        size: const Size(1440, 900),
+        dpr: 1,
+        theme: theme,
+        store: await storeWithReviewedGame(),
+        pages: theme == AppTheme.dark
+            ? [...all, 'Review', 'Lesson', 'Session', 'Cards']
+            : const ['Home', 'Play', 'Settings'],
+      );
     });
     testWidgets('phone ${theme.name}', (tester) async {
-      await _shoot(tester,
-          device: 'phone',
-          size: const Size(390, 844),
-          dpr: 2,
-          theme: theme,
-          store: await storeWithReviewedGame(),
-          pages: theme == AppTheme.dark ? [...all, 'Review', 'Lesson', 'Session', 'Cards'] : const ['Home', 'Play']);
+      await _shoot(
+        tester,
+        device: 'phone',
+        size: const Size(390, 844),
+        dpr: 2,
+        theme: theme,
+        store: await storeWithReviewedGame(),
+        pages: theme == AppTheme.dark
+            ? [...all, 'Review', 'Lesson', 'Session', 'Cards']
+            : const ['Home', 'Play'],
+      );
     });
   }
 }

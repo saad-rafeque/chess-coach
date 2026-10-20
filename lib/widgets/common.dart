@@ -6,7 +6,8 @@ import '../app/theme.dart';
 
 const mobileBreakpoint = 700.0;
 
-bool isMobile(BuildContext context) => MediaQuery.sizeOf(context).width < mobileBreakpoint;
+bool isMobile(BuildContext context) =>
+    MediaQuery.sizeOf(context).width < mobileBreakpoint;
 
 /// [d], or no animation at all when the system asks for reduced motion.
 Duration motion(BuildContext context, Duration d) =>
@@ -20,12 +21,12 @@ class AppLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Image.asset(
-        'assets/brand/logo.webp',
-        width: size,
-        height: size,
-        filterQuality: FilterQuality.medium,
-        semanticLabel: 'Chess Coach',
-      );
+    'assets/brand/logo.webp',
+    width: size,
+    height: size,
+    filterQuality: FilterQuality.medium,
+    semanticLabel: 'Chess Coach',
+  );
 }
 
 /// Back arrow for pushed pages, with a tooltip for mouse and screen-reader users.
@@ -37,12 +38,12 @@ class PageBackButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Tooltip(
-        message: 'Back',
-        child: IconButton(
-          icon: const Icon(FluentIcons.back, size: 18, semanticLabel: 'Back'),
-          onPressed: onPressed ?? () => Navigator.of(context).maybePop(),
-        ),
-      );
+    message: 'Back',
+    child: IconButton(
+      icon: const Icon(FluentIcons.back, size: 18, semanticLabel: 'Back'),
+      onPressed: onPressed ?? () => Navigator.of(context).maybePop(),
+    ),
+  );
 }
 
 /// Page background (gradient, plus grain for the wooden theme) with a title header.
@@ -76,8 +77,14 @@ class PageFrame extends StatelessWidget {
     final mobile = isMobile(context);
     final pad = mobile ? 16.0 : 32.0;
     final compact = mobile && compactOnPhone;
+    final shortWindow = compact && MediaQuery.sizeOf(context).height < 430;
     final header = Padding(
-      padding: EdgeInsets.fromLTRB(pad, compact ? 6 : (mobile ? 14 : 20), pad, compact ? 4 : 10),
+      padding: EdgeInsets.fromLTRB(
+        pad,
+        compact ? 6 : (mobile ? 14 : 20),
+        pad,
+        compact ? 4 : 10,
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
@@ -86,15 +93,21 @@ class PageFrame extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title,
-                    style: TextStyle(
-                        fontSize: compact ? 18 : (mobile ? 26 : 32),
-                        fontWeight: FontWeight.w600,
-                        color: p.text,
-                        letterSpacing: -0.5)),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: compact ? 18 : (mobile ? 26 : 32),
+                    fontWeight: FontWeight.w600,
+                    color: p.text,
+                    letterSpacing: -0.5,
+                  ),
+                ),
                 if (subtitle != null && !compact) ...[
                   const SizedBox(height: 4),
-                  Text(subtitle!, style: TextStyle(fontSize: 14, color: p.muted)),
+                  Text(
+                    subtitle!,
+                    style: TextStyle(fontSize: 14, color: p.muted),
+                  ),
                 ],
               ],
             ),
@@ -105,7 +118,10 @@ class PageFrame extends StatelessWidget {
     );
     // Board pages on phones get no side padding: the board spans the screen and BoardLayout pads the rest.
     final side = compact ? 0.0 : pad;
-    final body = Padding(padding: EdgeInsets.fromLTRB(side, 0, side, pad), child: child);
+    final body = Padding(
+      padding: EdgeInsets.fromLTRB(side, 0, side, shortWindow ? 0 : pad),
+      child: child,
+    );
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -119,13 +135,19 @@ class PageFrame extends StatelessWidget {
         isComplex: p.woodGrain,
         child: RepaintBoundary(
           child: SafeArea(
-          bottom: false,
-          child: scroll
-              ? ListView(padding: EdgeInsets.zero, children: [header, body])
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [header, Expanded(child: body)],
-                ),
+            bottom: false,
+            child: scroll
+                ? ListView(
+                    padding: EdgeInsets.zero,
+                    children: [if (!shortWindow) header, body],
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (!shortWindow) header,
+                      Expanded(child: body),
+                    ],
+                  ),
           ),
         ),
       ),
@@ -143,7 +165,9 @@ class _GrainPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2;
     for (var y = 0.0; y < size.height; y += 9 + rnd.nextDouble() * 10) {
-      paint.color = const Color(0xFFFFE0B2).withValues(alpha: 0.015 + rnd.nextDouble() * 0.025);
+      paint.color = const Color(
+        0xFFFFE0B2,
+      ).withValues(alpha: 0.015 + rnd.nextDouble() * 0.025);
       final path = Path()..moveTo(0, y);
       final amp = 2 + rnd.nextDouble() * 5;
       final phase = rnd.nextDouble() * math.pi * 2;
@@ -160,7 +184,13 @@ class _GrainPainter extends CustomPainter {
 
 /// Rounded surface used for every card in the app.
 class SurfaceCard extends StatelessWidget {
-  const SurfaceCard({super.key, required this.child, this.padding = const EdgeInsets.all(20), this.onTap, this.highlight = false});
+  const SurfaceCard({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(20),
+    this.onTap,
+    this.highlight = false,
+  });
 
   final Widget child;
   final EdgeInsets padding;
@@ -176,10 +206,15 @@ class SurfaceCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: p.surface.withValues(alpha: p.woodGrain ? 0.88 : 1),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: highlight ? p.accent : p.border, width: highlight ? 1.6 : 1),
+        border: Border.all(
+          color: highlight ? p.accent : p.border,
+          width: highlight ? 1.6 : 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF000000).withValues(alpha: p.brightness == Brightness.light ? 0.05 : 0.25),
+            color: const Color(
+              0xFF000000,
+            ).withValues(alpha: p.brightness == Brightness.light ? 0.05 : 0.25),
             blurRadius: 18,
             offset: const Offset(0, 6),
           ),
@@ -213,8 +248,14 @@ class SectionTitle extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Text(text,
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: p.text)),
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: p.text,
+              ),
+            ),
           ),
           if (trailing != null) trailing!,
         ],
@@ -252,10 +293,12 @@ class Meter extends StatelessWidget {
                   height: height,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(height),
-                    gradient: LinearGradient(colors: [
-                      (color ?? p.accent).withValues(alpha: 0.75),
-                      color ?? p.accent,
-                    ]),
+                    gradient: LinearGradient(
+                      colors: [
+                        (color ?? p.accent).withValues(alpha: 0.75),
+                        color ?? p.accent,
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -283,14 +326,22 @@ class Pill extends StatelessWidget {
         color: c.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Text(text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c)),
+      child: Text(
+        text,
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c),
+      ),
     );
   }
 }
 
 /// Wraps children in a responsive grid of equal-width columns.
 class ResponsiveGrid extends StatelessWidget {
-  const ResponsiveGrid({super.key, required this.children, this.minItemWidth = 220, this.spacing = 16});
+  const ResponsiveGrid({
+    super.key,
+    required this.children,
+    this.minItemWidth = 220,
+    this.spacing = 16,
+  });
 
   final List<Widget> children;
   final double minItemWidth;
@@ -298,15 +349,22 @@ class ResponsiveGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, c) {
-      final fit = math.max(1, ((c.maxWidth + spacing) / (minItemWidth + spacing)).floor());
-      final cols = math.min(fit, math.max(1, children.length));
-      final w = (c.maxWidth - spacing * (cols - 1)) / cols;
-      return Wrap(
-        spacing: spacing,
-        runSpacing: spacing,
-        children: [for (final child in children) SizedBox(width: w, child: child)],
-      );
-    });
+    return LayoutBuilder(
+      builder: (context, c) {
+        final fit = math.max(
+          1,
+          ((c.maxWidth + spacing) / (minItemWidth + spacing)).floor(),
+        );
+        final cols = math.min(fit, math.max(1, children.length));
+        final w = (c.maxWidth - spacing * (cols - 1)) / cols;
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: [
+            for (final child in children) SizedBox(width: w, child: child),
+          ],
+        );
+      },
+    );
   }
 }
