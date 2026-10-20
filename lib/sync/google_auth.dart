@@ -191,9 +191,13 @@ class GoogleAuth {
     final client = _client()..connectionTimeout = const Duration(seconds: 20);
     try {
       final req = await client.postUrl(Uri.parse(url));
+      req.followRedirects = false;
       req.headers.contentType = ContentType('application', 'x-www-form-urlencoded', charset: 'utf-8');
       req.write(Uri(queryParameters: form).query);
       final res = await req.close().timeout(const Duration(seconds: 60));
+      if (res.isRedirect || (res.statusCode >= 300 && res.statusCode < 400)) {
+        throw const HttpException('The authentication endpoint unexpectedly redirected.');
+      }
       final text = utf8.decode(await _readSmall(res), allowMalformed: true);
       Object? json;
       try {

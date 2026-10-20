@@ -56,7 +56,7 @@ class Updater extends ChangeNotifier {
     Map<String, String>? environment,
     Future<Directory> Function()? tempDir,
     this.releaseKeyHex = releaseSigningPublicKeyHex,
-  })  : _tempDir = tempDir ?? getTemporaryDirectory,
+  })  : _tempDir = tempDir ?? getApplicationSupportDirectory,
         kind = kind ?? detectInstallKind(environment ?? Platform.environment),
         _client = client ?? HttpClient.new,
         _env = environment ?? Platform.environment;
@@ -72,6 +72,9 @@ class Updater extends ChangeNotifier {
 
   /// The public half of the release signing key (hex), replaceable in tests.
   final String releaseKeyHex;
+
+  /// Hard ceiling even if a release API answer omits or lies about its size.
+  static const maxUpdateBytes = 1 << 30;
 
   ReleaseInfo? available;
   UpdateStatus status = UpdateStatus.idle;
@@ -202,7 +205,7 @@ class Updater extends ChangeNotifier {
           exit(0);
         case InstallKind.deb:
           // pkexec shows the system's password prompt; the person types it there, never in the app.
-          final r = await Process.run('pkexec', ['apt-get', 'install', '-y', file.path]);
+          final r = await Process.run('pkexec', ['apt-get', 'install', '-y', '--', file.path]);
           if (r.exitCode != 0) throw ProcessException('pkexec', const [], 'The update was not installed.', r.exitCode);
           await Process.start('/usr/bin/chess-coach', const [], mode: ProcessStartMode.detached);
           exit(0);
@@ -275,20 +278,30 @@ class Updater extends ChangeNotifier {
 
   /// Downloads [asset] to a private temporary folder and checks its SHA-256.
   Future<File> _download(({String name, String url, int size}) asset, String sum) async {
+    if (asset.size > maxUpdateBytes) throw const HttpException('The update is too large to download.');
     final dir = await _tempDir();
-    final file = File('${dir.path}${Platform.pathSeparator}${asset.name.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_')}');
+    final privateDir = Directory('${dir.path}${Platform.pathSeparator}chess-coach-updates');
+    await privateDir.create(recursive: true);
+    await _restrictMode(privateDir.path, '700');
+    final file = File('${privateDir.path}${Platform.pathSeparator}${asset.name.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_')}');
     final client = _client()..connectionTimeout = const Duration(seconds: 30);
+    var verified = false;
     try {
       final res = await _open(client, Uri.parse(asset.url));
       final total = asset.size > 0 ? asset.size : res.contentLength;
+      if (total > maxUpdateBytes) throw const HttpException('The update is too large to download.');
+      await file.create(recursive: true);
+      await _restrictMode(file.path, '600');
       final sink = file.openWrite();
       final hashOut = _DigestSink();
       final hash = sha256.startChunkedConversion(hashOut);
       var got = 0;
       try {
         await for (final chunk in res.timeout(const Duration(seconds: 60))) {
-          got += chunk.length;
-          if (total > 0 && got > total) throw const HttpException('The download was larger than expected.');
+          final next = got + chunk.length;
+          if (next > maxUpdateBytes) throw const HttpException('The update is too large to download.');
+          if (total > 0 && next > total) throw const HttpException('The download was larger than expected.');
+          got = next;
           sink.add(chunk);
           hash.add(chunk);
           if (total > 0) {
@@ -304,10 +317,24 @@ class Updater extends ChangeNotifier {
         await file.delete();
         throw const FormatException('The download was damaged, so it was not installed. Try again.');
       }
+      verified = true;
       return file;
     } finally {
       client.close();
+      if (!verified) {
+        try {
+          if (file.existsSync()) await file.delete();
+        } catch (_) {}
+      }
     }
+  }
+
+  /// Unix downloads may later be passed to an installer running with elevated privileges.
+  /// Keep both the staging directory and file inaccessible to other local accounts.
+  Future<void> _restrictMode(String path, String mode) async {
+    if (!Platform.isLinux && !Platform.isMacOS) return;
+    final result = await Process.run('/bin/chmod', [mode, path]);
+    if (result.exitCode != 0) throw FileSystemException('Could not protect the update file.', path);
   }
 
   /// GET over HTTPS, following redirects only to GitHub's own hosts. Every hop
@@ -327,8 +354,12 @@ class Updater extends ChangeNotifier {
         await res.drain<void>();
         if (location == null || hops >= 4) throw const HttpException('The update link redirected too much.');
         final next = target.resolve(location);
-        final host = next.host;
-        final github = host.isEmpty || host == 'github.com' || host.endsWith('.githubusercontent.com');
+        final host = next.host.toLowerCase();
+        final github = host.isEmpty ||
+            host == 'github.com' ||
+            host == 'api.github.com' ||
+            host == 'githubusercontent.com' ||
+            host.endsWith('.githubusercontent.com');
         if ((next.hasScheme && next.scheme != 'https') || !github) {
           throw const HttpException('The update link left GitHub.');
         }

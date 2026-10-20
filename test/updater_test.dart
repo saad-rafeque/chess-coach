@@ -23,6 +23,8 @@ void main() {
   var signSums = true;
   var serveSig = true;
   var assetPath = 'ChessCoach-9.9.9-x86_64.AppImage';
+  var assetSize = 0;
+  var assetRequested = false;
   String sumsBody() => '$sum  ChessCoach-9.9.9-x86_64.AppImage\nabc  other\n';
 
   setUp(() async {
@@ -32,6 +34,8 @@ void main() {
     signSums = true;
     serveSig = true;
     assetPath = 'ChessCoach-9.9.9-x86_64.AppImage';
+    assetSize = appImage.length;
+    assetRequested = false;
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((req) async {
       final path = req.uri.path;
@@ -41,7 +45,7 @@ void main() {
           'tag_name': tag,
           'body': '## New\n- **Faster** start',
           'assets': [
-            {'name': 'ChessCoach-9.9.9-x86_64.AppImage', 'browser_download_url': '${base()}$dl/$assetPath', 'size': appImage.length},
+            {'name': 'ChessCoach-9.9.9-x86_64.AppImage', 'browser_download_url': '${base()}$dl/$assetPath', 'size': assetSize},
             {'name': 'ChessCoach-9.9.9-Setup.exe', 'browser_download_url': 'https://evil.example/ChessCoach-9.9.9-Setup.exe', 'size': 3},
             {'name': 'SHA256SUMS.txt', 'browser_download_url': '${base()}$dl/SHA256SUMS.txt', 'size': 100},
             if (serveSig)
@@ -59,6 +63,7 @@ void main() {
           req.response.add(sign(generateKey().privateKey, Uint8List.fromList(bytes)));
         }
       } else if (path == '$dl/ChessCoach-9.9.9-x86_64.AppImage') {
+        assetRequested = true;
         req.response.add(appImage);
       } else if (path == '$dl/hop') {
         await req.response.redirect(Uri.parse('${base()}$dl/ChessCoach-9.9.9-x86_64.AppImage'));
@@ -97,7 +102,13 @@ void main() {
     expect(r.asset!.name, 'ChessCoach-9.9.9-x86_64.AppImage');
     expect(r.sha256, sum);
     expect(r.notes, contains('Faster'));
-    expect((await u.downloadVerified()).readAsBytesSync(), appImage);
+    final download = await u.downloadVerified();
+    expect(download.readAsBytesSync(), appImage);
+    expect(download.parent.path, '${tmp.path}${Platform.pathSeparator}chess-coach-updates');
+    if (Platform.isLinux || Platform.isMacOS) {
+      expect((await download.parent.stat()).mode & 0x3f, 0);
+      expect((await download.stat()).mode & 0x3f, 0);
+    }
   });
 
   test('nothing to offer when up to date', () async {
@@ -119,7 +130,15 @@ void main() {
     final damaged = u.available!;
     u.available = ReleaseInfo(version: damaged.version, notes: '', pageUrl: '', asset: damaged.asset, sha256: sum);
     await expectLater(u.downloadVerified(), throwsFormatException);
-    expect(tmp.listSync(), isEmpty);
+    expect(Directory('${tmp.path}${Platform.pathSeparator}chess-coach-updates').listSync(), isEmpty);
+  });
+
+  test('refuses release metadata above the hard download limit', () async {
+    assetSize = Updater.maxUpdateBytes + 1;
+    final u = updater(InstallKind.appImage);
+    await u.check();
+    await expectLater(u.downloadVerified(), throwsA(isA<HttpException>()));
+    expect(assetRequested, isFalse);
   });
 
   test('a checksums file with a foreign signature is not trusted', () async {

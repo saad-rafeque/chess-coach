@@ -21,8 +21,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'engine_test.dart' show FakeUci;
 
-AppEvent _event(String type, Map<String, dynamic> data, {String id = 'abc123'}) =>
-    AppEvent(id: id, type: type, time: DateTime.utc(2026, 10), device: 'd', data: data);
+AppEvent _event(String type, Map<String, dynamic> data, {String id = 'abc123', DateTime? time}) =>
+    AppEvent(id: id, type: type, time: time ?? DateTime.utc(2026, 10), device: 'd', data: data);
 
 const _game = {
   'side': 'white',
@@ -82,11 +82,34 @@ void main() {
         ('activity features', _event('activity', {'kind': 'game', 'x': ['a']})),
         ('id with a path', _event('puzzle', {'id': 'p'}, id: '../../etc')),
         ('huge event', _event('note', {'text': 'x' * (maxEventChars + 1)})),
+        ('future date', _event('game', _game, id: 'future', time: DateTime.now().toUtc().add(const Duration(days: 30)))),
       ]) {
         expect(isValidEvent(e), isFalse, reason: what);
       }
       expect(parseEvent({'id': 'a', 'type': 'puzzle'}), isNull, reason: 'missing fields');
       expect(parseEvent('not a map'), isNull);
+    });
+
+    test('events with identical timestamps sort deterministically by id', () async {
+      final store = EventStore.memory();
+      final t = DateTime.utc(2026, 10, 1);
+      await store.merge([
+        AppEvent(id: 'z_event', type: 'puzzle', time: t, device: 'd', data: const {'id': 'p1'}),
+        AppEvent(id: 'a_event', type: 'puzzle', time: t, device: 'd', data: const {'id': 'p2'}),
+        AppEvent(id: 'm_event', type: 'puzzle', time: t, device: 'd', data: const {'id': 'p3'}),
+      ]);
+      expect(store.events.map((e) => e.id), ['a_event', 'm_event', 'z_event']);
+    });
+
+    test('oversized lines are skipped without exhausting memory', () async {
+      final dir = await Directory.systemTemp.createTemp('oversized_events');
+      addTearDown(() => dir.delete(recursive: true));
+      final file = File('${dir.path}/events.jsonl');
+      final hugeLine = '{"id":"bad","data":{"x":"${'x' * (maxEventChars * 3)}"}}';
+      final goodLine = jsonEncode(_event('puzzle', {'id': 'ok'}, id: 'good').toJson());
+      await file.writeAsString('$hugeLine\n$goodLine\n');
+      final store = await EventStore.openFile(file, device: 'd');
+      expect(store.events.map((e) => e.id), ['good']);
     });
 
     test('merge and load skip bad events and keep the rest', () async {
@@ -167,6 +190,13 @@ void main() {
       s.applySync({'coachElo': 'strong'}, DateTime.now().toUtc().add(const Duration(seconds: 1)));
       expect(s.coachElo, 3200);
     });
+
+    test('encode refuses payloads larger than maxCompressedBytes', () {
+      final p = SyncPayload(events: [
+        _event('puzzle', {'id': 'p1'}),
+      ]);
+      expect(() => p.encode(maxCompressed: 10), throwsFormatException);
+    });
   });
 
   group('sign-in', () {
@@ -223,6 +253,20 @@ void main() {
         return true;
       });
       await expectLater(f, throwsA(isA<AuthException>().having((e) => e.message, 'message', contains('tick'))));
+    });
+
+    test('token exchange refuses to follow redirects', () async {
+      final redirectServer = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      redirectServer.listen((req) async {
+        await req.response.redirect(Uri.parse('http://127.0.0.1:${tokenServer.port}/redirected'));
+        await req.response.close();
+      });
+      addTearDown(() => redirectServer.close(force: true));
+      final redirectAuth = GoogleAuth(
+        const OAuthConfig(clientId: 'cid', clientSecret: 'sec'),
+        tokenEndpoint: 'http://127.0.0.1:${redirectServer.port}/token',
+      );
+      await expectLater(redirectAuth.accessToken('ref'), throwsA(isA<HttpException>()));
     });
   });
 

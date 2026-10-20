@@ -30,7 +30,7 @@ final _qualities = {for (final q in MoveQuality.values) q.name};
 
 bool isValidEvent(AppEvent e) {
   if (!_id.hasMatch(e.id) || !_type.hasMatch(e.type) || e.device.length > 64) return false;
-  if (e.time.year < 2000 || e.time.year > 2200) return false;
+  if (e.time.year < 2000 || e.time.isAfter(DateTime.now().toUtc().add(const Duration(days: 2)))) return false;
   final String json;
   try {
     json = jsonEncode(e.data);

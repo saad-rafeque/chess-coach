@@ -64,8 +64,10 @@ class _FakeAuth extends GoogleAuth {
   bool expired = false;
 
   @override
-  Future<String> signIn(Future<bool> Function(Uri url) openBrowser, {Duration timeout = const Duration(minutes: 5)}) async =>
-      'refresh-token';
+  Future<String> signIn(
+    Future<bool> Function(Uri url) openBrowser, {
+    Duration timeout = const Duration(minutes: 5),
+  }) async => 'refresh-token';
 
   @override
   Future<String> accessToken(String refreshToken) async {
@@ -77,47 +79,66 @@ class _FakeAuth extends GoogleAuth {
   Future<void> revoke(String token) async {}
 }
 
-SyncService _device(EventStore store, AppSettings settings, _MemoryFolder folder, {_FakeAuth? auth}) => SyncService(
-      store: store,
-      settings: settings,
-      config: const OAuthConfig(clientId: 'id', clientSecret: 's'),
-      auth: auth ?? _FakeAuth(),
-      folder: (token) => folder..token = token,
-      openBrowser: (_) async => true,
-      tokens: MemoryTokenStore(),
-      retryDelays: const [Duration(milliseconds: 10)],
-    );
+SyncService _device(
+  EventStore store,
+  AppSettings settings,
+  _MemoryFolder folder, {
+  _FakeAuth? auth,
+}) => SyncService(
+  store: store,
+  settings: settings,
+  config: const OAuthConfig(clientId: 'id', clientSecret: 's'),
+  auth: auth ?? _FakeAuth(),
+  folder: (token) => folder..token = token,
+  openBrowser: (_) async => true,
+  tokens: MemoryTokenStore(),
+  retryDelays: const [Duration(milliseconds: 10)],
+);
 
 void main() {
   group('sync', () {
-    test('two devices end up with the union of their events and the newest settings', () async {
-      final folder = _MemoryFolder();
-      final phoneStore = EventStore.memory(device: 'phone'), pcStore = EventStore.memory(device: 'pc');
-      final phoneSettings = AppSettings.memory(), pcSettings = AppSettings.memory();
-      final phone = _device(phoneStore, phoneSettings, folder), pc = _device(pcStore, pcSettings, folder);
+    test(
+      'two devices end up with the union of their events and the newest settings',
+      () async {
+        final folder = _MemoryFolder();
+        final phoneStore = EventStore.memory(device: 'phone'),
+            pcStore = EventStore.memory(device: 'pc');
+        final phoneSettings = AppSettings.memory(),
+            pcSettings = AppSettings.memory();
+        final phone = _device(phoneStore, phoneSettings, folder),
+            pc = _device(pcStore, pcSettings, folder);
 
-      await phoneStore.add('puzzle', {'id': 'a'});
-      await pcStore.add('puzzle', {'id': 'b'});
-      await pcStore.add('game', {'id': 'c', 'moves': <String>[]});
+        await phoneStore.add('puzzle', {'id': 'a'});
+        await pcStore.add('puzzle', {'id': 'b'});
+        await pcStore.add('game', {'id': 'c', 'moves': <String>[]});
 
-      await phone.connect();
-      expect(phone.status, SyncStatus.idle);
-      expect(folder.files, hasLength(1));
+        await phone.connect();
+        expect(phone.status, SyncStatus.idle);
+        expect(folder.files, hasLength(1));
 
-      await Future<void>.delayed(const Duration(milliseconds: 5));
-      pcSettings.theme = AppTheme.wooden; // changed later than the phone's defaults
-      await pc.connect();
-      expect(pcStore.events.map((e) => e.data['id']), containsAll(['a', 'b', 'c']));
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+        pcSettings.theme =
+            AppTheme.wooden; // changed later than the phone's defaults
+        await pc.connect();
+        expect(
+          pcStore.events.map((e) => e.data['id']),
+          containsAll(['a', 'b', 'c']),
+        );
 
-      await phone.sync();
-      expect(phoneStore.events.map((e) => e.data['id']).toSet(), {'a', 'b', 'c'});
-      expect(phoneSettings.theme, AppTheme.wooden);
+        await phone.sync();
+        expect(phoneStore.events.map((e) => e.data['id']).toSet(), {
+          'a',
+          'b',
+          'c',
+        });
+        expect(phoneSettings.theme, AppTheme.wooden);
 
-      // Nothing new: no upload.
-      final writes = folder.writes;
-      await phone.sync();
-      expect(folder.writes, writes);
-    });
+        // Nothing new: no upload.
+        final writes = folder.writes;
+        await phone.sync();
+        expect(folder.writes, writes);
+      },
+    );
 
     test('older remote settings do not overwrite newer local ones', () async {
       final folder = _MemoryFolder();
@@ -133,22 +154,30 @@ void main() {
       expect(a.theme, AppTheme.wooden);
     });
 
-    test('offline: keeps local data and retries when the network returns', () async {
-      final folder = _MemoryFolder()..offline = true;
-      final store = EventStore.memory();
-      await store.add('puzzle', {'id': 'x'});
-      final s = _device(store, AppSettings.memory(), folder);
-      await s.connect();
-      expect(s.status, SyncStatus.offline);
-      folder.offline = false;
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-      expect(s.status, SyncStatus.idle);
-      expect(folder.files, hasLength(1));
-    });
+    test(
+      'offline: keeps local data and retries when the network returns',
+      () async {
+        final folder = _MemoryFolder()..offline = true;
+        final store = EventStore.memory();
+        await store.add('puzzle', {'id': 'x'});
+        final s = _device(store, AppSettings.memory(), folder);
+        await s.connect();
+        expect(s.status, SyncStatus.offline);
+        folder.offline = false;
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        expect(s.status, SyncStatus.idle);
+        expect(folder.files, hasLength(1));
+      },
+    );
 
     test('a revoked sign-in asks to connect again', () async {
       final auth = _FakeAuth();
-      final s = _device(EventStore.memory(), AppSettings.memory(), _MemoryFolder(), auth: auth);
+      final s = _device(
+        EventStore.memory(),
+        AppSettings.memory(),
+        _MemoryFolder(),
+        auth: auth,
+      );
       await s.connect();
       auth.expired = true;
       expect(await s.sync(), isFalse);
@@ -157,15 +186,30 @@ void main() {
     });
 
     test('without a configured OAuth client sync stays off', () async {
-      final s = SyncService(store: EventStore.memory(), settings: AppSettings.memory(), config: const OAuthConfig(clientId: '', clientSecret: ''));
+      final s = SyncService(
+        store: EventStore.memory(),
+        settings: AppSettings.memory(),
+        config: const OAuthConfig(clientId: '', clientSecret: ''),
+      );
       expect(s.status, SyncStatus.notSetUp);
       expect(await s.sync(), isFalse);
     });
 
     test('payload round trip', () {
-      final e = AppEvent(id: '1', type: 'puzzle', time: DateTime.utc(2026), device: 'd', data: const {'id': 'p1', 'solved': true});
+      final e = AppEvent(
+        id: '1',
+        type: 'puzzle',
+        time: DateTime.utc(2026),
+        device: 'd',
+        data: const {'id': 'p1', 'solved': true},
+      );
       final p = SyncPayload.decode(
-          SyncPayload(events: [e], settings: const {'theme': 'dark'}, settingsChanged: DateTime.utc(2026, 2)).encode());
+        SyncPayload(
+          events: [e],
+          settings: const {'theme': 'dark'},
+          settingsChanged: DateTime.utc(2026, 2),
+        ).encode(),
+      );
       expect(p.events.single.toJson(), e.toJson());
       expect(p.settings, {'theme': 'dark'});
       expect(p.settingsChanged, DateTime.utc(2026, 2));
@@ -174,7 +218,10 @@ void main() {
 
   group('Google sign-in', () {
     test('PKCE challenge matches RFC 7636', () {
-      expect(codeChallenge('dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'), 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM');
+      expect(
+        codeChallenge('dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'),
+        'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
+      );
       expect(newCodeVerifier(), matches(RegExp(r'^[A-Za-z0-9\-._~]{64}$')));
     });
 
@@ -185,23 +232,32 @@ void main() {
         final form = Uri.splitQueryString(await utf8.decoder.bind(req).join());
         forms.add(form);
         req.response.headers.contentType = ContentType.json;
-        req.response.write(jsonEncode({
-          'access_token': 'acc${forms.length}',
-          'expires_in': form['grant_type'] == 'refresh_token' ? 3600 : 30,
-          if (form['grant_type'] == 'authorization_code') 'refresh_token': 'ref',
-        }));
+        req.response.write(
+          jsonEncode({
+            'access_token': 'acc${forms.length}',
+            'expires_in': form['grant_type'] == 'refresh_token' ? 3600 : 30,
+            if (form['grant_type'] == 'authorization_code')
+              'refresh_token': 'ref',
+          }),
+        );
         await req.response.close();
       });
-      final auth = GoogleAuth(const OAuthConfig(clientId: 'cid', clientSecret: 'sec'),
-          tokenEndpoint: 'http://127.0.0.1:${token.port}/token');
+      final auth = GoogleAuth(
+        const OAuthConfig(clientId: 'cid', clientSecret: 'sec'),
+        tokenEndpoint: 'http://127.0.0.1:${token.port}/token',
+      );
       final refresh = await auth.signIn((url) async {
         final q = url.queryParameters;
         expect(q['scope'], driveAppDataScope);
         expect(q['code_challenge_method'], 'S256');
         // Play the browser: Google redirects back to the loopback server.
-        unawaited(HttpClient()
-            .getUrl(Uri.parse('${q['redirect_uri']}/?code=abc&state=${q['state']}'))
-            .then((r) => r.close()));
+        unawaited(
+          HttpClient()
+              .getUrl(
+                Uri.parse('${q['redirect_uri']}/?code=abc&state=${q['state']}'),
+              )
+              .then((r) => r.close()),
+        );
         return true;
       });
       expect(refresh, 'ref');
@@ -210,27 +266,110 @@ void main() {
       // The first token expires within the safety margin, so it is refreshed.
       expect(await auth.accessToken('ref'), 'acc2');
       expect(forms.last['grant_type'], 'refresh_token');
-      expect(await auth.accessToken('ref'), 'acc2', reason: 'cached until it expires');
+      expect(
+        await auth.accessToken('ref'),
+        'acc2',
+        reason: 'cached until it expires',
+      );
       await token.close(force: true);
     });
   });
 
   group('data folder', () {
-    test('old data moves to the new folder without overwriting anything', () async {
-      final from = await Directory.systemTemp.createTemp('old'), to = await Directory.systemTemp.createTemp('new');
-      File('${from.path}/events.jsonl').writeAsStringSync('old\n');
-      Directory('${from.path}/models').createSync();
-      File('${from.path}/models/m.gguf').writeAsStringSync('model');
-      await migrateLegacyData(from, to);
-      expect(File('${to.path}/events.jsonl').readAsStringSync(), 'old\n');
-      expect(File('${to.path}/models/m.gguf').existsSync(), isTrue);
-      expect(File('${from.path}/events.jsonl').existsSync(), isFalse, reason: 'renamed so it is not used twice');
+    test(
+      'old data moves to the new folder without overwriting anything',
+      () async {
+        final from = await Directory.systemTemp.createTemp('old'),
+            to = await Directory.systemTemp.createTemp('new');
+        File('${from.path}/events.jsonl').writeAsStringSync('old\n');
+        Directory('${from.path}/models').createSync();
+        File('${from.path}/models/m.gguf').writeAsStringSync('model');
+        await migrateLegacyData(from, to);
+        expect(File('${to.path}/events.jsonl').readAsStringSync(), 'old\n');
+        expect(File('${to.path}/models/m.gguf').existsSync(), isTrue);
+        expect(
+          File('${from.path}/events.jsonl').existsSync(),
+          isFalse,
+          reason: 'renamed so it is not used twice',
+        );
 
-      File('${from.path}/events.jsonl').writeAsStringSync('older\n');
+        File('${from.path}/events.jsonl').writeAsStringSync('older\n');
+        await migrateLegacyData(from, to);
+        expect(File('${to.path}/events.jsonl').readAsStringSync(), 'old\n');
+        await from.delete(recursive: true);
+        await to.delete(recursive: true);
+      },
+    );
+
+    test('migration makes the data tree private on Unix', () async {
+      if (!Platform.isLinux && !Platform.isMacOS) return;
+      final from = await Directory.systemTemp.createTemp('old-private');
+      final to = await Directory.systemTemp.createTemp('new-private');
+      Directory('${from.path}/models').createSync();
+      File('${from.path}/events.jsonl').writeAsStringSync('private history\n');
+      File('${from.path}/models/model.gguf').writeAsStringSync('model');
+      await Process.run('chmod', ['0777', to.path]);
+      await Process.run('chmod', ['0666', '${from.path}/events.jsonl']);
+      await Process.run('chmod', ['0666', '${from.path}/models/model.gguf']);
+
       await migrateLegacyData(from, to);
-      expect(File('${to.path}/events.jsonl').readAsStringSync(), 'old\n');
+
+      expect((await to.stat()).mode & 0x1ff, 0x1c0, reason: 'data root is 700');
+      expect(
+        (await File('${to.path}/events.jsonl').stat()).mode & 0x1ff,
+        0x180,
+        reason: 'event history is 600',
+      );
+      expect(
+        (await Directory('${to.path}/models').stat()).mode & 0x1ff,
+        0x1c0,
+        reason: 'model directory is 700',
+      );
+      expect(
+        (await File('${to.path}/models/model.gguf').stat()).mode & 0x1ff,
+        0x180,
+        reason: 'model file is 600',
+      );
+      expect(
+        (await File(
+              '${from.path}/events.jsonl.moved-to-documents',
+            ).stat()).mode &
+            0x1ff,
+        0x180,
+        reason: 'the retained migration source copy is 600',
+      );
+
       await from.delete(recursive: true);
       await to.delete(recursive: true);
     });
+
+    test(
+      'opening an existing event log restricts it before use on Unix',
+      () async {
+        if (!Platform.isLinux && !Platform.isMacOS) return;
+        final dir = await Directory.systemTemp.createTemp('event-log-private');
+        final file = File('${dir.path}/events.jsonl');
+        final event = AppEvent(
+          id: 'event123',
+          type: 'puzzle',
+          time: DateTime.utc(2026, 10, 20),
+          device: 'test',
+          data: const {'id': 'p', 'solved': true, 'rated': true},
+        );
+        file.writeAsStringSync('${jsonEncode(event.toJson())}\n');
+        await Process.run('chmod', ['0666', file.path]);
+
+        final store = await EventStore.openFile(file, device: 'test');
+
+        expect(store.events, hasLength(1));
+        expect(
+          (await file.stat()).mode & 0x1ff,
+          0x180,
+          reason: 'existing event history is changed to 600',
+        );
+        store.dispose();
+        await dir.delete(recursive: true);
+      },
+    );
   });
 }

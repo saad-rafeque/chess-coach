@@ -30,6 +30,8 @@ jobs:
       version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Scan repository for credential patterns
+        run: python3 tool/scan_secrets.py --working-tree-only
       - id: version
         run: echo "version=$(grep '^version:' pubspec.yaml | cut -d' ' -f2 | cut -d+ -f1)" >> "$GITHUB_OUTPUT"
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
@@ -447,13 +449,16 @@ jobs:
   security-scan:
     name: Dependency scan (OSV)
     uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
+    # The reusable workflow's job requests exactly these permissions; granting
+    # less makes GitHub reject the whole run before any job starts.
     permissions:
       actions: read
       contents: read
+      security-events: write
     with:
       # Keep scanning dependencies without relying on paid Code Scanning for
       # this private repository. The report remains available in Actions.
-      fail-on-vuln: false
+      fail-on-vuln: true
       upload-sarif: false
       # ubuntu-latest moves to Ubuntu 26 in October 2026; stay on 24.04.
       runs-on: ubuntu-24.04

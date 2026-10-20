@@ -63,6 +63,7 @@ class DriveAppFolder implements SyncFolder {
     try {
       final uri = Uri.parse('$base$path').replace(queryParameters: query);
       final req = await client.openUrl(method, uri);
+      req.followRedirects = false;
       req.headers.set(HttpHeaders.authorizationHeader, 'Bearer ${await token()}');
       if (body != null) {
         req.headers.set(HttpHeaders.contentTypeHeader, contentType ?? 'application/octet-stream');
@@ -70,6 +71,9 @@ class DriveAppFolder implements SyncFolder {
         req.add(body);
       }
       final res = await req.close().timeout(const Duration(seconds: 60));
+      if (res.isRedirect) {
+        throw const DriveException(HttpStatus.movedPermanently, 'Google Drive API unexpectedly redirected.');
+      }
       final bytes = await readLimited(res, SyncPayload.maxCompressedBytes);
       if (res.statusCode >= 400) {
         throw DriveException(res.statusCode, utf8.decode(bytes, allowMalformed: true));
@@ -176,12 +180,18 @@ class SyncPayload {
   final Map<String, dynamic>? settings;
   final DateTime? settingsChanged;
 
-  List<int> encode() => gzip.encode(utf8.encode(jsonEncode({
-        'version': formatVersion,
-        'events': [for (final e in events) e.toJson()],
-        'settings': ?settings,
-        if (settingsChanged != null) 'settingsChanged': settingsChanged!.toUtc().toIso8601String(),
-      })));
+  List<int> encode({int maxCompressed = maxCompressedBytes}) {
+    final payload = gzip.encode(utf8.encode(jsonEncode({
+          'version': formatVersion,
+          'events': [for (final e in events) e.toJson()],
+          'settings': settings,
+          if (settingsChanged != null) 'settingsChanged': settingsChanged!.toUtc().toIso8601String(),
+        })));
+    if (payload.length > maxCompressed) {
+      throw const FormatException('The sync file is too large.');
+    }
+    return payload;
+  }
 }
 
 /// Unpacks gzip data, stopping as soon as the output would pass [limit] bytes (so a tiny

@@ -2,6 +2,10 @@
 # Blocks a push unless the analyzer and all tests pass, so CI stays green.
 export PATH="$HOME/development/flutter/bin:$PATH"
 cd "$(git rev-parse --show-toplevel)" || exit 1
+if ! python3 tool/scan_secrets.py; then
+  echo "pre-push: potential credentials detected; push blocked."
+  exit 1
+fi
 echo "pre-push: running flutter analyze, flutter test and the screenshot test..."
 if ! out=$(flutter analyze 2>&1); then
   echo "$out" | tail -20

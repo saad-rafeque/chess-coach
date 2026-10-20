@@ -109,7 +109,7 @@ class GameController extends ChangeNotifier {
   bool get isOver => resigned || position.isGameOver;
   bool get playerToMove =>
       !isOver && !thinking && (twoPlayers || position.turn == playerSide);
-  bool get canUndo => _playerMoveCount > 0;
+  bool get canUndo => twoPlayers ? moves.isNotEmpty : _playerMoveCount > 0;
   int get _playerMoveCount => [
     for (var i = 0; i < moves.length; i++) positions[i].turn,
   ].where((s) => s == playerSide).length;

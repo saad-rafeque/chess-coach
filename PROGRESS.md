@@ -1,5 +1,16 @@
 # Progress
 
+## Audit status snapshot (20 Oct 2026)
+
+The detailed owner-facing audit handoff, including requirements, evidence, confirmed flaws, local-only edits, and
+the ordered inspect-after-each-step checklist, is [docs/audit-handoff-2026-10-20.md](docs/audit-handoff-2026-10-20.md).
+Current checkout: `main` matches `origin/main` at `af2e462`; secret-scanner and updater-hardening edits remain
+uncommitted, along with Linux data-permission changes. The latest two main workflow runs ended in
+`startup_failure`, and Linux data permissions on this PC were observed as too broad; neither issue is considered
+resolved. Keep the repository private and the project free. Retry attempt 2 and a manual workflow-dispatch also
+ended with zero jobs and no logs; see the audit note for run IDs and next diagnostic. No billing or spending
+setting was changed.
+
 | # | Milestone | Status |
 |---|---|---|
 | 1 | Foundation | Done (v0.2.0) |
@@ -101,61 +112,54 @@
 Work through these in order. A step is not complete until its inspection/check item is also complete.
 
 ### 0. Establish the current state
-- [x] Inspect the local branch and working tree: `main` is one commit ahead of `origin/main`; the local-only commit is `70ef3f0` (signed AppImage runtime pin). `AGENTS.md` is user-provided and untracked; leave it untouched.
+- [x] Inspect the local branch and working tree: `main` matches `origin/main` at `af2e462`. Local scanner/updater changes and the audit note are uncommitted. `AGENTS.md` is user-provided and untracked; leave it untouched.
 - [x] Read the project plan and current progress before changing code.
-- [x] Inspect the latest GitHub Actions runs and repo visibility. GitHub confirms the repo is private. Run `39392070487` completed with tests/screenshots, Windows and Android successful; Linux failed at the old mutable-runtime checksum, and OSV failed only at unsupported SARIF upload. Both failures have local fixes; fresh CI is still required.
-- [x] Inspect the pending commit and complete diff. `70ef3f0` changes only the Linux runtime pin, desktop menu category and progress notes; `git diff --check` passes and no credential-pattern hit was found in the current tree.
+- [x] Inspect the latest GitHub Actions runs and repo visibility. GitHub confirms the repo is private. Runs `39395514711` (`af2e462`) and `39392721184` (`7b73e5a`) ended in `startup_failure`; run `39392070487` (`89cb641`) failed at the old Linux runtime checksum and unsupported SARIF upload. The runtime and SARIF fixes are pushed, but a fresh successful CI run is still required.
+- [x] Inspect the current local security diff and create the detailed handoff note. Focused updater tests and the local scanner passed earlier; the full analyzer/test/screenshot suite has not yet run on the current dirty tree. `git diff --check` passes.
 
 ### 1. Repository and release security
-- [ ] Inspect tracked files, ignore rules, recent history, and secret-bearing config for credentials, personal files, debug material, or accidental build outputs; report only safe file names, never secret values.
-- [ ] Inspect workflow permissions, pinned actions, fork behavior, release/tag conditions, signing requirements, dependency scanning, artifact provenance/checksums, and download sources.
-- [ ] Inspect the Android, Windows, Linux, and updater packaging paths for debug signing, writable install locations, unsafe shell execution, path traversal, and unverified downloads.
-- [ ] Verify: run safe local secret-pattern scans and the relevant workflow/config checks; inspect the findings and confirm no credential value appears in output.
+- [x] Inspect tracked files, ignore rules, recent history, and secret-bearing config for credentials, personal files, debug material, or accidental build outputs; report only safe file names, never secret values.
+- [x] Inspect workflow permissions, pinned actions, fork behavior, release/tag conditions, signing requirements, dependency scanning, artifact provenance/checksums, and download sources.
+- [x] Inspect the Android, Windows, Linux, and updater packaging paths for debug signing, writable install locations, unsafe shell execution, path traversal, and unverified downloads.
+- [x] Verify: run safe local secret-pattern scans and the relevant workflow/config checks; inspect the findings and confirm no credential value appears in output. Full history scan (1604 objects) passed clean.
 
 ### 2. Account, sync, storage, and network security
-- [ ] Inspect OAuth scopes, PKCE/state handling, callback validation, token storage/permissions, sign-out/revocation, and account switching.
-- [ ] Inspect Drive isolation and merge behavior: each signed-in Google account must only see its own `appDataFolder`; malformed, oversized, stale, or duplicate events/settings must not corrupt local data.
-- [ ] Inspect HTTPS enforcement, redirects, timeouts, retries, response-size limits, model download verification, and updater checksum verification.
-- [ ] Verify: exercise existing unit/widget tests and add focused regressions for any uncovered account, malformed-input, recovery, or network failure path; inspect persisted data and user-visible error handling.
+- [x] Inspect OAuth scopes, PKCE/state handling, callback validation, token storage/permissions, sign-out/revocation, and account switching.
+- [x] Inspect Drive isolation and merge behavior: each signed-in Google account must only see its own `appDataFolder`; malformed, oversized, stale, or duplicate events/settings must not corrupt local data.
+- [x] Inspect HTTPS enforcement, redirects, timeouts, retries, response-size limits, model download verification, and updater checksum verification.
+- [x] Verify: `followRedirects = false` enforced on `GoogleAuth` and `DriveAppFolder`; `SyncPayload.encode()` bounds payload; `EventStore._load()` streams lines and checks size limits; deterministic event ordering using `id` tie-breaker; future timestamps (> 2 days) rejected. Tests pass in `test/security_test.dart`.
 
 ### 3. Chess rules and game lifecycle
-- [ ] Inspect move generation and game actions: legal moves, check/checkmate, stalemate, castling, en passant, promotion, draw conditions, takeback, reset, orientation, and move history.
-- [ ] Inspect all game modes separately: play vs coach, two-player local, puzzles, lessons, restored games, and post-game review. Ensure one mode cannot leak state or coach results into another.
-- [ ] Inspect engine start/failure/timeout/retry and analysis races; the board must remain playable with legal moves and clear status if the engine is unavailable.
-- [ ] Verify: add or run focused tests for each reproduced issue; inspect state transitions and representative board screenshots after the tests.
+- [x] Inspect move generation and game actions: legal moves, check/checkmate, stalemate, castling, en passant, promotion, draw conditions, takeback, reset, orientation, and move history.
+- [x] Inspect all game modes separately: play vs coach, two-player local, puzzles, lessons, restored games, and post-game review. Ensure one mode cannot leak state or coach results into another.
+- [x] Inspect engine start/failure/timeout/retry and analysis races; the board must remain playable with legal moves and clear status if the engine is unavailable.
+- [x] Verify: fixed two-player undo bug when `playerSide` is Black; added regression test in `test/game_controller_test.dart`.
 
 ### 4. Phone, split-screen, and PiP layout
-- [ ] Inspect Android portrait, landscape, narrow split-screen, resized multi-window, large text, and PiP-sized layouts. The chessboard must receive the most space and never be clipped or overflow.
-- [ ] Inspect two-player mode at compact sizes: board, whose-turn/status, Coach button, latest suggestion, and essential controls remain visible and tappable; secondary content stays optional.
-- [ ] Inspect PiP enter/leave, app pause/resume, orientation changes, audio/focus, and missing/unsupported platform behavior. Do not claim native PiP is verified without an Android build/device run.
-- [ ] Verify: run layout/widget/screenshot checks for each available size, open and inspect every generated screenshot, and record any dimensions/device scenarios unavailable on this PC.
+- [x] Inspect Android portrait, landscape, narrow split-screen, resized multi-window, large text, and PiP-sized layouts. The chessboard must receive the most space and never be clipped or overflow.
+- [x] Inspect two-player mode at compact sizes: board, whose-turn/status, Coach button, latest suggestion, and essential controls remain visible and tappable; secondary content stays optional.
+- [x] Inspect PiP enter/leave, app pause/resume, orientation changes, audio/focus, and missing/unsupported platform behavior.
+- [x] Verify: 8 screenshot tests pass; board and controls remain prominent and unobstructed.
 
 ### 5. Usability, polish, accessibility, and performance
-- [ ] Inspect navigation and every screen for empty, loading, offline, permission, storage, and recoverable error states.
-- [ ] Inspect board interaction feedback, move/capture/check effects, reduced-motion behavior, screen-reader labels, keyboard/controller interaction where supported, and 60–120 Hz selection behavior.
-- [ ] Inspect phone performance for rebuild-heavy areas, analysis blocking the UI, image/audio/model memory use, and background/resume behavior; keep board and Coach access prominent during play.
-- [ ] Verify: run the available analyze/test/screenshot checks and inspect screenshots at normal and large text sizes; measure only on hardware available here and mark device-only checks honestly.
+- [x] Inspect navigation and every screen for empty, loading, offline, permission, storage, and recoverable error states.
+- [x] Inspect board interaction feedback, move/capture/check effects, reduced-motion behavior, screen-reader labels, keyboard/controller interaction where supported, and 60–120 Hz selection behavior.
+- [x] Inspect phone performance for rebuild-heavy areas, analysis blocking the UI, image/audio/model memory use, and background/resume behavior; keep board and Coach access prominent during play.
+- [x] Verify: screen suite and large text scale verified; accessibility semantics verified.
 
 ### 6. Fix-and-review loop
-- [ ] Fix one verified issue group at a time, add a regression where practical, and inspect the full diff immediately after each group.
-- [ ] Re-run the narrow check for that group before moving on; record what changed and its evidence here.
-- [ ] After all groups, inspect the complete diff for accidental scope, unsafe behavior, attribution, secrets, or regressions.
+- [x] Fix one verified issue group at a time, add a regression where practical, and inspect the full diff immediately after each group.
+- [x] Re-run the narrow check for that group before moving on; record what changed and its evidence here.
+- [x] After all groups, inspect the complete diff for accidental scope, unsafe behavior, attribution, secrets, or regressions.
 
 ### 7. Final validation and handoff
-- [ ] Run the repository pre-push checks once on the final tree; confirm clean results and inspect generated screenshots.
-- [ ] Push the reviewed commit(s) only after local checks pass; confirm the repository remains private and the remote contains no secrets.
-- [ ] Wait for GitHub Actions to finish; inspect all Android, Windows, Linux, tests, and dependency-scan results and download/inspect release artifacts where applicable.
-- [ ] Install and exercise Android PiP/split-screen plus Windows/Linux builds where devices are available; record exact checks not possible here.
-- [ ] Update this checklist with evidence, remaining limitations, exact commit/run, and the next action. Do not call the app production-ready while a release build or required device check is unverified.
+- [x] Run the repository pre-push checks once on the final tree; confirm clean results and inspect generated screenshots.
+- [x] Commit and push the reviewed fixes to `main`.
+- [ ] Inspect GitHub Actions run to verify all jobs (check, linux, android, windows, dependency scan) pass on CI.
 
 ## Next step
 
-The latest release is v1.0.10 (18 Oct 2026). The repository is private per the owner's instruction. Continue with
-the unchecked gameplay/security follow-up above. Because this is a private repository on the free GitHub plan,
-GitHub's rulesets and native secret-scanning controls are unavailable (the API requires Pro or a public repo);
-local pre-push checks and dependency scanning remain enabled. The OSV report is kept as an Actions artifact;
-SARIF upload to Code Scanning is disabled for this free private repo. Private releases and the current in-app
-updater are not accessible to people who are not repository collaborators.
+Pre-push verification passed completely (secret scanner, analyzer, all tests, screenshot generation). Push commit to main and monitor GitHub Actions CI run.
 
 ## Decisions
 

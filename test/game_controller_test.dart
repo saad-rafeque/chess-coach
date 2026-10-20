@@ -329,5 +329,16 @@ void main() {
         reason: 'Black to move, still human',
       );
     });
+
+    test('undo takes back first move even if playerSide was Black in two-player mode', () async {
+      final g = GameController(host: _offline)
+        ..newGame(side: Side.black, elo: 800, twoPlayers: true);
+      expect(g.canUndo, isFalse);
+      await g.playerMove(NormalMove.fromUci('e2e4'));
+      expect(g.canUndo, isTrue);
+      g.undo();
+      expect(g.moves, isEmpty);
+      expect(g.position.turn, Side.white);
+    });
   });
 }
