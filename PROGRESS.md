@@ -96,6 +96,58 @@
   `:app:assembleDebug` stops with “SDK location not found”, before compiling the Android activity.
 - [ ] Run the latest private-compatible workflow and confirm OSV, Linux, Windows and Android jobs pass.
 
+## Deep app, phone and repository audit checklist (20 Oct 2026)
+
+Work through these in order. A step is not complete until its inspection/check item is also complete.
+
+### 0. Establish the current state
+- [x] Inspect the local branch and working tree: `main` is one commit ahead of `origin/main`; the local-only commit is `70ef3f0` (signed AppImage runtime pin). `AGENTS.md` is user-provided and untracked; leave it untouched.
+- [x] Read the project plan and current progress before changing code.
+- [x] Inspect the latest GitHub Actions runs and repo visibility. GitHub confirms the repo is private. Run `39392070487` completed with tests/screenshots, Windows and Android successful; Linux failed at the old mutable-runtime checksum, and OSV failed only at unsupported SARIF upload. Both failures have local fixes; fresh CI is still required.
+- [x] Inspect the pending commit and complete diff. `70ef3f0` changes only the Linux runtime pin, desktop menu category and progress notes; `git diff --check` passes and no credential-pattern hit was found in the current tree.
+
+### 1. Repository and release security
+- [ ] Inspect tracked files, ignore rules, recent history, and secret-bearing config for credentials, personal files, debug material, or accidental build outputs; report only safe file names, never secret values.
+- [ ] Inspect workflow permissions, pinned actions, fork behavior, release/tag conditions, signing requirements, dependency scanning, artifact provenance/checksums, and download sources.
+- [ ] Inspect the Android, Windows, Linux, and updater packaging paths for debug signing, writable install locations, unsafe shell execution, path traversal, and unverified downloads.
+- [ ] Verify: run safe local secret-pattern scans and the relevant workflow/config checks; inspect the findings and confirm no credential value appears in output.
+
+### 2. Account, sync, storage, and network security
+- [ ] Inspect OAuth scopes, PKCE/state handling, callback validation, token storage/permissions, sign-out/revocation, and account switching.
+- [ ] Inspect Drive isolation and merge behavior: each signed-in Google account must only see its own `appDataFolder`; malformed, oversized, stale, or duplicate events/settings must not corrupt local data.
+- [ ] Inspect HTTPS enforcement, redirects, timeouts, retries, response-size limits, model download verification, and updater checksum verification.
+- [ ] Verify: exercise existing unit/widget tests and add focused regressions for any uncovered account, malformed-input, recovery, or network failure path; inspect persisted data and user-visible error handling.
+
+### 3. Chess rules and game lifecycle
+- [ ] Inspect move generation and game actions: legal moves, check/checkmate, stalemate, castling, en passant, promotion, draw conditions, takeback, reset, orientation, and move history.
+- [ ] Inspect all game modes separately: play vs coach, two-player local, puzzles, lessons, restored games, and post-game review. Ensure one mode cannot leak state or coach results into another.
+- [ ] Inspect engine start/failure/timeout/retry and analysis races; the board must remain playable with legal moves and clear status if the engine is unavailable.
+- [ ] Verify: add or run focused tests for each reproduced issue; inspect state transitions and representative board screenshots after the tests.
+
+### 4. Phone, split-screen, and PiP layout
+- [ ] Inspect Android portrait, landscape, narrow split-screen, resized multi-window, large text, and PiP-sized layouts. The chessboard must receive the most space and never be clipped or overflow.
+- [ ] Inspect two-player mode at compact sizes: board, whose-turn/status, Coach button, latest suggestion, and essential controls remain visible and tappable; secondary content stays optional.
+- [ ] Inspect PiP enter/leave, app pause/resume, orientation changes, audio/focus, and missing/unsupported platform behavior. Do not claim native PiP is verified without an Android build/device run.
+- [ ] Verify: run layout/widget/screenshot checks for each available size, open and inspect every generated screenshot, and record any dimensions/device scenarios unavailable on this PC.
+
+### 5. Usability, polish, accessibility, and performance
+- [ ] Inspect navigation and every screen for empty, loading, offline, permission, storage, and recoverable error states.
+- [ ] Inspect board interaction feedback, move/capture/check effects, reduced-motion behavior, screen-reader labels, keyboard/controller interaction where supported, and 60–120 Hz selection behavior.
+- [ ] Inspect phone performance for rebuild-heavy areas, analysis blocking the UI, image/audio/model memory use, and background/resume behavior; keep board and Coach access prominent during play.
+- [ ] Verify: run the available analyze/test/screenshot checks and inspect screenshots at normal and large text sizes; measure only on hardware available here and mark device-only checks honestly.
+
+### 6. Fix-and-review loop
+- [ ] Fix one verified issue group at a time, add a regression where practical, and inspect the full diff immediately after each group.
+- [ ] Re-run the narrow check for that group before moving on; record what changed and its evidence here.
+- [ ] After all groups, inspect the complete diff for accidental scope, unsafe behavior, attribution, secrets, or regressions.
+
+### 7. Final validation and handoff
+- [ ] Run the repository pre-push checks once on the final tree; confirm clean results and inspect generated screenshots.
+- [ ] Push the reviewed commit(s) only after local checks pass; confirm the repository remains private and the remote contains no secrets.
+- [ ] Wait for GitHub Actions to finish; inspect all Android, Windows, Linux, tests, and dependency-scan results and download/inspect release artifacts where applicable.
+- [ ] Install and exercise Android PiP/split-screen plus Windows/Linux builds where devices are available; record exact checks not possible here.
+- [ ] Update this checklist with evidence, remaining limitations, exact commit/run, and the next action. Do not call the app production-ready while a release build or required device check is unverified.
+
 ## Next step
 
 The latest release is v1.0.10 (18 Oct 2026). The repository is private per the owner's instruction. Continue with
