@@ -222,12 +222,12 @@ class _BoardLayoutState extends State<BoardLayout> {
         }
         if (!mobile) {
           // The panel can be hidden so the board gets the whole window and stays centred.
-          // (The strip row with the dock button is 14 px taller than a plain strip.)
+          final p = Palette.of(context);
           final size = _boardSize(
             _panelHidden ? c.maxWidth - 24 : c.maxWidth - _panelWidth - 24,
             c.maxHeight -
                 bars -
-                14 -
+                30 -
                 (_panelHidden && actions != null ? 68 : 0),
           );
           final boardColumn = SizedBox(
@@ -265,8 +265,33 @@ class _BoardLayoutState extends State<BoardLayout> {
                     ],
                   ),
                 ),
-                _board(size),
-                if (bottom != null) SizedBox(height: _barHeight, child: bottom),
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: p.brightness == Brightness.dark
+                          ? const Color(0x33FFFFFF)
+                          : const Color(0x18000000),
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF000000).withValues(
+                          alpha: p.brightness == Brightness.dark ? 0.45 : 0.16,
+                        ),
+                        blurRadius: 24,
+                        spreadRadius: 1,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: _board(size),
+                ),
+                if (bottom != null) ...[
+                  const SizedBox(height: 6),
+                  SizedBox(height: _barHeight, child: bottom),
+                ],
                 if (_panelHidden && actions != null) ...[
                   const SizedBox(height: 12),
                   actions!,
@@ -580,33 +605,63 @@ class PlayerBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = Palette.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: active
+            ? p.accent.withValues(
+                alpha: p.brightness == Brightness.dark ? 0.12 : 0.08,
+              )
+            : p.surface.withValues(
+                alpha: p.brightness == Brightness.dark ? 0.35 : 0.6,
+              ),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: active
+              ? p.accent.withValues(alpha: 0.35)
+              : p.glassBorderSubtle,
+          width: 1,
+        ),
+      ),
       child: Row(
         children: [
           AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            width: 36,
-            height: 36,
+            width: 30,
+            height: 30,
             decoration: BoxDecoration(
-              color: active ? p.accent : p.glassFillSubtle,
-              borderRadius: BorderRadius.circular(10),
+              gradient: active
+                  ? LinearGradient(
+                      colors: [
+                        p.accent,
+                        Color.lerp(p.accent, Colors.white, 0.25)!,
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    )
+                  : null,
+              color: active ? null : p.surfaceAlt,
+              borderRadius: BorderRadius.circular(8),
               border: Border.all(
                 color: active ? p.accent : p.glassBorderSubtle,
-                width: active ? 1.5 : 1.0,
+                width: 1,
               ),
               boxShadow: [
                 if (active)
                   BoxShadow(
                     color: p.accent.withValues(alpha: 0.35),
-                    blurRadius: 10,
-                    spreadRadius: 1,
+                    blurRadius: 8,
+                    spreadRadius: 0.5,
                   ),
               ],
             ),
-            child: Icon(icon, size: 18, color: active ? p.onAccent : p.muted),
+            child: Icon(
+              icon,
+              size: 15,
+              color: active ? p.onAccent : p.muted,
+            ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -623,42 +678,49 @@ class PlayerBar extends StatelessWidget {
                         style: TextStyle(
                           color: p.text,
                           fontWeight: FontWeight.w700,
-                          fontSize: 14,
+                          fontSize: 13,
                         ),
                       ),
                     ),
                     if (badge != null) ...[
-                      const SizedBox(width: 6),
+                      const SizedBox(width: 5),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 5,
+                          horizontal: 4,
                           vertical: 1,
                         ),
                         decoration: BoxDecoration(
-                          color: p.accent.withValues(alpha: 0.16),
+                          color: p.accent.withValues(alpha: 0.18),
                           borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: p.accent.withValues(alpha: 0.3),
+                            width: 0.8,
+                          ),
                         ),
                         child: Text(
                           badge!,
                           style: TextStyle(
                             color: p.accent,
-                            fontSize: 10,
+                            fontSize: 9,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 0.4,
                           ),
                         ),
                       ),
                     ],
-                    const SizedBox(width: 6),
-                    Text(
-                      detail,
-                      maxLines: 1,
-                      style: TextStyle(
-                        color: p.brightness == Brightness.dark
-                            ? const Color(0xFFCBD5E1)
-                            : p.muted,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
+                    const SizedBox(width: 5),
+                    Flexible(
+                      child: Text(
+                        detail,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: p.brightness == Brightness.dark
+                              ? const Color(0xFFCBD5E1)
+                              : p.muted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ],
@@ -673,19 +735,29 @@ class PlayerBar extends StatelessWidget {
                         Text(
                           capturedPieces!.join(''),
                           style: TextStyle(
-                            fontSize: 13,
+                            fontSize: 12,
                             color: p.text.withValues(alpha: 0.85),
-                            height: 1.1,
+                            height: 1.0,
                           ),
                         ),
                       if (advantage != null && advantage! > 0) ...[
                         const SizedBox(width: 5),
-                        Text(
-                          '+$advantage',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: p.muted,
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 0.5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: p.accent.withValues(alpha: 0.16),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            '+$advantage',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: p.accent,
+                            ),
                           ),
                         ),
                       ],
@@ -733,12 +805,44 @@ class PlayerBar extends StatelessWidget {
               ),
             )
           else if (active)
-            Text(
-              'to move',
-              style: TextStyle(
-                color: p.accent,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: p.accent.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: p.accent.withValues(alpha: 0.35),
+                  width: 0.8,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: p.accent,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: p.accent,
+                          blurRadius: 4,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    'to move',
+                    style: TextStyle(
+                      color: p.accent,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ],
               ),
             ),
         ],

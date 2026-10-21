@@ -76,15 +76,16 @@ class PageFrame extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = Palette.of(context);
     final mobile = isMobile(context);
-    final pad = mobile ? 16.0 : 32.0;
     final compact = mobile && compactOnPhone;
     final shortWindow = compact && MediaQuery.sizeOf(context).height < 430;
+    final desktopCompact = !mobile && compactOnPhone;
+    final pad = mobile ? 16.0 : (desktopCompact ? 20.0 : 32.0);
     final header = Padding(
       padding: EdgeInsets.fromLTRB(
         pad,
-        compact ? 6 : (mobile ? 14 : 20),
+        compact ? 6 : (desktopCompact ? 10 : (mobile ? 14 : 20)),
         pad,
-        compact ? 4 : 10,
+        compact ? 4 : (desktopCompact ? 6 : 10),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -97,13 +98,13 @@ class PageFrame extends StatelessWidget {
                 Text(
                   title,
                   style: TextStyle(
-                    fontSize: compact ? 18 : (mobile ? 26 : 32),
-                    fontWeight: FontWeight.w600,
+                    fontSize: compact ? 18 : (desktopCompact ? 22 : (mobile ? 26 : 30)),
+                    fontWeight: FontWeight.w700,
                     color: p.text,
-                    letterSpacing: -0.5,
+                    letterSpacing: -0.4,
                   ),
                 ),
-                if (subtitle != null && !compact) ...[
+                if (subtitle != null && !compact && !desktopCompact) ...[
                   const SizedBox(height: 4),
                   Text(
                     subtitle!,
@@ -191,24 +192,47 @@ class _GrainPainter extends CustomPainter {
 }
 
 /// The three iconic window control dots on macOS (red, yellow, green).
-class MacOsTrafficLights extends StatelessWidget {
+class MacOsTrafficLights extends StatefulWidget {
   const MacOsTrafficLights({super.key});
 
   @override
+  State<MacOsTrafficLights> createState() => _MacOsTrafficLightsState();
+}
+
+class _MacOsTrafficLightsState extends State<MacOsTrafficLights> {
+  bool _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _dot(const Color(0xFFFF5F56), const Color(0xFFE0443E)),
-        const SizedBox(width: 8),
-        _dot(const Color(0xFFFFBD2E), const Color(0xFFDEA123)),
-        const SizedBox(width: 8),
-        _dot(const Color(0xFF27C93F), const Color(0xFF1AAB29)),
-      ],
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _dot(
+            const Color(0xFFFF5F56),
+            const Color(0xFFE0443E),
+            _hovered ? '✕' : null,
+          ),
+          const SizedBox(width: 8),
+          _dot(
+            const Color(0xFFFFBD2E),
+            const Color(0xFFDEA123),
+            _hovered ? '–' : null,
+          ),
+          const SizedBox(width: 8),
+          _dot(
+            const Color(0xFF27C93F),
+            const Color(0xFF1AAB29),
+            _hovered ? '⤢' : null,
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _dot(Color fill, Color border) => Container(
+  Widget _dot(Color fill, Color border, String? symbol) => Container(
         width: 12,
         height: 12,
         decoration: BoxDecoration(
@@ -223,6 +247,19 @@ class MacOsTrafficLights extends StatelessWidget {
             ),
           ],
         ),
+        child: symbol != null
+            ? Center(
+                child: Text(
+                  symbol,
+                  style: const TextStyle(
+                    fontSize: 8,
+                    height: 1.0,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0x99000000),
+                  ),
+                ),
+              )
+            : null,
       );
 }
 
