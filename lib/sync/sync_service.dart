@@ -276,8 +276,16 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
     _retryTimer = Timer(retryDelays[_retry++], () => unawaited(sync()));
   }
 
+  bool _disposed = false;
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) super.notifyListeners();
+  }
+
   @override
   void dispose() {
+    _disposed = true;
     _retryTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();

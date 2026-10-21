@@ -145,12 +145,18 @@ class _CardsPageState extends State<CardsPage> {
       if (s != null && s.finished) _next();
     }
 
-    return CallbackShortcuts(
-      bindings: {
-        const SingleActivator(LogicalKeyboardKey.arrowRight): next,
-        const SingleActivator(LogicalKeyboardKey.enter): next,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) Navigator.of(context).pop(_grades.length);
       },
-      child: Focus(autofocus: true, child: _page(p, style, settings, s, card, done)),
+      child: CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.arrowRight): next,
+          const SingleActivator(LogicalKeyboardKey.enter): next,
+        },
+        child: Focus(autofocus: true, child: _page(p, style, settings, s, card, done)),
+      ),
     );
   }
 

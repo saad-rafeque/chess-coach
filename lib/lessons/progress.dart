@@ -89,7 +89,7 @@ class LessonProgress {
     for (final l in allLessons) {
       final r = records[l.id];
       if (r == null || status(l) != LessonStatus.inProgress) continue;
-      if (bestTime == null || r.last!.isAfter(bestTime)) {
+      if (r.last != null && (bestTime == null || r.last!.isAfter(bestTime))) {
         best = l;
         bestTime = r.last;
       }

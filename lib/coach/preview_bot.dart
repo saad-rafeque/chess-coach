@@ -32,10 +32,12 @@ Piece? freeCapture(Position pos, NormalMove move) {
 
 /// One-ply practice opponent: grabs material, avoids hanging pieces, with some
 /// randomness. Placeholder until the Maia coach lands in milestone 2.
-NormalMove pickPreviewMove(Position pos, math.Random rnd) {
+NormalMove? pickPreviewMove(Position pos, math.Random rnd) {
+  final moves = legalMoves(pos);
+  if (moves.isEmpty) return null;
   NormalMove? best;
   var bestScore = double.negativeInfinity;
-  for (final m in legalMoves(pos)) {
+  for (final m in moves) {
     final after = pos.playUnchecked(m);
     var score = rnd.nextDouble() * 2;
     if (after.isCheckmate) score += 1000;
@@ -53,5 +55,5 @@ NormalMove pickPreviewMove(Position pos, math.Random rnd) {
       best = m;
     }
   }
-  return best!;
+  return best ?? moves.first;
 }

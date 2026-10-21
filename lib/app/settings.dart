@@ -329,10 +329,15 @@ class AppSettings extends ChangeNotifier {
   }
 
   /// The unfinished game, as JSON (restored on the next start).
-  String? get savedGame => _prefs?.getString('savedGame');
+  String? get savedGame =>
+      _prefs == null ? _memory['savedGame'] : _prefs.getString('savedGame');
   set savedGame(String? value) {
-    value == null
-        ? _prefs?.remove('savedGame')
-        : _prefs?.setString('savedGame', value);
+    if (_prefs == null) {
+      value == null ? _memory.remove('savedGame') : _memory['savedGame'] = value;
+    } else {
+      value == null
+          ? _prefs.remove('savedGame')
+          : _prefs.setString('savedGame', value);
+    }
   }
 }

@@ -156,4 +156,14 @@ void main() {
     }
     expect(bank.byTheme['fork']!.length, greaterThan(1000));
   });
+
+  test('hint does not crash on finished puzzle or exhausted moves', () async {
+    final s = _session(_line);
+    await s.start();
+    expect(() => s.hint(), returnsNormally);
+    expect(s.hintSquare, isNotNull);
+    await s.playerMove(NormalMove.fromUci('f3h4'));
+    expect(s.state, PuzzleState.solved);
+    expect(() => s.hint(), returnsNormally);
+  });
 }

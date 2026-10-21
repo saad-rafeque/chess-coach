@@ -50,13 +50,21 @@ class Fsrs {
   final int maxInterval;
 
   /// Probability of recall after [days] with [stability].
-  static double retrievability(double days, double stability) =>
-      math.pow(1 + _factor * days / stability, _decay).toDouble();
+  static double retrievability(double days, double stability) {
+    if (stability <= 0) return 0.0;
+    final d = math.max(0.0, days);
+    final base = 1 + _factor * d / stability;
+    if (base <= 0) return 0.0;
+    final r = math.pow(base, _decay).toDouble();
+    return r.isFinite ? r.clamp(0.0, 1.0) : 0.0;
+  }
 
   double _initDifficulty(Grade g) => (w[4] - (g.value - 3) * w[5]).clamp(1, 10);
 
   int _interval(double stability) {
+    if (stability <= 0 || retention <= 0 || retention >= 1) return 1;
     final days = stability / _factor * (math.pow(retention, 1 / _decay) - 1);
+    if (!days.isFinite) return 1;
     return days.round().clamp(1, maxInterval);
   }
 

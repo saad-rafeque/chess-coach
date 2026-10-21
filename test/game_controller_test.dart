@@ -358,5 +358,18 @@ void main() {
       expect(g.isOver, isTrue);
       expect(g.chat.last.text, 'Threefold repetition: the game is a draw.');
     });
+
+    test('undo does not crash when positions has fewer than 2 elements', () {
+      final g = GameController(host: _offline)
+        ..newGame(side: Side.white, elo: 800);
+      expect(() => g.undo(), returnsNormally);
+    });
+
+    test('disposing controller safely ignores subsequent notifications', () {
+      final g = GameController(host: _offline)
+        ..newGame(side: Side.white, elo: 800);
+      g.dispose();
+      expect(() => g.notifyListeners(), returnsNormally);
+    });
   });
 }

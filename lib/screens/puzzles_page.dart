@@ -228,7 +228,7 @@ class _PuzzlesPageState extends State<PuzzlesPage> {
 
     final ratingPill = Pill('Rating ${stats.rating.rating.round()}', color: p.accent);
     final drillTitle = widget.theme == null ? 'Puzzles' : '${themeNames[widget.theme] ?? 'Themed'} puzzles';
-    return PageFrame(
+    final page = PageFrame(
       title: _drill ? drillTitle : 'Puzzles',
       subtitle: _drill
           ? '${_tried.clamp(0, widget.goal!)} of ${widget.goal} done'
@@ -341,6 +341,14 @@ class _PuzzlesPageState extends State<PuzzlesPage> {
           ),
         ]),
       ),
+    );
+    if (!_drill) return page;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) Navigator.of(context).pop(_tried);
+      },
+      child: page,
     );
   }
 

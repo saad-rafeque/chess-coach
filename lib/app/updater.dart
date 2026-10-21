@@ -333,8 +333,12 @@ class Updater extends ChangeNotifier {
   /// Keep both the staging directory and file inaccessible to other local accounts.
   Future<void> _restrictMode(String path, String mode) async {
     if (!Platform.isLinux && !Platform.isMacOS) return;
-    final result = await Process.run('/bin/chmod', [mode, path]);
-    if (result.exitCode != 0) throw FileSystemException('Could not protect the update file.', path);
+    try {
+      final result = await Process.run('chmod', [mode, path]);
+      if (result.exitCode != 0) throw FileSystemException('Could not protect the update file.', path);
+    } on ProcessException catch (e) {
+      throw FileSystemException('Could not protect the update file ($e).', path);
+    }
   }
 
   /// GET over HTTPS, following redirects only to GitHub's own hosts. Every hop

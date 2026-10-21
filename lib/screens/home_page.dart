@@ -91,7 +91,7 @@ class HomePage extends StatelessWidget {
                     FluentIcons.coffee_script,
                     FluentIcons.game,
                     FluentIcons.trophy2,
-                  ][i],
+                  ][i % 4],
                   onTap: () => startSession(context, o.minutes, onNavigate: onNavigate),
                 ),
             ],
@@ -126,7 +126,7 @@ class HomePage extends StatelessWidget {
           for (final area in Area.all) ...[
             Row(children: [
               Expanded(child: Text(Area.label(area), style: TextStyle(color: p.text))),
-              Text(skills.rated(area) ? '${skills.areas[area]!.rating.round()}' : 'Not rated yet',
+              Text(skills.rated(area) && skills.areas[area] != null ? '${skills.areas[area]!.rating.round()}' : 'Not rated yet',
                   style: TextStyle(color: p.muted, fontSize: 12)),
             ]),
             const SizedBox(height: 6),

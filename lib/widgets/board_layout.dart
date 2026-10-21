@@ -86,8 +86,13 @@ class _BoardLayoutState extends State<BoardLayout> {
   Widget build(BuildContext context) {
     final underBoard =
         widget.panelTitle == null || SettingsScope.of(context).panelUnderBoard;
-    return LayoutBuilder(
-      builder: (context, c) {
+    return PopScope(
+      canPop: !_sheet,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _sheet) setState(() => _sheet = false);
+      },
+      child: LayoutBuilder(
+        builder: (context, c) {
         final mobile =
             c.maxWidth < mobileBreakpoint || c.maxWidth < c.maxHeight * 0.9;
         final bars =
@@ -160,13 +165,15 @@ class _BoardLayoutState extends State<BoardLayout> {
                                       color: p.accent,
                                     ),
                                     const SizedBox(width: 7),
-                                    Text(
-                                      widget.panelTitle!,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color: p.text,
-                                        fontWeight: FontWeight.w600,
+                                    Flexible(
+                                      child: Text(
+                                        widget.panelTitle!,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: p.text,
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                       ),
                                     ),
                                     if (widget.compactMessage?.isNotEmpty ==
@@ -476,8 +483,9 @@ class _BoardLayoutState extends State<BoardLayout> {
           ],
         );
       },
-    );
-  }
+    ),
+  );
+}
 
   double _boardSize(double width, double height) =>
       math.max(1.0, math.min(width, height));
@@ -732,12 +740,16 @@ class PlayerBar extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (capturedPieces != null && capturedPieces!.isNotEmpty)
-                        Text(
-                          capturedPieces!.join(''),
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: p.text.withValues(alpha: 0.85),
-                            height: 1.0,
+                        Flexible(
+                          child: Text(
+                            capturedPieces!.join(''),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: p.text.withValues(alpha: 0.85),
+                              height: 1.0,
+                            ),
                           ),
                         ),
                       if (advantage != null && advantage! > 0) ...[

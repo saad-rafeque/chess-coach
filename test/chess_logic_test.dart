@@ -61,7 +61,7 @@ void main() {
     test('takes a free queen', () {
       final pos = _fen('4k3/8/8/r2Q4/8/8/8/4K3 b - - 0 1');
       final move = pickPreviewMove(pos, math.Random(1));
-      expect(move.uci, 'a5d5');
+      expect(move?.uci, 'a5d5');
     });
 
     test('always returns a legal move', () {
@@ -69,9 +69,15 @@ void main() {
       Position pos = Chess.initial;
       for (var i = 0; i < 60 && !pos.isGameOver; i++) {
         final m = pickPreviewMove(pos, rnd);
-        expect(pos.isLegal(m), isTrue);
+        expect(m, isNotNull);
+        expect(pos.isLegal(m!), isTrue);
         pos = pos.play(m);
       }
+    });
+
+    test('returns null on game over position', () {
+      final mate = _fen('r1bqkb1r/pppp1Qpp/2n2n2/4p3/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 0 4');
+      expect(pickPreviewMove(mate, math.Random(1)), isNull);
     });
   });
 }

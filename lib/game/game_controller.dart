@@ -351,6 +351,11 @@ class GameController extends ChangeNotifier {
   }
 
   Future<void> _coachMove(int token) async {
+    if (isOver || position.isGameOver) {
+      thinking = false;
+      notifyListeners();
+      return;
+    }
     thinking = true;
     notifyListeners();
     final started = DateTime.now();
@@ -365,7 +370,7 @@ class GameController extends ChangeNotifier {
       } catch (e) {
         debugPrint('Maia failed, using Stockfish: $e');
       }
-      if (token != _token) return;
+      if (token != _token || isOver || position.isGameOver) return;
     }
     if (chosen == null) {
       final engine = await host.engine;
@@ -377,7 +382,7 @@ class GameController extends ChangeNotifier {
             multiPv: candidatesForElo(coachElo),
           ),
         );
-        if (token != _token) return;
+        if (token != _token || isOver || position.isGameOver) return;
         if (a != null) {
           final picked = Move.parse(pickHumanMove(a, coachElo, _rnd));
           if (picked is NormalMove) chosen = picked;
@@ -386,16 +391,22 @@ class GameController extends ChangeNotifier {
         _engineNotice();
       }
     }
-    var move = chosen != null && position.isLegal(chosen)
+    final move = chosen != null && position.isLegal(chosen)
         ? chosen
         : pickPreviewMove(position, _rnd);
-    final lastWasError = grades[moves.length - 1]?.isError ?? false;
+    if (move == null) {
+      thinking = false;
+      notifyListeners();
+      return;
+    }
+    final lastWasError =
+        moves.isNotEmpty && (grades[moves.length - 1]?.isError ?? false);
     final wait = Duration(
       milliseconds: 450 + _rnd.nextInt(500) + (lastWasError ? 1500 : 0),
     );
     final elapsed = DateTime.now().difference(started);
     if (elapsed < wait) await Future<void>.delayed(wait - elapsed);
-    if (token != _token) return;
+    if (token != _token || isOver || position.isGameOver) return;
     final captured = position.board.pieceAt(move.to);
     _push(move);
     _sound(captured != null ? BoardSoundKind.capture : BoardSoundKind.move);
@@ -485,8 +496,10 @@ class GameController extends ChangeNotifier {
       var removedPlayerMove = false;
       while (moves.isNotEmpty &&
           !(removedPlayerMove && position.turn == playerSide)) {
-        if (positions[positions.length - 2].turn == playerSide)
+        if (positions.length >= 2 &&
+            positions[positions.length - 2].turn == playerSide) {
           removedPlayerMove = true;
+        }
         positions.removeLast();
         moves.removeLast();
         sans.removeLast();
@@ -714,8 +727,16 @@ class GameController extends ChangeNotifier {
 
   static String _name(Side s) => s == Side.white ? 'White' : 'Black';
 
+  bool _disposed = false;
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) super.notifyListeners();
+  }
+
   @override
   void dispose() {
+    _disposed = true;
     _token++;
     super.dispose();
   }

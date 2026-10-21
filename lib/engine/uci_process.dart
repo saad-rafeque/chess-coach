@@ -23,7 +23,12 @@ abstract class UciProcess {
   static String desktopEnginePath() {
     final dir = File(Platform.resolvedExecutable).parent.path;
     final name = Platform.isWindows ? 'stockfish.exe' : 'stockfish';
-    return '$dir${Platform.pathSeparator}engines${Platform.pathSeparator}$name';
+    final installed = '$dir${Platform.pathSeparator}engines${Platform.pathSeparator}$name';
+    if (File(installed).existsSync()) return installed;
+    final platformDir = Platform.isWindows ? 'windows' : (Platform.isMacOS ? 'macos' : 'linux');
+    final devPath = '${Directory.current.path}${Platform.pathSeparator}engines${Platform.pathSeparator}$platformDir${Platform.pathSeparator}$name';
+    if (File(devPath).existsSync()) return devPath;
+    return installed;
   }
 }
 
@@ -33,7 +38,9 @@ class DesktopUciProcess implements UciProcess {
       : lines = _process.stdout
             .transform(utf8.decoder)
             .transform(const LineSplitter())
-            .asBroadcastStream();
+            .asBroadcastStream() {
+    _process.stderr.drain<void>().catchError((Object _) {});
+  }
 
   static Future<DesktopUciProcess> start(String path) async {
     if (!File(path).existsSync()) {
@@ -48,11 +55,18 @@ class DesktopUciProcess implements UciProcess {
   final Stream<String> lines;
 
   @override
-  void send(String command) => _process.stdin.writeln(command);
+  void send(String command) {
+    try {
+      _process.stdin.writeln(command);
+    } catch (_) {}
+  }
 
   @override
   Future<void> close() async {
-    send('quit');
+    try {
+      send('quit');
+      await _process.stdin.flush().catchError((Object _) {});
+    } catch (_) {}
     await _process.exitCode.timeout(const Duration(seconds: 2), onTimeout: () {
       _process.kill();
       return -1;

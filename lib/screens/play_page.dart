@@ -850,36 +850,36 @@ _MaterialDiff _calcMaterial(Position pos) {
   }
 
   final whiteCaptured = <String>[];
-  for (var i = 0; i < 8 - bP; i++) {
+  for (var i = 0; i < math.max(0, 8 - bP); i++) {
     whiteCaptured.add('♟');
   }
-  for (var i = 0; i < 2 - bN; i++) {
+  for (var i = 0; i < math.max(0, 2 - bN); i++) {
     whiteCaptured.add('♞');
   }
-  for (var i = 0; i < 2 - bB; i++) {
+  for (var i = 0; i < math.max(0, 2 - bB); i++) {
     whiteCaptured.add('♝');
   }
-  for (var i = 0; i < 2 - bR; i++) {
+  for (var i = 0; i < math.max(0, 2 - bR); i++) {
     whiteCaptured.add('♜');
   }
-  for (var i = 0; i < 1 - bQ; i++) {
+  for (var i = 0; i < math.max(0, 1 - bQ); i++) {
     whiteCaptured.add('♛');
   }
 
   final blackCaptured = <String>[];
-  for (var i = 0; i < 8 - wP; i++) {
+  for (var i = 0; i < math.max(0, 8 - wP); i++) {
     blackCaptured.add('♙');
   }
-  for (var i = 0; i < 2 - wN; i++) {
+  for (var i = 0; i < math.max(0, 2 - wN); i++) {
     blackCaptured.add('♘');
   }
-  for (var i = 0; i < 2 - wB; i++) {
+  for (var i = 0; i < math.max(0, 2 - wB); i++) {
     blackCaptured.add('♗');
   }
-  for (var i = 0; i < 2 - wR; i++) {
+  for (var i = 0; i < math.max(0, 2 - wR); i++) {
     blackCaptured.add('♖');
   }
-  for (var i = 0; i < 1 - wQ; i++) {
+  for (var i = 0; i < math.max(0, 1 - wQ); i++) {
     blackCaptured.add('♕');
   }
 

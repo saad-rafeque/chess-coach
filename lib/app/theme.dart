@@ -123,7 +123,8 @@ class Palette {
   );
 
   static Palette of(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<PaletteScope>()!.palette;
+      context.dependOnInheritedWidgetOfExactType<PaletteScope>()?.palette ??
+      dark;
 
   static Palette forTheme(AppTheme theme) => switch (theme) {
         AppTheme.light => light,

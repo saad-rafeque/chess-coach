@@ -213,7 +213,7 @@ class PuzzleSession extends ChangeNotifier {
     final expected = _expected;
     final after = position.play(move);
     final isMate = after.isCheckmate;
-    final correct = after.fen == position.play(expected).fen || isMate;
+    final correct = isMate || after.fen == position.play(expected).fen;
     if (!correct) {
       _report(false);
       state = PuzzleState.wrongMove;
@@ -239,7 +239,7 @@ class PuzzleSession extends ChangeNotifier {
   }
 
   void hint() {
-    if (finished || state == PuzzleState.opponentMoving) return;
+    if (finished || state == PuzzleState.opponentMoving || _next >= puzzle.moves.length) return;
     hintSquare = _expected.from;
     _notify();
   }

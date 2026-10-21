@@ -451,7 +451,7 @@ class _ReviewPageState extends State<ReviewPage> {
           : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Your coach is reviewing the game…', style: TextStyle(color: p.text)),
               const SizedBox(height: 10),
-              Meter(_progress == null ? 0 : _progress!.$1 / _progress!.$2),
+              Meter(_progress == null || _progress!.$2 <= 0 ? 0.0 : (_progress!.$1 / _progress!.$2).clamp(0.0, 1.0)),
               const SizedBox(height: 6),
               Text(_progress == null ? 'Starting engine' : 'Position ${_progress!.$1} of ${_progress!.$2}',
                   style: TextStyle(color: p.muted, fontSize: 12)),

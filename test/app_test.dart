@@ -1,6 +1,7 @@
 import 'package:chess_coach/app/settings.dart';
 import 'package:chess_coach/data/event_store.dart';
 import 'package:chess_coach/main.dart';
+import 'package:chess_coach/widgets/common.dart';
 import 'package:fluent_ui/fluent_ui.dart' show FluentIcons;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -201,4 +202,24 @@ void main() {
       expect(find.text('Game review'), findsOneWidget);
     },
   );
+
+  testWidgets('Meter handles NaN and Infinity without throwing', (tester) async {
+    await tester.pumpWidget(
+      const Directionality(
+        textDirection: TextDirection.ltr,
+        child: SizedBox(
+          width: 200,
+          child: Column(
+            children: [
+              Meter(double.nan),
+              Meter(double.infinity),
+              Meter(double.negativeInfinity),
+              Meter(0.5),
+            ],
+          ),
+        ),
+      ),
+    );
+    expect(tester.takeException(), isNull);
+  });
 }

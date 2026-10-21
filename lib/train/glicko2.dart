@@ -60,7 +60,9 @@ Rating glicko2Update(Rating player, double opponent, double opponentDeviation, d
   }
   var fLo = f(lo), fHi = f(hi);
   for (var i = 0; i < 100 && (hi - lo).abs() > 1e-6; i++) {
-    final c = lo + (lo - hi) * fLo / (fHi - fLo);
+    final diff = fHi - fLo;
+    if (diff.abs() < 1e-12) break;
+    final c = lo + (lo - hi) * fLo / diff;
     final fC = f(c);
     if (fC * fHi <= 0) {
       lo = hi;
@@ -76,6 +78,9 @@ Rating glicko2Update(Rating player, double opponent, double opponentDeviation, d
   final phiStar = math.sqrt(phi * phi + sigma * sigma);
   final phiNew = 1 / math.sqrt(1 / (phiStar * phiStar) + 1 / v);
   final muNew = mu + phiNew * phiNew * gJ * (score - e);
+  if (!muNew.isFinite || !phiNew.isFinite || !sigma.isFinite) {
+    return player;
+  }
   return Rating(
     _scale * muNew + 1500,
     (_scale * phiNew).clamp(minDeviation, maxDeviation),

@@ -52,6 +52,12 @@ void main() {
       expect(Fsrs.retrievability(10, 10), closeTo(0.9, 1e-9));
       expect(Fsrs.retrievability(0, 10), 1);
     });
+
+    test('retrievability handles clock skew and zero stability gracefully', () {
+      expect(Fsrs.retrievability(-5, 10), 1.0);
+      expect(Fsrs.retrievability(10, 0), 0.0);
+      expect(Fsrs.retrievability(10, -2), 0.0);
+    });
   });
 
   group('skill model', () {

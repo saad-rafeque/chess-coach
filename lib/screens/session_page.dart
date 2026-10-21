@@ -65,8 +65,8 @@ class TrainingSession extends ChangeNotifier {
   /// Null while the block isn't finished; otherwise 0..1.
   double? _reward(Activity a, List<AppEvent> all, int from, List<AppEvent> fresh) {
     double gain(String area, Iterable<AppEvent> before) {
-      final was = SkillModel.fromEvents(before).areas[area]!.rating;
-      final now = SkillModel.fromEvents(all).areas[area]!.rating;
+      final was = SkillModel.fromEvents(before).areas[area]?.rating ?? 900.0;
+      final now = SkillModel.fromEvents(all).areas[area]?.rating ?? 900.0;
       return (0.5 + (now - was) / 100).clamp(0, 1);
     }
 

@@ -353,7 +353,7 @@ class Meter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = Palette.of(context);
-    final target = value.isNaN ? 0.0 : value.clamp(0.0, 1.0);
+    final target = !value.isFinite ? 0.0 : value.clamp(0.0, 1.0);
     return Semantics(
       value: '${(target * 100).round()}%',
       child: ClipRRect(

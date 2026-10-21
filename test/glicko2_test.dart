@@ -34,4 +34,12 @@ void main() {
     expect(back.rating, r.rating);
     expect(back.deviation, r.deviation);
   });
+
+  test('does not produce NaN or infinite values on edge case inputs', () {
+    const r = Rating(1500, 200, 0.06);
+    final updated = glicko2Update(r, 1500, 200, 0.5);
+    expect(updated.rating.isFinite, isTrue);
+    expect(updated.deviation.isFinite, isTrue);
+    expect(updated.volatility.isFinite, isTrue);
+  });
 }

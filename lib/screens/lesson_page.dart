@@ -148,6 +148,10 @@ class _LessonPageState extends State<LessonPage> {
     _demoTimer?.cancel();
     _demoPly = 0;
     _demoTimer = Timer.periodic(widget.demoDelay, (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
       if (_demoPly >= _demo.length - 1) {
         t.cancel();
         return;

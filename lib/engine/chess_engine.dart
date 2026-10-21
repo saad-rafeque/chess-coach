@@ -80,16 +80,26 @@ class ChessEngine {
     final whiteToMove = tokens.length > 1 ? tokens[1] != 'b' : true;
     final best = <int, EngineLine>{};
     final done = Completer<String?>();
-    final sub = _process.lines.listen((line) {
-      if (line.startsWith('bestmove')) {
-        final parts = line.split(' ');
-        final move = parts.length > 1 && parts[1] != '(none)' ? parts[1] : null;
-        if (!done.isCompleted) done.complete(move);
-        return;
-      }
-      final info = parseInfo(line, whiteToMove: whiteToMove);
-      if (info != null) best[info.multipv] = info;
-    });
+    final sub = _process.lines.listen(
+      (line) {
+        if (line.startsWith('bestmove')) {
+          final parts = line.split(' ');
+          final move = parts.length > 1 && parts[1] != '(none)' ? parts[1] : null;
+          if (!done.isCompleted) done.complete(move);
+          return;
+        }
+        final info = parseInfo(line, whiteToMove: whiteToMove);
+        if (info != null) best[info.multipv] = info;
+      },
+      onError: (Object e) {
+        if (!done.isCompleted) done.completeError(e);
+      },
+      onDone: () {
+        if (!done.isCompleted) {
+          done.completeError(const SocketException('Engine process closed unexpectedly'));
+        }
+      },
+    );
     try {
       _process.send('setoption name MultiPV value $multiPv');
       await _ready();

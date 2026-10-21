@@ -13,9 +13,9 @@ class PictureInPicture {
     if (!supported) return false;
     try {
       return await _channel.invokeMethod<bool>('enter') ?? false;
-    } on MissingPluginException {
-      // A build without the native Android handler should degrade like an
-      // unsupported device, not leave an unhandled exception on the game page.
+    } catch (_) {
+      // A build without the native Android handler or on a device with restricted
+      // PiP should degrade gracefully, not raise an unhandled exception.
       return false;
     }
   }
