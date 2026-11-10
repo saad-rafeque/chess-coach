@@ -55,11 +55,27 @@ class _PlayPageState extends State<PlayPage> {
   late final ChessboardController _board;
   late final GameController _game;
   bool _flipped = false;
+  (bool, bool, bool)? _pipActions;
   String _shownFen = '';
   int _chatLength = 0;
 
   /// Whether the game was over at the last change: the review is offered when a game ends.
   bool _wasOver = false;
+  GameRecord? _pendingReview;
+  bool _reviewOpen = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (TickerMode.valuesOf(context).enabled) _scheduleReview();
+  }
+
+  void _scheduleReview() {
+    final record = _pendingReview;
+    if (record != null && !_reviewOpen) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _offerReview(record));
+    }
+  }
 
   @override
   void initState() {
@@ -82,10 +98,19 @@ class _PlayPageState extends State<PlayPage> {
     _shownFen = _game.position.fen;
     _wasOver = _game.isOver;
     _game.addListener(_onGameChanged);
+    PictureInPicture.hints.addListener(_pipHint);
+    PictureInPicture.undoRequests.addListener(_pipUndo);
+    PictureInPicture.playHintRequests.addListener(_pipPlayHint);
+    PictureInPicture.active.addListener(_pipChanged);
+    _updatePipHint();
   }
 
   @override
   void dispose() {
+    PictureInPicture.hints.removeListener(_pipHint);
+    PictureInPicture.undoRequests.removeListener(_pipUndo);
+    PictureInPicture.playHintRequests.removeListener(_pipPlayHint);
+    PictureInPicture.active.removeListener(_pipChanged);
     _game.removeListener(_onGameChanged);
     _game.dispose();
     _board.dispose();
@@ -109,7 +134,42 @@ class _PlayPageState extends State<PlayPage> {
     );
   }
 
+  void _pipChanged() {
+    if (mounted) setState(() {});
+    if (!PictureInPicture.active.value) _scheduleReview();
+  }
+
+  void _pipHint() {
+    if (PictureInPicture.active.value && _game.canHint) _game.hint();
+  }
+
+  void _pipUndo() {
+    if (PictureInPicture.active.value && _game.canUndo) _game.undo();
+  }
+
+  void _pipPlayHint() {
+    if (PictureInPicture.active.value && _game.canPlayHint) _game.playHint();
+  }
+
+  void _updatePipHint() {
+    final actions = (
+      _game.canHint && !_game.hintThinking,
+      _game.canUndo,
+      _game.canPlayHint,
+    );
+    if (_pipActions == actions) return;
+    _pipActions = actions;
+    unawaited(
+      PictureInPicture.setActionsAvailable(
+        hint: actions.$1,
+        undo: actions.$2,
+        playHint: actions.$3,
+      ),
+    );
+  }
+
   void _onGameChanged() {
+    _updatePipHint();
     final fen = _game.position.fen;
     _board.updatePosition(_gameData(), animate: fen != _shownFen);
     _shownFen = fen;
@@ -131,7 +191,8 @@ class _PlayPageState extends State<PlayPage> {
         !_wasOver &&
         record != null &&
         record.moves.length >= 2) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _offerReview(record));
+      _pendingReview = record;
+      _scheduleReview();
     }
     _wasOver = _game.isOver;
     if (mounted) setState(() {});
@@ -139,7 +200,16 @@ class _PlayPageState extends State<PlayPage> {
 
   /// When a game ends: what would the player like to go through with the coach?
   Future<void> _offerReview(GameRecord record) async {
-    if (!mounted) return;
+    if (!mounted ||
+        _reviewOpen ||
+        PictureInPicture.active.value ||
+        !TickerMode.valuesOf(context).enabled ||
+        !(ModalRoute.of(context)?.isCurrent ?? true))
+      return;
+    if (_pendingReview?.id != record.id || _game.lastRecord?.id != record.id)
+      return;
+    _pendingReview = null;
+    _reviewOpen = true;
     final coach = SettingsScope.read(context).coachName;
     final focus = await showDialog<ReviewFocus>(
       context: context,
@@ -215,6 +285,7 @@ class _PlayPageState extends State<PlayPage> {
         );
       },
     );
+    _reviewOpen = false;
     if (focus != null && mounted)
       await openReview(context, record, focus: focus);
   }
@@ -223,6 +294,61 @@ class _PlayPageState extends State<PlayPage> {
     if (move is NormalMove) {
       _game.hintsEnabled = SettingsScope.read(context).trainingHints;
       unawaited(_game.playerMove(move));
+    }
+  }
+
+  Future<void> _moreActions() async {
+    final action = await showDialog<String>(
+      context: context,
+      builder: (context) => ContentDialog(
+        title: const Text('Game options'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Button(
+                onPressed: () => Navigator.pop(context, 'flip'),
+                child: const Text('Flip board'),
+              ),
+              if (defaultTargetPlatform == TargetPlatform.android) ...[
+                const SizedBox(height: 8),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, 'pip'),
+                  child: const Text('PiP coach'),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Tap the floating window to reveal Hint, Play hint and Undo. Expand it to move pieces yourself.',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ],
+              const SizedBox(height: 8),
+              Button(
+                onPressed: _game.isOver || _game.moves.isEmpty
+                    ? null
+                    : () => Navigator.pop(context, 'resign'),
+                child: const Text('Resign'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          Button(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    switch (action) {
+      case 'flip':
+        setState(() => _flipped = !_flipped);
+      case 'pip':
+        await _enterPictureInPicture();
+      case 'resign':
+        _game.resign();
     }
   }
 
@@ -418,12 +544,15 @@ class _PlayPageState extends State<PlayPage> {
     final whiteBar = PlayerBar(
       name: g.twoPlayers
           ? 'White'
-          : (isWhitePlayer ? (s.playerName.isEmpty ? 'You' : s.playerName) : s.coachName),
-      detail: g.twoPlayers ? 'Player 1' : (isWhitePlayer ? 'White' : '~${g.coachElo}'),
+          : (isWhitePlayer
+                ? (s.playerName.isEmpty ? 'You' : s.playerName)
+                : s.coachName),
+      detail: g.twoPlayers
+          ? 'Player 1'
+          : (isWhitePlayer ? 'White' : '~${g.coachElo}'),
       icon: g.twoPlayers
           ? FluentIcons.contact
           : (isWhitePlayer ? FluentIcons.contact : FluentIcons.robot),
-      badge: g.twoPlayers ? null : (isWhitePlayer ? 'YOU' : 'COACH'),
       active: !g.isOver && g.position.turn == Side.white,
       capturedPieces: mat.whiteCaptured,
       advantage: mat.whiteAdvantage,
@@ -431,12 +560,15 @@ class _PlayPageState extends State<PlayPage> {
     final blackBar = PlayerBar(
       name: g.twoPlayers
           ? 'Black'
-          : (isBlackPlayer ? (s.playerName.isEmpty ? 'You' : s.playerName) : s.coachName),
-      detail: g.twoPlayers ? 'Player 2' : (isBlackPlayer ? 'Black' : '~${g.coachElo}'),
+          : (isBlackPlayer
+                ? (s.playerName.isEmpty ? 'You' : s.playerName)
+                : s.coachName),
+      detail: g.twoPlayers
+          ? 'Player 2'
+          : (isBlackPlayer ? 'Black' : '~${g.coachElo}'),
       icon: g.twoPlayers
           ? FluentIcons.contact
           : (isBlackPlayer ? FluentIcons.contact : FluentIcons.robot),
-      badge: g.twoPlayers ? null : (isBlackPlayer ? 'YOU' : 'COACH'),
       active: !g.isOver && g.position.turn == Side.black,
       capturedPieces: mat.blackCaptured,
       advantage: mat.blackAdvantage,
@@ -444,11 +576,9 @@ class _PlayPageState extends State<PlayPage> {
     final whiteAtBottom = orientation == Side.white;
     final training = g.mode == PlayMode.training;
     final eval = g.evaluation;
-    final latestCoachMessage = g.chat.isEmpty ? null : g.chat.last.text;
-    final compactMessage = g.twoPlayers
-        ? '${g.position.turn == Side.white ? 'White' : 'Black'} to move'
-              '${latestCoachMessage == null ? '' : ' · $latestCoachMessage'}'
-        : latestCoachMessage;
+    final compactMessage = g.hintThinking
+        ? 'Finding a helpful move…'
+        : g.currentGuidance;
 
     final panel = SurfaceCard(
       padding: const EdgeInsets.all(16),
@@ -540,46 +670,47 @@ class _PlayPageState extends State<PlayPage> {
       ),
     );
 
-    final actions = Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        for (final a in [
-          _Action(
-            icon: FluentIcons.add,
-            label: 'New',
-            onPressed: _newGameDialog,
-          ),
-          _Action(
-            icon: FluentIcons.undo,
-            label: 'Undo',
-            onPressed: g.canUndo ? g.undo : null,
-          ),
-          _Action(
-            icon: FluentIcons.lightbulb,
-            label: 'Hint',
-            onPressed: (training || g.twoPlayers) && g.playerToMove
-                ? g.hint
-                : null,
-          ),
-          _Action(
-            icon: FluentIcons.sync,
-            label: 'Flip',
-            onPressed: () => setState(() => _flipped = !_flipped),
-          ),
-          _Action(
-            icon: FluentIcons.flag,
-            label: 'Resign',
-            onPressed: g.isOver || g.moves.isEmpty ? null : g.resign,
-          ),
-          if (defaultTargetPlatform == TargetPlatform.android)
-            _Action(
-              icon: FluentIcons.open_in_new_window,
-              label: 'PiP',
-              onPressed: _enterPictureInPicture,
-            ),
-        ])
-          Flexible(child: a),
-      ],
+    final actionItems = [
+      _Action(icon: FluentIcons.add, label: 'New', onPressed: _newGameDialog),
+      _Action(
+        icon: FluentIcons.undo,
+        label: 'Undo',
+        onPressed: g.canUndo ? g.undo : null,
+      ),
+      _Action(
+        icon: FluentIcons.lightbulb,
+        label: 'Hint',
+        primary: true,
+        onPressed: g.canHint && !g.hintThinking ? g.hint : null,
+      ),
+      _Action(
+        icon: FluentIcons.redo,
+        label: 'Redo',
+        onPressed: g.canRedo ? g.redo : null,
+      ),
+      _Action(icon: FluentIcons.more, label: 'More', onPressed: _moreActions),
+    ];
+    final actions = LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 290) {
+          return Wrap(
+            runSpacing: 6,
+            children: [
+              for (final a in actionItems)
+                SizedBox(
+                  width: constraints.maxWidth / (a.primary ? 1 : 2),
+                  child: a,
+                ),
+            ],
+          );
+        }
+        return Row(
+          children: [
+            for (final a in actionItems)
+              Expanded(flex: a.primary ? 2 : 1, child: a),
+          ],
+        );
+      },
     );
 
     final shapes = <Shape>{
@@ -600,17 +731,78 @@ class _PlayPageState extends State<PlayPage> {
           : 'Play the coach and learn from every move',
       scroll: false,
       compactOnPhone: true,
+      hidePhoneHeader: true,
       child: BoardLayout(
+        portraitHeader: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (g.twoPlayers)
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Pill('Two players'),
+              )
+            else
+              Segmented<PlayMode>(
+                options: const {
+                  PlayMode.training: 'Training',
+                  PlayMode.real: 'Real game',
+                },
+                value: g.mode,
+                onChanged: g.setMode,
+              ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    g.isOver
+                        ? 'Game finished'
+                        : g.twoPlayers
+                        ? '${g.position.turn == Side.white ? 'White' : 'Black'} to move'
+                        : coachToMove
+                        ? '${s.coachName} is thinking…'
+                        : g.thinking
+                        ? 'Analyzing your move…'
+                        : 'Your move',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: p.text,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Move ${g.position.fullmoves}',
+                  style: TextStyle(color: p.muted, fontSize: 12),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            if (g.sans.isEmpty)
+              Text(
+                'Your moves will appear here',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: p.muted, fontSize: 12),
+              )
+            else
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                reverse: true,
+                child: _MoveList(game: g),
+              ),
+          ],
+        ),
         panelTitle: s.coachName,
         compactMessage: compactMessage,
-        compactHint: (training || g.twoPlayers) && g.playerToMove
-            ? g.hint
-            : null,
+        compactHint: g.canHint && !g.hintThinking ? g.hint : null,
         // The coach's latest message stays visible under the board; tapping it opens the panel.
         peek: g.chat.isEmpty
             ? null
             : PeekBubble(
-                text: compactMessage ?? g.chat.last.text,
+                text: compactMessage,
                 tone: _bubbleTone(g.chat.last.tone),
               ),
         boardLabel: g.twoPlayers
@@ -728,11 +920,13 @@ class _Action extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onPressed,
+    this.primary = false,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback? onPressed;
+  final bool primary;
 
   @override
   Widget build(BuildContext context) {
@@ -745,20 +939,24 @@ class _Action extends StatelessWidget {
           onPressed: onPressed,
           style: ButtonStyle(
             backgroundColor: WidgetStateProperty.resolveWith((states) {
-              if (onPressed == null) return p.glassFillSubtle.withValues(alpha: 0.35);
+              if (onPressed == null)
+                return p.glassFillSubtle.withValues(alpha: 0.35);
+              if (primary) return p.accent;
               if (states.isPressed) return p.accent.withValues(alpha: 0.22);
               if (states.isHovered) return p.accent.withValues(alpha: 0.14);
               return p.glassFillSubtle;
             }),
-            shape: WidgetStateProperty.resolveWith((states) => RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-              side: BorderSide(
-                color: states.isHovered && onPressed != null
-                    ? p.accent.withValues(alpha: 0.35)
-                    : p.glassBorderSubtle,
-                width: 1,
+            shape: WidgetStateProperty.resolveWith(
+              (states) => RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(p.corner(17)),
+                side: BorderSide(
+                  color: (states.isHovered || primary) && onPressed != null
+                      ? p.accent.withValues(alpha: 0.35)
+                      : p.glassBorderSubtle,
+                  width: 1,
+                ),
               ),
-            )),
+            ),
             padding: WidgetStatePropertyAll(
               EdgeInsets.symmetric(
                 horizontal: isMobile(context) ? 5 : 8,
@@ -771,9 +969,11 @@ class _Action extends StatelessWidget {
             children: [
               Icon(
                 icon,
-                size: 16,
+                size: primary ? 20 : 16,
                 color: onPressed == null
                     ? p.muted.withValues(alpha: 0.45)
+                    : primary
+                    ? p.onAccent
                     : p.text,
               ),
               const SizedBox(height: 2),
@@ -781,11 +981,14 @@ class _Action extends StatelessWidget {
                 label,
                 maxLines: 1,
                 softWrap: false,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 11,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: primary ? FontWeight.w800 : FontWeight.w500,
                   color: onPressed == null
                       ? p.muted.withValues(alpha: 0.45)
+                      : primary
+                      ? p.onAccent
                       : p.muted,
                 ),
               ),

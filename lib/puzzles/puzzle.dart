@@ -67,7 +67,10 @@ class PuzzleItem {
   final bool setup;
 
   /// Themes the app has names for, most specific first.
-  List<String> get namedThemes => [for (final t in themes) if (themeNames.containsKey(t)) themeNames[t]!];
+  List<String> get namedThemes => [
+    for (final t in themes)
+      if (themeNames.containsKey(t)) themeNames[t]!,
+  ];
 }
 
 /// The bundled Lichess puzzle set (CC0), indexed by theme.
@@ -91,11 +94,11 @@ class PuzzleBank {
 
   /// Loads `assets/puzzles/puzzles.tsv.gz` once, parsing off the UI thread.
   static Future<PuzzleBank> shared() => _shared ??= () async {
-        final data = await rootBundle.load('assets/puzzles/puzzles.tsv.gz');
-        final bytes = data.buffer.asUint8List();
-        final bank = await Isolate.run(() => fromGzip(bytes));
-        return loaded = bank;
-      }();
+    final data = await rootBundle.load('assets/puzzles/puzzles.tsv.gz');
+    final bytes = data.buffer.asUint8List();
+    final bank = await Isolate.run(() => fromGzip(bytes));
+    return loaded = bank;
+  }();
 
   static PuzzleBank fromGzip(List<int> bytes) {
     final text = utf8.decode(GZipCodec().decode(bytes));
@@ -107,7 +110,12 @@ class PuzzleBank {
 
   /// A puzzle near [rating] (slightly harder on average), optionally of [theme],
   /// skipping ids in [exclude].
-  PuzzleItem? next({required double rating, String? theme, Set<String> exclude = const {}, math.Random? random}) {
+  PuzzleItem? next({
+    required double rating,
+    String? theme,
+    Set<String> exclude = const {},
+    math.Random? random,
+  }) {
     final rnd = random ?? math.Random();
     final pool = theme == null ? puzzles : (byTheme[theme] ?? const []);
     if (pool.isEmpty) return null;
@@ -117,7 +125,8 @@ class PuzzleBank {
         for (final p in pool)
           if (p.rating >= lo && p.rating <= hi && !exclude.contains(p.id)) p,
       ];
-      if (candidates.isNotEmpty) return candidates[rnd.nextInt(candidates.length)];
+      if (candidates.isNotEmpty)
+        return candidates[rnd.nextInt(candidates.length)];
     }
     return pool[rnd.nextInt(pool.length)];
   }
@@ -129,7 +138,13 @@ const puzzleEventType = 'puzzle';
 
 /// Puzzle rating and counters derived from the stored puzzle attempts.
 class PuzzleStats {
-  const PuzzleStats({required this.rating, required this.solved, required this.attempted, required this.streakDays, required this.seen});
+  const PuzzleStats({
+    required this.rating,
+    required this.solved,
+    required this.attempted,
+    required this.streakDays,
+    required this.seen,
+  });
 
   factory PuzzleStats.fromEvents(Iterable<AppEvent> events, {DateTime? today}) {
     var r = Rating.beginner;
@@ -139,7 +154,8 @@ class PuzzleStats {
     for (final e in events.where((e) => e.type == puzzleEventType)) {
       final ok = e.data['solved'] == true;
       final pr = (e.data['puzzleRating'] as num?)?.toDouble();
-      if (e.data['rated'] != false && pr != null) r = glicko2Update(r, pr, 80, ok ? 1 : 0);
+      if (e.data['rated'] != false && pr != null)
+        r = glicko2Update(r, pr, 80, ok ? 1 : 0);
       attempted++;
       if (ok) {
         solved++;
@@ -156,7 +172,13 @@ class PuzzleStats {
       streak++;
       day = day.subtract(const Duration(days: 1));
     }
-    return PuzzleStats(rating: r, solved: solved, attempted: attempted, streakDays: streak, seen: seen);
+    return PuzzleStats(
+      rating: r,
+      solved: solved,
+      attempted: attempted,
+      streakDays: streak,
+      seen: seen,
+    );
   }
 
   final Rating rating;
@@ -170,11 +192,21 @@ class PuzzleStats {
 
 // ------------------------------------------------------------------ session --
 
-enum PuzzleState { opponentMoving, playerToMove, wrongMove, solved, showingSolution }
+enum PuzzleState {
+  opponentMoving,
+  playerToMove,
+  wrongMove,
+  solved,
+  showingSolution,
+}
 
 /// Plays one puzzle: animates the opponent's moves and checks the player's.
 class PuzzleSession extends ChangeNotifier {
-  PuzzleSession(this.puzzle, {this.onResult, this.moveDelay = const Duration(milliseconds: 550)}) {
+  PuzzleSession(
+    this.puzzle, {
+    this.onResult,
+    this.moveDelay = const Duration(milliseconds: 550),
+  }) {
     position = Chess.fromSetup(Setup.parseFen(puzzle.fen));
     playerSide = puzzle.setup ? position.turn.opposite : position.turn;
   }
@@ -192,14 +224,21 @@ class PuzzleSession extends ChangeNotifier {
   PuzzleState state = PuzzleState.opponentMoving;
   bool _reported = false;
   bool _disposed = false;
+  bool _started = false;
+  int _operation = 0;
   Square? hintSquare;
 
-  bool get finished => state == PuzzleState.solved || state == PuzzleState.showingSolution;
+  bool get finished =>
+      state == PuzzleState.solved || state == PuzzleState.showingSolution;
   NormalMove get _expected => NormalMove.fromUci(puzzle.moves[_next]);
 
   Future<void> start() async {
+    if (_disposed || _started) return;
+    _started = true;
+    final operation = ++_operation;
     if (puzzle.setup) {
       await Future<void>.delayed(moveDelay);
+      if (!_isCurrent(operation)) return;
       _play(_expected);
     }
     state = PuzzleState.playerToMove;
@@ -208,7 +247,9 @@ class PuzzleSession extends ChangeNotifier {
 
   /// Returns true if [move] is correct.
   Future<bool> playerMove(NormalMove move) async {
-    if (state != PuzzleState.playerToMove && state != PuzzleState.wrongMove) return false;
+    if (_disposed || !_started || _next >= puzzle.moves.length) return false;
+    if (state != PuzzleState.playerToMove && state != PuzzleState.wrongMove)
+      return false;
     if (!position.isLegal(move)) return false;
     final expected = _expected;
     final after = position.play(move);
@@ -221,6 +262,7 @@ class PuzzleSession extends ChangeNotifier {
       return false;
     }
     hintSquare = null;
+    final operation = ++_operation;
     _play(move);
     if (_next >= puzzle.moves.length || isMate) {
       _report(true);
@@ -231,29 +273,40 @@ class PuzzleSession extends ChangeNotifier {
     state = PuzzleState.opponentMoving;
     _notify();
     await Future<void>.delayed(moveDelay);
-    if (_disposed) return true;
+    if (!_isCurrent(operation)) return true;
     _play(_expected);
-    state = PuzzleState.playerToMove;
+    if (_next >= puzzle.moves.length) {
+      _report(true);
+      state = PuzzleState.solved;
+    } else {
+      state = PuzzleState.playerToMove;
+    }
     _notify();
     return true;
   }
 
   void hint() {
-    if (finished || state == PuzzleState.opponentMoving || _next >= puzzle.moves.length) return;
+    if (_disposed ||
+        finished ||
+        state == PuzzleState.opponentMoving ||
+        _next >= puzzle.moves.length)
+      return;
     hintSquare = _expected.from;
     _notify();
   }
 
   /// Plays out the rest of the solution; counts as not solved.
   Future<void> showSolution() async {
-    if (finished) return;
+    if (_disposed || finished) return;
+    _started = true;
+    final operation = ++_operation;
     _report(false);
     state = PuzzleState.showingSolution;
     hintSquare = null;
     _notify();
-    while (_next < puzzle.moves.length && !_disposed) {
+    while (_next < puzzle.moves.length && _isCurrent(operation)) {
       await Future<void>.delayed(moveDelay);
-      if (_disposed) return;
+      if (!_isCurrent(operation)) return;
       _play(_expected);
       _notify();
     }
@@ -275,9 +328,12 @@ class PuzzleSession extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
+  bool _isCurrent(int operation) => !_disposed && operation == _operation;
+
   @override
   void dispose() {
     _disposed = true;
+    _operation++;
     super.dispose();
   }
 }

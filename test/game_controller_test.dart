@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:chess_coach/coach/coach_player.dart';
 import 'package:chess_coach/engine/chess_engine.dart';
+import 'package:chess_coach/engine/analysis.dart';
 import 'package:chess_coach/engine/engine_host.dart';
 import 'package:chess_coach/engine/uci_process.dart';
 import 'package:chess_coach/data/game_record.dart';
@@ -55,6 +56,51 @@ class FailingSearchUci extends ScriptedEngine {
   }
 }
 
+class PendingAnalysisEngine implements ChessEngine {
+  final requests = <({String fen, Completer<Analysis> result})>[];
+  @override
+  bool isClosed = false;
+
+  @override
+  Future<Analysis> analyse(
+    String fen, {
+    int depth = 14,
+    Duration? movetime,
+    int multiPv = 1,
+    Duration searchTimeout = const Duration(seconds: 60),
+  }) {
+    final result = Completer<Analysis>();
+    requests.add((fen: fen, result: result));
+    return result.future;
+  }
+
+  void finish(int index) {
+    final request = requests[index];
+    final pos = Chess.fromSetup(Setup.parseFen(request.fen));
+    final entry = pos.legalMoves.entries.firstWhere((e) => e.value.isNotEmpty);
+    final move = NormalMove(from: entry.key, to: entry.value.squares.first).uci;
+    request.result.complete(
+      Analysis(
+        fen: request.fen,
+        bestMove: move,
+        lines: [
+          EngineLine(
+            multipv: 1,
+            depth: 12,
+            score: const Score.cp(0),
+            pv: [move],
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Future<void> dispose() async {
+    isClosed = true;
+  }
+}
+
 EngineHost _host([int Function(Position)? score]) => EngineHost(
   starter: () => ChessEngine.start(process: ScriptedEngine(score)),
 );
@@ -74,6 +120,164 @@ Future<void> _untilCoachMoved(GameController g) async {
 }
 
 void main() {
+  test(
+    'a hint waiting for engine startup cannot leak into a new game',
+    () async {
+      final ready = Completer<ChessEngine>();
+      final host = EngineHost(starter: () => ready.future);
+      final engine = PendingAnalysisEngine();
+      final g = GameController(host: host)
+        ..newGame(side: Side.white, elo: 800, twoPlayers: true);
+      final hint = g.hint();
+      g.newGame(side: Side.white, elo: 800, twoPlayers: true);
+      ready.complete(engine);
+      await hint;
+      expect(engine.requests, isEmpty);
+      expect(g.highlight, isNull);
+      expect(g.chat.where((m) => m.text.startsWith('Hint:')), isEmpty);
+      g.dispose();
+      await host.dispose();
+    },
+  );
+
+  for (final action in [
+    'new game',
+    'real mode',
+    'undo',
+    'resign',
+    'move',
+    'dispose',
+  ]) {
+    test('pending hint is cancelled by $action', () async {
+      final engine = PendingAnalysisEngine();
+      final host = EngineHost(starter: () async => engine);
+      final g = GameController(host: host);
+      if (action != 'real mode') {
+        g.newGame(side: Side.white, elo: 800, twoPlayers: true);
+      }
+      if (['undo', 'resign', 'move'].contains(action)) {
+        await g.playerMove(NormalMove.fromUci('e2e4'));
+      }
+      final hint = g.hint();
+      await Future<void>.delayed(Duration.zero);
+      expect(engine.requests, hasLength(1));
+      switch (action) {
+        case 'new game':
+          g.newGame(side: Side.white, elo: 800, twoPlayers: true);
+        case 'real mode':
+          g.setMode(PlayMode.real);
+        case 'undo':
+          g.undo();
+        case 'resign':
+          g.resign();
+        case 'move':
+          await g.playerMove(NormalMove.fromUci('e7e5'));
+        case 'dispose':
+          g.dispose();
+      }
+      engine.finish(0);
+      await hint;
+      expect(g.highlight, isNull);
+      expect(g.arrow, isNull);
+      expect(g.chat.where((m) => m.text.startsWith('Hint:')), isEmpty);
+      if (action == 'real mode') {
+        await g.hint();
+        expect(
+          engine.requests,
+          hasLength(1),
+          reason: 'Real game does not allow hints',
+        );
+      }
+      if (action != 'dispose') g.dispose();
+      await host.dispose();
+    });
+  }
+
+  test(
+    'rapid hint taps share one request without skipping the first hint level',
+    () async {
+      final engine = PendingAnalysisEngine();
+      final host = EngineHost(starter: () async => engine);
+      final g = GameController(host: host)
+        ..newGame(side: Side.white, elo: 800, twoPlayers: true);
+      final first = g.hint();
+      final second = g.hint();
+      final third = g.hint();
+      await Future<void>.delayed(Duration.zero);
+      expect(engine.requests, hasLength(1));
+      engine.finish(0);
+      await Future.wait([first, second, third]);
+      expect(g.chat.where((m) => m.text.startsWith('Hint:')), hasLength(1));
+      expect(g.highlight, isNotNull);
+      expect(g.arrow, isNull);
+      await g.hint();
+      expect(g.arrow, isNotNull);
+      expect(
+        engine.requests,
+        hasLength(1),
+        reason: 'the completed analysis is reused',
+      );
+      g.dispose();
+      await host.dispose();
+    },
+  );
+
+  test(
+    'current Coach guidance clears a previous-turn hint but preserves chat',
+    () async {
+      final g = GameController(host: _offline)
+        ..newGame(side: Side.white, elo: 800, twoPlayers: true);
+      await g.playerMove(NormalMove.fromUci('e2e4'));
+      await g.hint();
+      final oldHint = g.currentGuidance;
+      expect(oldHint, startsWith('Hint: Black:'));
+      await g.playerMove(NormalMove.fromUci('e7e5'));
+      expect(g.currentGuidance, startsWith('White to move.'));
+      expect(g.currentGuidance, isNot(oldHint));
+      expect(g.chat.any((m) => m.text == oldHint), isTrue);
+      g.dispose();
+    },
+  );
+
+  test(
+    'failed engine startup cannot append stale move feedback to a new game',
+    () async {
+      final ready = Completer<ChessEngine>();
+      final host = EngineHost(starter: () => ready.future);
+      final g = GameController(host: host)..newGame(side: Side.white, elo: 800);
+      final move = g.playerMove(NormalMove.fromUci('e2e4'));
+      g.newGame(side: Side.white, elo: 800, twoPlayers: true);
+      final welcome = g.chat.single.text;
+      ready.completeError(StateError('startup failed'));
+      await move;
+      expect(g.chat.map((m) => m.text), [welcome]);
+      expect(g.moves, isEmpty);
+      expect(g.grades, isEmpty);
+      g.dispose();
+      await host.dispose();
+    },
+  );
+
+  test(
+    'stale move analysis stops before requesting the next position',
+    () async {
+      final engine = PendingAnalysisEngine();
+      final host = EngineHost(starter: () async => engine);
+      final g = GameController(host: host);
+      final move = g.playerMove(NormalMove.fromUci('e2e4'));
+      await Future<void>.delayed(Duration.zero);
+      expect(engine.requests, hasLength(1));
+      g.newGame(side: Side.white, elo: 800, twoPlayers: true);
+      engine.finish(0);
+      await move;
+      expect(engine.requests, hasLength(1));
+      expect(g.grades, isEmpty);
+      expect(g.chat, hasLength(1));
+      g.dispose();
+      await host.dispose();
+    },
+  );
+
   test(
     'without an engine the coach still replies and gives rule-based tips',
     () async {
@@ -330,34 +534,46 @@ void main() {
       );
     });
 
-    test('undo takes back first move even if playerSide was Black in two-player mode', () async {
-      final g = GameController(host: _offline)
-        ..newGame(side: Side.black, elo: 800, twoPlayers: true);
-      expect(g.canUndo, isFalse);
-      await g.playerMove(NormalMove.fromUci('e2e4'));
-      expect(g.canUndo, isTrue);
-      g.undo();
-      expect(g.moves, isEmpty);
-      expect(g.position.turn, Side.white);
-    });
+    test(
+      'undo takes back first move even if playerSide was Black in two-player mode',
+      () async {
+        final g = GameController(host: _offline)
+          ..newGame(side: Side.black, elo: 800, twoPlayers: true);
+        expect(g.canUndo, isFalse);
+        await g.playerMove(NormalMove.fromUci('e2e4'));
+        expect(g.canUndo, isTrue);
+        g.undo();
+        expect(g.moves, isEmpty);
+        expect(g.position.turn, Side.white);
+      },
+    );
 
-    test('threefold repetition is detected and ends game in draw with announcement', () async {
-      final g = GameController(host: _offline)
-        ..newGame(side: Side.white, elo: 800, twoPlayers: true);
+    test(
+      'threefold repetition is detected and ends game in draw with announcement',
+      () async {
+        final g = GameController(host: _offline)
+          ..newGame(side: Side.white, elo: 800, twoPlayers: true);
 
-      final repetitionMoves = [
-        'g1f3', 'g8f6', 'f3g1', 'f6g8',
-        'g1f3', 'g8f6', 'f3g1', 'f6g8',
-      ];
-      for (final m in repetitionMoves) {
-        expect(g.isOver, isFalse);
-        await g.playerMove(NormalMove.fromUci(m));
-      }
+        final repetitionMoves = [
+          'g1f3',
+          'g8f6',
+          'f3g1',
+          'f6g8',
+          'g1f3',
+          'g8f6',
+          'f3g1',
+          'f6g8',
+        ];
+        for (final m in repetitionMoves) {
+          expect(g.isOver, isFalse);
+          await g.playerMove(NormalMove.fromUci(m));
+        }
 
-      expect(g.isThreefoldRepetition, isTrue);
-      expect(g.isOver, isTrue);
-      expect(g.chat.last.text, 'Threefold repetition: the game is a draw.');
-    });
+        expect(g.isThreefoldRepetition, isTrue);
+        expect(g.isOver, isTrue);
+        expect(g.chat.last.text, 'Threefold repetition: the game is a draw.');
+      },
+    );
 
     test('undo does not crash when positions has fewer than 2 elements', () {
       final g = GameController(host: _offline)

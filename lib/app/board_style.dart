@@ -21,10 +21,16 @@ const Map<String, BoardChoice> boardChoices = {
   'maple2': (label: 'Maple 2', scheme: ChessboardColorScheme.maple2),
   'leather': (label: 'Leather', scheme: ChessboardColorScheme.leather),
   'marble': (label: 'Marble', scheme: ChessboardColorScheme.marble),
-  'blueMarble': (label: 'Blue marble', scheme: ChessboardColorScheme.blueMarble),
+  'blueMarble': (
+    label: 'Blue marble',
+    scheme: ChessboardColorScheme.blueMarble,
+  ),
   'metal': (label: 'Metal', scheme: ChessboardColorScheme.metal),
   'green': (label: 'Green', scheme: ChessboardColorScheme.green),
-  'greenPlastic': (label: 'Green plastic', scheme: ChessboardColorScheme.greenPlastic),
+  'greenPlastic': (
+    label: 'Green plastic',
+    scheme: ChessboardColorScheme.greenPlastic,
+  ),
   'olive': (label: 'Olive', scheme: ChessboardColorScheme.olive),
   'blue': (label: 'Blue', scheme: ChessboardColorScheme.blue),
   'blue2': (label: 'Blue 2', scheme: ChessboardColorScheme.blue2),
@@ -33,7 +39,10 @@ const Map<String, BoardChoice> boardChoices = {
   'ic': (label: 'Light blue', scheme: ChessboardColorScheme.ic),
   'canvas': (label: 'Canvas', scheme: ChessboardColorScheme.canvas),
   'purple': (label: 'Purple', scheme: ChessboardColorScheme.purple),
-  'purpleDiag': (label: 'Purple stripes', scheme: ChessboardColorScheme.purpleDiag),
+  'purpleDiag': (
+    label: 'Purple stripes',
+    scheme: ChessboardColorScheme.purpleDiag,
+  ),
   'pinkPyramid': (label: 'Pink', scheme: ChessboardColorScheme.pinkPyramid),
   'newspaper': (label: 'Newspaper', scheme: ChessboardColorScheme.newspaper),
   'horsey': (label: 'Horsey', scheme: ChessboardColorScheme.horsey),
@@ -54,16 +63,19 @@ const studioStyles = <String, String>{
 };
 
 PieceAssets _studio(String style) => {
-      for (final kind in PieceKind.values)
-        kind: AssetImage('assets/pieces/$style/${kind.side == Side.white ? 'w' : 'b'}'
-            '${kind.role.letter.toUpperCase()}.webp'),
-    };
+  for (final kind in PieceKind.values)
+    kind: AssetImage(
+      'assets/pieces/$style/${kind.side == Side.white ? 'w' : 'b'}'
+      '${kind.role.letter.toUpperCase()}.webp',
+    ),
+};
 
 /// Every piece set: the 3D sets first, then the 2D sets that come with the board library.
 final Map<String, PieceChoice> pieceChoices = {
   for (final MapEntry(key: style, value: label) in studioStyles.entries)
     'studio-$style': (label: label, assets: _studio(style), studio: true),
-  for (final set in PieceSet.values) set.name: (label: set.label, assets: set.assets, studio: false),
+  for (final set in PieceSet.values)
+    set.name: (label: set.label, assets: set.assets, studio: false),
 };
 
 /// Board colours and piece set: the player's picks, or the theme's defaults.
@@ -79,10 +91,22 @@ class BoardStyle {
   /// Each theme's defaults: the classic well-defined 2D pieces (like chess.com and Lichess),
   /// on the theme's board colours.
   static BoardStyle forTheme(AppTheme theme) => switch (theme) {
-        AppTheme.light => BoardStyle(ChessboardColorScheme.blue, pieceChoices[PieceSet.cburnett.name]!.assets),
-        AppTheme.dark => BoardStyle(ChessboardColorScheme.blue2, pieceChoices[PieceSet.cburnett.name]!.assets),
-        AppTheme.wooden => BoardStyle(ChessboardColorScheme.wood4, pieceChoices[PieceSet.cburnett.name]!.assets),
-      };
+    AppTheme.light => BoardStyle(
+      ChessboardColorScheme.green,
+      pieceChoices[PieceSet.cburnett.name]!.assets,
+    ),
+    AppTheme.dark => BoardStyle(
+      ChessboardColorScheme.green,
+      pieceChoices[PieceSet.cburnett.name]!.assets,
+    ),
+    AppTheme.midnight => BoardStyle(ChessboardColorScheme.blue, pieceChoices[PieceSet.cburnett.name]!.assets),
+    AppTheme.amethyst => BoardStyle(ChessboardColorScheme.purple, pieceChoices[PieceSet.cburnett.name]!.assets),
+    AppTheme.sand => BoardStyle(ChessboardColorScheme.brown, pieceChoices[PieceSet.cburnett.name]!.assets),
+    AppTheme.wooden => BoardStyle(
+      ChessboardColorScheme.wood4,
+      pieceChoices[PieceSet.cburnett.name]!.assets,
+    ),
+  };
 
   /// The style for [settings]: chosen board and pieces win over the theme's defaults.
   static BoardStyle of(AppSettings settings) {
@@ -93,24 +117,34 @@ class BoardStyle {
     );
   }
 
-  StaticChessboardSettings staticSettings({required bool coordinates}) => StaticChessboardSettings(
+  StaticChessboardSettings staticSettings({required bool coordinates}) =>
+      StaticChessboardSettings(
         colorScheme: colors,
         pieceAssets: pieces,
         enableCoordinates: coordinates,
-        borderRadius: const BorderRadius.all(Radius.circular(10)),
+        borderRadius: const BorderRadius.all(Radius.circular(8)),
         boxShadow: const [
-          BoxShadow(color: Color(0x40000000), blurRadius: 24, offset: Offset(0, 10)),
+          BoxShadow(
+            color: Color(0x40000000),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
         ],
       );
 
-  ChessboardSettings settings({required bool coordinates}) => ChessboardSettings(
+  ChessboardSettings settings({required bool coordinates}) =>
+      ChessboardSettings(
         colorScheme: colors,
         pieceAssets: pieces,
         enableCoordinates: coordinates,
-        borderRadius: const BorderRadius.all(Radius.circular(10)),
+        borderRadius: const BorderRadius.all(Radius.circular(8)),
         boxShadow: const [
-          BoxShadow(color: Color(0x40000000), blurRadius: 24, offset: Offset(0, 10)),
+          BoxShadow(
+            color: Color(0x40000000),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
         ],
-        animationDuration: const Duration(milliseconds: 220),
+        animationDuration: const Duration(milliseconds: 160),
       );
 }

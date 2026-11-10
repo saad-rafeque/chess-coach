@@ -19,13 +19,32 @@ import '../widgets/common.dart';
 enum PuzzleMode { rated, themes, mistakes }
 
 const _themeChoices = [
-  'mateIn1', 'mateIn2', 'fork', 'pin', 'skewer', 'hangingPiece', 'discoveredAttack', 'backRankMate',
-  'trappedPiece', 'sacrifice', 'promotion', 'endgame', 'opening', 'defensiveMove',
+  'mateIn1',
+  'mateIn2',
+  'fork',
+  'pin',
+  'skewer',
+  'hangingPiece',
+  'discoveredAttack',
+  'backRankMate',
+  'trappedPiece',
+  'sacrifice',
+  'promotion',
+  'endgame',
+  'opening',
+  'defensiveMove',
 ];
 
 /// Opens a short puzzle drill (from a training session). Returns how many puzzles were tried.
-Future<int?> openPuzzleDrill(BuildContext context, {required int goal, String? theme}) => Navigator.of(context)
-    .push<int>(FluentPageRoute(builder: (_) => PuzzlesPage(goal: goal, theme: theme)));
+Future<int?> openPuzzleDrill(
+  BuildContext context, {
+  required int goal,
+  String? theme,
+}) => Navigator.of(context).push<int>(
+  FluentPageRoute(
+    builder: (_) => PuzzlesPage(goal: goal, theme: theme),
+  ),
+);
 
 class PuzzlesPage extends StatefulWidget {
   const PuzzlesPage({super.key, this.bank, this.goal, this.theme});
@@ -78,7 +97,8 @@ class _PuzzlesPageState extends State<PuzzlesPage> {
       setState(() => _bank = bank);
       _nextPuzzle();
     } catch (e) {
-      if (mounted) setState(() => _loadError = 'Puzzles could not be loaded ($e).');
+      if (mounted)
+        setState(() => _loadError = 'Puzzles could not be loaded ($e).');
     }
   }
 
@@ -90,19 +110,22 @@ class _PuzzlesPageState extends State<PuzzlesPage> {
   }
 
   GameData _emptyGame() => GameData(
-        fen: Chess.initial.fen,
-        playerSide: PlayerSide.none,
-        sideToMove: Side.white,
-        validMoves: const {},
-      );
+    fen: Chess.initial.fen,
+    playerSide: PlayerSide.none,
+    sideToMove: Side.white,
+    validMoves: const {},
+  );
 
   GameData _gameData(PuzzleSession s) {
     final pos = s.position;
-    final canMove = s.state == PuzzleState.playerToMove || s.state == PuzzleState.wrongMove;
+    final canMove =
+        s.state == PuzzleState.playerToMove || s.state == PuzzleState.wrongMove;
     return GameData(
       fen: pos.fen,
       lastMove: s.lastMove,
-      playerSide: canMove ? (s.playerSide == Side.white ? PlayerSide.white : PlayerSide.black) : PlayerSide.none,
+      playerSide: canMove
+          ? (s.playerSide == Side.white ? PlayerSide.white : PlayerSide.black)
+          : PlayerSide.none,
       sideToMove: pos.turn,
       validMoves: canMove ? makeLegalMoves(pos) : const {},
       kingSquareInCheck: pos.isCheck ? pos.board.kingOf(pos.turn) : null,
@@ -138,12 +161,16 @@ class _PuzzlesPageState extends State<PuzzlesPage> {
         _puzzleSound(BoardSoundKind.victory);
       case PuzzleState.opponentMoving:
         // The player's move was correct.
-        _puzzleSound(s.position.isCheck ? BoardSoundKind.check : BoardSoundKind.move,
-            buzz: s.position.isCheck ? BuzzKind.alarm : BuzzKind.tap);
+        _puzzleSound(
+          s.position.isCheck ? BoardSoundKind.check : BoardSoundKind.move,
+          buzz: s.position.isCheck ? BuzzKind.alarm : BuzzKind.tap,
+        );
       case PuzzleState.playerToMove:
         // The opponent's reply (the setup move or the answer to the player's move).
         if (last == PuzzleState.opponentMoving) {
-          _puzzleSound(s.position.isCheck ? BoardSoundKind.check : BoardSoundKind.move);
+          _puzzleSound(
+            s.position.isCheck ? BoardSoundKind.check : BoardSoundKind.move,
+          );
         }
       case PuzzleState.wrongMove || PuzzleState.showingSolution:
         break;
@@ -185,19 +212,26 @@ class _PuzzlesPageState extends State<PuzzlesPage> {
       setState(() {});
       return;
     }
-    final session = PuzzleSession(next, onResult: (p, solved) {
-      if (mounted) setState(() => _tried++);
-      store.add(puzzleEventType, {
-        'id': p.id,
-        'solved': solved,
-        'puzzleRating': p.rating,
-        'themes': p.themes,
-        'rated': p.setup,
-      });
-    });
+    final session = PuzzleSession(
+      next,
+      onResult: (p, solved) {
+        if (mounted) setState(() => _tried++);
+        store.add(puzzleEventType, {
+          'id': p.id,
+          'solved': solved,
+          'puzzleRating': p.rating,
+          'themes': p.themes,
+          'rated': p.setup,
+        });
+      },
+    );
     _session = session..addListener(_onSession);
     _shownFen = session.position.fen;
-    _board.updatePosition(_gameData(session), animate: false, resetPremove: true);
+    _board.updatePosition(
+      _gameData(session),
+      animate: false,
+      resetPremove: true,
+    );
     setState(() {});
     unawaited(session.start());
   }
@@ -205,9 +239,12 @@ class _PuzzlesPageState extends State<PuzzlesPage> {
   void _onMove(Move move, {bool? viaDragAndDrop}) {
     final s = _session;
     if (s == null || move is! NormalMove) return;
-    unawaited(s.playerMove(move).then((ok) {
-      if (!ok && mounted) _board.updatePosition(_gameData(s), animate: false);
-    }));
+    unawaited(
+      s.playerMove(move).then((ok) {
+        if (!ok && mounted && identical(s, _session))
+          _board.updatePosition(_gameData(s), animate: false);
+      }),
+    );
   }
 
   void _setMode(PuzzleMode m) {
@@ -223,26 +260,97 @@ class _PuzzlesPageState extends State<PuzzlesPage> {
     final stats = PuzzleStats.fromEvents(store.events);
     final style = BoardStyle.of(s);
     final session = _session;
+    final canHint =
+        session != null &&
+        !session.finished &&
+        session.state != PuzzleState.opponentMoving;
     final peekLine = session == null ? null : _peekLine(session);
     final mistakesCount = _bank == null ? 0 : mistakePuzzles(store).length;
 
-    final ratingPill = Pill('Rating ${stats.rating.rating.round()}', color: p.accent);
-    final drillTitle = widget.theme == null ? 'Puzzles' : '${themeNames[widget.theme] ?? 'Themed'} puzzles';
+    final ratingPill = Pill(
+      'Rating ${stats.rating.rating.round()}',
+      color: p.accent,
+    );
+    final drillTitle = widget.theme == null
+        ? 'Puzzles'
+        : '${themeNames[widget.theme] ?? 'Themed'} puzzles';
     final page = PageFrame(
       title: _drill ? drillTitle : 'Puzzles',
       subtitle: _drill
           ? '${_tried.clamp(0, widget.goal!)} of ${widget.goal} done'
-          : (isMobile(context) ? null : 'Sharpen your tactics, a few minutes at a time'),
+          : (isMobile(context)
+                ? null
+                : 'Sharpen your tactics, a few minutes at a time'),
       leading: _drill
           ? PageBackButton(onPressed: () => Navigator.of(context).pop(_tried))
           : null,
       trailing: ratingPill,
       scroll: false,
       compactOnPhone: true,
+      hidePhoneHeader: true,
       child: BoardLayout(
+        portraitHeader: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                if (_drill)
+                  PageBackButton(
+                    onPressed: () => Navigator.of(context).pop(_tried),
+                  ),
+                Expanded(
+                  child: Text(
+                    _drill ? drillTitle : 'Puzzles',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: p.text,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ratingPill,
+              ],
+            ),
+            const SizedBox(height: 10),
+            if (_drill)
+              Text(
+                '${_tried.clamp(0, widget.goal!)} of ${widget.goal} done',
+                style: TextStyle(color: p.muted, fontSize: 13),
+              )
+            else
+              Segmented<PuzzleMode>(
+                options: const {
+                  PuzzleMode.rated: 'Rated',
+                  PuzzleMode.themes: 'Themes',
+                  PuzzleMode.mistakes: 'Mistakes',
+                },
+                value: _mode,
+                onChanged: _setMode,
+              ),
+          ],
+        ),
         panelTitle: 'Puzzle details',
+        compactMessage:
+            _loadError ??
+            peekLine?.$1 ??
+            (_bank == null
+                ? 'Loading puzzles…'
+                : _mode == PuzzleMode.mistakes
+                ? 'Play and review a game to build your mistake puzzles.'
+                : 'No puzzle found for this choice.'),
+        compactHint: canHint
+            ? session.hint
+            : session?.finished == true
+            ? _nextPuzzle
+            : null,
+        compactActionLabel: session?.finished == true ? 'Next' : 'Hint',
         // The puzzle's status stays visible under the board; tapping it opens the details.
-        peek: peekLine == null ? null : PeekBubble(text: peekLine.$1, tone: peekLine.$2),
+        peek: peekLine == null
+            ? null
+            : PeekBubble(text: peekLine.$1, tone: peekLine.$2),
         boardLabel: session == null
             ? 'Puzzle board'
             : 'Puzzle. ${session.playerSide == Side.white ? 'White' : 'Black'} to move.',
@@ -254,7 +362,9 @@ class _PuzzlesPageState extends State<PuzzlesPage> {
                 name: session.playerSide == Side.white ? 'White' : 'Black',
                 detail: 'Puzzle ${session.puzzle.rating}',
                 icon: FluentIcons.puzzle,
-                active: session.state == PuzzleState.playerToMove || session.state == PuzzleState.wrongMove,
+                active:
+                    session.state == PuzzleState.playerToMove ||
+                    session.state == PuzzleState.wrongMove,
               ),
         board: (size) => CheckPulse(
           size: size,
@@ -269,77 +379,124 @@ class _PuzzlesPageState extends State<PuzzlesPage> {
             orientation: session?.playerSide ?? Side.white,
             onMove: _onMove,
             shapes: {
-              if (session?.hintSquare != null) Circle(color: p.accent.withValues(alpha: 0.9), orig: session!.hintSquare!),
+              if (session?.hintSquare != null)
+                Circle(
+                  color: p.accent.withValues(alpha: 0.9),
+                  orig: session!.hintSquare!,
+                ),
             },
           ),
         ),
         panel: SurfaceCard(
           padding: const EdgeInsets.all(16),
-          child: ListView(children: [
-            if (_drill) ...[
-              Meter(_tried / widget.goal!),
-              if (_drillDone) ...[
+          child: ListView(
+            children: [
+              if (_drill) ...[
+                Meter(_tried / widget.goal!),
+                if (!_drillDone)
+                  Button(
+                    onPressed: () => Navigator.of(context).pop(_tried),
+                    child: const Text('Back to session'),
+                  ),
+                if (_drillDone) ...[
+                  const SizedBox(height: 12),
+                  const CoachBubble(
+                    text:
+                        'Drill complete! Go back to your session, or keep solving.',
+                    tone: BubbleTone.good,
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.of(context).pop(_tried),
+                    child: const Text('Back to session'),
+                  ),
+                ],
+              ] else
+                Segmented<PuzzleMode>(
+                  options: {
+                    PuzzleMode.rated: 'Rated',
+                    PuzzleMode.themes: 'Themes',
+                    PuzzleMode.mistakes:
+                        'Mistakes${mistakesCount > 0 ? ' ($mistakesCount)' : ''}',
+                  },
+                  value: _mode,
+                  onChanged: _setMode,
+                ),
+              if (_mode == PuzzleMode.themes && !_drill) ...[
                 const SizedBox(height: 12),
-                const CoachBubble(text: 'Drill complete! Go back to your session, or keep solving.', tone: BubbleTone.good),
-                FilledButton(onPressed: () => Navigator.of(context).pop(_tried), child: const Text('Back to session')),
+                ComboBox<String>(
+                  value: _theme,
+                  isExpanded: true,
+                  items: [
+                    for (final t in _themeChoices)
+                      ComboBoxItem(value: t, child: Text(themeNames[t]!)),
+                  ],
+                  onChanged: (t) {
+                    if (t == null) return;
+                    setState(() => _theme = t);
+                    _nextPuzzle();
+                  },
+                ),
               ],
-            ] else
-              Segmented<PuzzleMode>(
-                options: {
-                  PuzzleMode.rated: 'Rated',
-                  PuzzleMode.themes: 'Themes',
-                  PuzzleMode.mistakes: 'Mistakes${mistakesCount > 0 ? ' ($mistakesCount)' : ''}',
-                },
-                value: _mode,
-                onChanged: _setMode,
-              ),
-            if (_mode == PuzzleMode.themes && !_drill) ...[
-              const SizedBox(height: 12),
-              ComboBox<String>(
-                value: _theme,
-                isExpanded: true,
-                items: [for (final t in _themeChoices) ComboBoxItem(value: t, child: Text(themeNames[t]!))],
-                onChanged: (t) {
-                  if (t == null) return;
-                  setState(() => _theme = t);
-                  _nextPuzzle();
-                },
+              const SizedBox(height: 16),
+              ..._status(p, session, stats),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _MiniStat(
+                      label: 'Rating',
+                      value: '${stats.rating.rating.round()}',
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _MiniStat(label: 'Solved', value: '${stats.solved}'),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _MiniStat(
+                      label: 'Streak',
+                      value: '${stats.streakDays} d',
+                    ),
+                  ),
+                ],
               ),
             ],
-            const SizedBox(height: 16),
-            ..._status(p, session, stats),
-            const SizedBox(height: 16),
-            Row(children: [
-              Expanded(child: _MiniStat(label: 'Rating', value: '${stats.rating.rating.round()}')),
-              const SizedBox(width: 8),
-              Expanded(child: _MiniStat(label: 'Solved', value: '${stats.solved}')),
-              const SizedBox(width: 8),
-              Expanded(child: _MiniStat(label: 'Streak', value: '${stats.streakDays} d')),
-            ]),
-          ]),
+          ),
         ),
-        actions: Wrap(alignment: WrapAlignment.center, spacing: 8, runSpacing: 8, children: [
-          Button(
-            onPressed: session == null || session.finished ? null : session.hint,
-            child: const Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(FluentIcons.lightbulb, size: 14),
-              SizedBox(width: 6),
-              Text('Hint'),
-            ]),
-          ),
-          Button(
-            onPressed: session == null || session.finished ? null : session.showSolution,
-            child: const Text('Solution'),
-          ),
-          FilledButton(
-            onPressed: _bank == null ? null : _nextPuzzle,
-            child: const Row(mainAxisSize: MainAxisSize.min, children: [
-              Text('Next puzzle'),
-              SizedBox(width: 6),
-              Icon(FluentIcons.chevron_right, size: 12),
-            ]),
-          ),
-        ]),
+        actions: Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            FilledButton(
+              onPressed: canHint ? session.hint : null,
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(FluentIcons.lightbulb, size: 18),
+                  SizedBox(width: 6),
+                  Text('Hint', style: TextStyle(fontWeight: FontWeight.w700)),
+                ],
+              ),
+            ),
+            Button(
+              onPressed: canHint ? session.showSolution : null,
+              child: const Text('Solution'),
+            ),
+            Button(
+              onPressed: _bank == null ? null : _nextPuzzle,
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Next puzzle'),
+                  SizedBox(width: 6),
+                  Icon(FluentIcons.chevron_right, size: 12),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
     if (!_drill) return page;
@@ -355,29 +512,48 @@ class _PuzzlesPageState extends State<PuzzlesPage> {
   /// The current puzzle state as one short line for the strip under the board.
   (String, BubbleTone)? _peekLine(PuzzleSession s) {
     final side = s.playerSide == Side.white ? 'White' : 'Black';
+    final hintSquare = s.hintSquare;
+    if (hintSquare != null && !s.finished) {
+      final piece = s.position.board.pieceAt(hintSquare);
+      return (
+        'Hint: look at your ${piece?.role.name ?? 'piece'} on ${hintSquare.name}.',
+        BubbleTone.info,
+      );
+    }
     return switch (s.state) {
-      PuzzleState.opponentMoving => ('Watch your opponent\'s move…', BubbleTone.move),
+      PuzzleState.opponentMoving => (
+        'Watch your opponent\'s move…',
+        BubbleTone.move,
+      ),
       PuzzleState.playerToMove => (
-          s.puzzle.setup
-              ? 'Your turn: find the best move for $side.'
-              : 'Find the best move for $side.',
-          BubbleTone.info
-        ),
-      PuzzleState.wrongMove => ('Not the best move. Look for checks, captures and threats.', BubbleTone.warning),
+        s.puzzle.setup
+            ? 'Your turn: find the best move for $side.'
+            : 'Find the best move for $side.',
+        BubbleTone.info,
+      ),
+      PuzzleState.wrongMove => (
+        'Not the best move. Look for checks, captures and threats.',
+        BubbleTone.warning,
+      ),
       PuzzleState.solved => ('Solved!', BubbleTone.good),
       PuzzleState.showingSolution => ('Here is the solution.', BubbleTone.move),
     };
   }
 
   List<Widget> _status(Palette p, PuzzleSession? session, PuzzleStats stats) {
-    if (_loadError != null) return [CoachBubble(text: _loadError!, tone: BubbleTone.warning)];
+    if (_loadError != null)
+      return [CoachBubble(text: _loadError!, tone: BubbleTone.warning)];
     if (_bank == null) {
       return [
-        Row(children: [
-          Icon(FluentIcons.puzzle, size: 16, color: p.muted),
-          const SizedBox(width: 10),
-          Expanded(child: Text('Loading puzzles…', style: TextStyle(color: p.muted))),
-        ]),
+        Row(
+          children: [
+            Icon(FluentIcons.puzzle, size: 16, color: p.muted),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text('Loading puzzles…', style: TextStyle(color: p.muted)),
+            ),
+          ],
+        ),
       ];
     }
     if (session == null) {
@@ -396,22 +572,37 @@ class _PuzzlesPageState extends State<PuzzlesPage> {
         ? ' (${change > 0 ? '+' : ''}${change.round()} rating)'
         : '';
     final (text, tone) = switch (session.state) {
-      PuzzleState.opponentMoving => ('Watch your opponent\'s move…', BubbleTone.move),
+      PuzzleState.opponentMoving => (
+        'Watch your opponent\'s move…',
+        BubbleTone.move,
+      ),
       PuzzleState.playerToMove => (
-          session.puzzle.setup ? 'Your turn: find the best move for $side.' : 'You went wrong here in a game. Find the best move for $side.',
-          BubbleTone.info
-        ),
-      PuzzleState.wrongMove => ('Not the best move. Look for checks, captures and threats, then try again.', BubbleTone.warning),
+        session.puzzle.setup
+            ? 'Your turn: find the best move for $side.'
+            : 'You went wrong here in a game. Find the best move for $side.',
+        BubbleTone.info,
+      ),
+      PuzzleState.wrongMove => (
+        'Not the best move. Look for checks, captures and threats, then try again.',
+        BubbleTone.warning,
+      ),
       PuzzleState.solved => ('Solved!$changeText', BubbleTone.good),
-      PuzzleState.showingSolution => ('Here is the solution.$changeText', BubbleTone.move),
+      PuzzleState.showingSolution => (
+        'Here is the solution.$changeText',
+        BubbleTone.move,
+      ),
     };
     return [
       CoachBubble(text: text, tone: tone),
       if (session.finished && session.puzzle.namedThemes.isNotEmpty) ...[
         const SizedBox(height: 8),
-        Wrap(spacing: 8, runSpacing: 8, children: [
-          for (final t in session.puzzle.namedThemes.take(3)) Pill(t),
-        ]),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final t in session.puzzle.namedThemes.take(3)) Pill(t),
+          ],
+        ),
       ],
     ];
   }
@@ -428,11 +619,23 @@ class _MiniStat extends StatelessWidget {
     final p = Palette.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
-      decoration: BoxDecoration(color: p.surfaceAlt, borderRadius: BorderRadius.circular(10)),
-      child: Column(children: [
-        Text(value, style: TextStyle(color: p.text, fontSize: 18, fontWeight: FontWeight.w700)),
-        Text(label, style: TextStyle(color: p.muted, fontSize: 11)),
-      ]),
+      decoration: BoxDecoration(
+        color: p.surfaceAlt,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              color: p.text,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          Text(label, style: TextStyle(color: p.muted, fontSize: 11)),
+        ],
+      ),
     );
   }
 }

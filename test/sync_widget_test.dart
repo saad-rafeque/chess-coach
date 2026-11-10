@@ -7,7 +7,9 @@ import 'package:chess_coach/sync/drive.dart';
 import 'package:chess_coach/sync/google_auth.dart';
 import 'package:chess_coach/sync/sync_service.dart';
 import 'package:chess_coach/sync/token_store.dart';
-import 'package:fluent_ui/fluent_ui.dart' show Size;
+import 'package:fluent_ui/fluent_ui.dart';
+import 'package:chess_coach/app/theme.dart';
+import 'package:chess_coach/widgets/sync_settings.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Drive app folder in memory, shared by several "devices".
@@ -29,6 +31,15 @@ class _MemoryFolder implements SyncFolder {
       if (n == name) return RemoteFile(id, null);
     }
     return null;
+  }
+
+  @override
+  Future<List<RemoteFile>> findAll(String name) async {
+    await _check();
+    return [
+      for (final entry in files.entries)
+        if (entry.value.$1 == name) RemoteFile(entry.key, null),
+    ];
   }
 
   @override
@@ -63,8 +74,10 @@ class _FakeAuth extends GoogleAuth {
   bool expired = false;
 
   @override
-  Future<String> signIn(Future<bool> Function(Uri url) openBrowser, {Duration timeout = const Duration(minutes: 5)}) async =>
-      'refresh-token';
+  Future<String> signIn(
+    Future<bool> Function(Uri url) openBrowser, {
+    Duration timeout = const Duration(minutes: 5),
+  }) async => 'refresh-token';
 
   @override
   Future<String> accessToken(String refreshToken) async {
@@ -76,18 +89,85 @@ class _FakeAuth extends GoogleAuth {
   Future<void> revoke(String token) async {}
 }
 
-SyncService _device(EventStore store, AppSettings settings, _MemoryFolder folder, {_FakeAuth? auth}) => SyncService(
-      store: store,
-      settings: settings,
-      config: const OAuthConfig(clientId: 'id', clientSecret: 's'),
-      auth: auth ?? _FakeAuth(),
-      folder: (token) => folder..token = token,
-      openBrowser: (_) async => true,
-      tokens: MemoryTokenStore(),
-      retryDelays: const [Duration(milliseconds: 10)],
-    );
+SyncService _device(
+  EventStore store,
+  AppSettings settings,
+  _MemoryFolder folder, {
+  _FakeAuth? auth,
+}) => SyncService(
+  store: store,
+  settings: settings,
+  config: const OAuthConfig(clientId: 'id', clientSecret: 's'),
+  auth: auth ?? _FakeAuth(),
+  folder: (token) => folder..token = token,
+  openBrowser: (_) async => true,
+  tokens: MemoryTokenStore(),
+  retryDelays: const [Duration(milliseconds: 10)],
+);
 
 void main() {
+  testWidgets(
+    'unconfigured build explains sync instead of a dead Connect button',
+    (tester) async {
+      tester.view.physicalSize = const Size(240, 380);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final sync = SyncService(
+        store: EventStore.memory(),
+        settings: AppSettings.memory(),
+        config: const OAuthConfig(clientId: '', clientSecret: ''),
+      );
+      addTearDown(sync.dispose);
+      await tester.pumpWidget(
+        FluentApp(
+          theme: buildFluentTheme(Palette.dark),
+          home: SyncScope(
+            sync: sync,
+            child: const SingleChildScrollView(child: SyncSettings()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Connect'), findsNothing);
+      await tester.tap(find.text('About connecting'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Google Drive is unavailable in this build'),
+        findsOneWidget,
+      );
+      expect(find.text('View releases'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('connected sync actions fit a narrow window with large text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(240, 380);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final store = EventStore.memory(), settings = AppSettings.memory();
+    final sync = _device(store, settings, _MemoryFolder());
+    addTearDown(sync.dispose);
+    await tester.runAsync(sync.connect);
+    await tester.pumpWidget(
+      FluentApp(
+        theme: buildFluentTheme(Palette.dark),
+        home: MediaQuery(
+          data: const MediaQueryData(textScaler: TextScaler.linear(1.5)),
+          child: SyncScope(
+            sync: sync,
+            child: const SingleChildScrollView(child: SyncSettings()),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('Sync now'), findsOneWidget);
+    expect(find.text('Disconnect'), findsOneWidget);
+  });
+
   testWidgets('Home has a sync button once connected', (tester) async {
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1;
@@ -96,7 +176,9 @@ void main() {
     final store = EventStore.memory(), settings = AppSettings.memory();
     final sync = _device(store, settings, folder);
     await tester.runAsync(sync.connect);
-    await tester.pumpWidget(ChessCoachApp(settings: settings, store: store, sync: sync));
+    await tester.pumpWidget(
+      ChessCoachApp(settings: settings, store: store, sync: sync),
+    );
     await tester.pumpAndSettle();
     expect(find.text('Synced just now'), findsOneWidget);
     final writes = folder.writes;

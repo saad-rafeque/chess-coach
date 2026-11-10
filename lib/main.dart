@@ -45,9 +45,20 @@ Future<void> main() async {
   final sync = SyncService(store: store, settings: settings)..start();
   // New versions: looked for a little after start and when the app comes back (at most every few hours).
   final updater = Updater();
-  WidgetsBinding.instance.addPostFrameCallback((_) => Timer(const Duration(seconds: 6), updater.check));
+  WidgetsBinding.instance.addPostFrameCallback(
+    (_) => Timer(const Duration(seconds: 6), updater.check),
+  );
   AppLifecycleListener(onResume: updater.check);
-  runApp(ChessCoachApp(settings: settings, engine: engine, store: store, voice: voice, sync: sync, updater: updater));
+  runApp(
+    ChessCoachApp(
+      settings: settings,
+      engine: engine,
+      store: store,
+      voice: voice,
+      sync: sync,
+      updater: updater,
+    ),
+  );
   unawaited(integrateAppImage());
   unawaited(RefreshRate.apply(settings.refreshRate));
 }
@@ -84,7 +95,9 @@ class ChessCoachApp extends StatelessWidget {
   /// Overrides the platform font (used by the screenshot tests).
   final String? fontFamily;
 
-  static final _offline = EngineHost(starter: () => Future.error(UnsupportedError('Engine disabled')));
+  static final _offline = EngineHost(
+    starter: () => Future.error(UnsupportedError('Engine disabled')),
+  );
   static final _memory = EventStore.memory();
   static final _silent = CoachVoice.off();
   static final _noUpdates = Updater(kind: InstallKind.other);
@@ -111,13 +124,18 @@ class ChessCoachApp extends StatelessWidget {
                 child: ListenableBuilder(
                   listenable: settings,
                   builder: (context, _) {
-                    final palette = Palette.forTheme(settings.theme);
+                    final palette = Palette.forTheme(
+                      settings.theme,
+                    ).withStyle(settings.interfaceStyle);
                     return PaletteScope(
                       palette: palette,
                       child: FluentApp(
                         title: 'Chess Coach',
                         debugShowCheckedModeBanner: false,
-                        theme: buildFluentTheme(palette, fontFamily: fontFamily),
+                        theme: buildFluentTheme(
+                          palette,
+                          fontFamily: fontFamily,
+                        ),
                         home: const AppHome(),
                       ),
                     );

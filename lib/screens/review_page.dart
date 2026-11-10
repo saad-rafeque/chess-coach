@@ -20,16 +20,23 @@ import '../widgets/board_layout.dart';
 import '../widgets/common.dart';
 
 /// Opens the review of [game]; with [focus], the coach goes through those moves step by step.
-Future<void> openReview(BuildContext context, GameRecord game, {ReviewFocus? focus}) =>
-    Navigator.of(context).push(FluentPageRoute(builder: (_) => ReviewPage(game: game, focus: focus)));
+Future<void> openReview(
+  BuildContext context,
+  GameRecord game, {
+  ReviewFocus? focus,
+}) => Navigator.of(context).push(
+  FluentPageRoute(
+    builder: (_) => ReviewPage(game: game, focus: focus),
+  ),
+);
 
 Color qualityColor(Palette p, MoveQuality q) => switch (q) {
-      MoveQuality.best => p.success,
-      MoveQuality.good => p.accent,
-      MoveQuality.inaccuracy => p.warning,
-      MoveQuality.mistake => const Color(0xFFF97316),
-      MoveQuality.blunder => p.danger,
-    };
+  MoveQuality.best => p.success,
+  MoveQuality.good => p.accent,
+  MoveQuality.inaccuracy => p.warning,
+  MoveQuality.mistake => const Color(0xFFF97316),
+  MoveQuality.blunder => p.danger,
+};
 
 class ReviewPage extends StatefulWidget {
   const ReviewPage({super.key, required this.game, this.focus});
@@ -49,6 +56,7 @@ class _ReviewPageState extends State<ReviewPage> {
   GameReview? _review;
   (int, int)? _progress;
   String? _error;
+  bool _loading = false;
   int _ply = 0;
   bool _showBetter = false;
   final _focus = FocusNode();
@@ -80,30 +88,61 @@ class _ReviewPageState extends State<ReviewPage> {
   }
 
   Future<void> _load() async {
-    final store = StoreScope.read(context);
-    final saved = store
-        .ofType(GameAnalysis.eventType)
-        .where((e) => e.data['game'] == widget.game.id)
-        .lastOrNull;
-    if (saved != null) {
-      setState(() => _review = buildReview(widget.game, GameAnalysis.fromData(saved.data)));
-      if (widget.focus != null) _startGuide(widget.focus!);
-      return;
-    }
-    final engine = await EngineScope.of(context).engine;
-    if (!mounted) return;
-    if (engine == null) {
-      setState(() => _error = 'Game review needs Stockfish, which isn\'t available on this device.');
-      return;
-    }
-    setState(() => _progress = (0, _positions.length));
-    final analysis = await analyseGame(engine, widget.game, onProgress: (done, total) {
-      if (mounted) setState(() => _progress = (done, total));
+    if (_loading || !mounted) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+      _progress = null;
     });
-    await store.add(GameAnalysis.eventType, analysis.toData(widget.game.id));
-    if (!mounted) return;
-    setState(() => _review = buildReview(widget.game, analysis));
-    if (widget.focus != null) _startGuide(widget.focus!);
+    final store = StoreScope.read(context);
+    try {
+      final saved = store
+          .ofType(GameAnalysis.eventType)
+          .where((e) => e.data['game'] == widget.game.id)
+          .lastOrNull;
+      if (saved != null) {
+        final cached = GameAnalysis.fromData(saved.data);
+        // A synced or damaged analysis may cover fewer positions than the game.
+        // Only present complete accuracy figures; rebuild incomplete reviews.
+        if (cached.scores.length >= _positions.length &&
+            cached.best.length >= _positions.length) {
+          setState(() => _review = buildReview(widget.game, cached));
+          if (widget.focus != null) _startGuide(widget.focus!);
+          return;
+        }
+      }
+      final engine = await EngineScope.of(context).engine;
+      if (!mounted) return;
+      if (engine == null) {
+        setState(
+          () => _error =
+              'Game review needs Stockfish, which isn\'t available on this device.',
+        );
+        return;
+      }
+      setState(() => _progress = (0, _positions.length));
+      final analysis = await analyseGame(
+        engine,
+        widget.game,
+        onProgress: (done, total) {
+          if (mounted) setState(() => _progress = (done, total));
+        },
+      );
+      await store.add(GameAnalysis.eventType, analysis.toData(widget.game.id));
+      if (!mounted) return;
+      setState(() => _review = buildReview(widget.game, analysis));
+      if (widget.focus != null) _startGuide(widget.focus!);
+    } catch (error) {
+      debugPrint('Game review failed: $error');
+      if (mounted) {
+        setState(
+          () => _error =
+              'Could not finish this review. Your game is saved. Try again.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   void _go(int ply) {
@@ -157,11 +196,15 @@ class _ReviewPageState extends State<ReviewPage> {
   /// lines from the engine when it's there.
   Future<void> _loadLines(ReviewedMove m) async {
     if (_lines.containsKey(m.ply)) return;
-    final reply = m.ply + 1 < _review!.moves.length ? _review!.moves[m.ply + 1].bestUci : null;
-    setState(() => _lines[m.ply] = (
-          better: [if (m.bestUci != null) m.bestUci!],
-          allows: [m.uci, if (reply != null) reply],
-        ));
+    final reply = m.ply + 1 < _review!.moves.length
+        ? _review!.moves[m.ply + 1].bestUci
+        : null;
+    setState(
+      () => _lines[m.ply] = (
+        better: [if (m.bestUci != null) m.bestUci!],
+        allows: [m.uci, if (reply != null) reply],
+      ),
+    );
     final engine = await EngineScope.of(context).engine;
     if (engine == null || !mounted) return;
     try {
@@ -170,10 +213,16 @@ class _ReviewPageState extends State<ReviewPage> {
       if (!mounted) return;
       final better = before.lines.firstOrNull?.pv ?? const <String>[];
       final allows = after.lines.firstOrNull?.pv ?? const <String>[];
-      setState(() => _lines[m.ply] = (
-            better: better.isEmpty ? _lines[m.ply]!.better : better.take(6).toList(),
-            allows: allows.isEmpty ? _lines[m.ply]!.allows : [m.uci, ...allows.take(5)],
-          ));
+      setState(
+        () => _lines[m.ply] = (
+          better: better.isEmpty
+              ? _lines[m.ply]!.better
+              : better.take(6).toList(),
+          allows: allows.isEmpty
+              ? _lines[m.ply]!.allows
+              : [m.uci, ...allows.take(5)],
+        ),
+      );
     } catch (_) {
       // The short lines from the saved review stay.
     }
@@ -195,7 +244,13 @@ class _ReviewPageState extends State<ReviewPage> {
     _playTimer = Timer.periodic(const Duration(milliseconds: 900), (t) {
       final pb = _playback;
       if (!mounted || pb == null) return t.cancel();
-      setState(() => _playback = (positions: pb.positions, moves: pb.moves, index: pb.index + 1));
+      setState(
+        () => _playback = (
+          positions: pb.positions,
+          moves: pb.moves,
+          index: pb.index + 1,
+        ),
+      );
       if (pb.index + 1 >= pb.moves.length) t.cancel();
     });
   }
@@ -206,7 +261,12 @@ class _ReviewPageState extends State<ReviewPage> {
     if (_playback != null && mounted) setState(() => _playback = null);
   }
 
-  ReviewedMove? get _current => _review == null || _ply == 0 ? null : _review!.moves[_ply - 1];
+  ReviewedMove? _reviewedMove(int ply) {
+    final moves = _review?.moves;
+    return moves == null || ply < 0 || ply >= moves.length ? null : moves[ply];
+  }
+
+  ReviewedMove? get _current => _reviewedMove(_ply - 1);
 
   @override
   Widget build(BuildContext context) {
@@ -216,19 +276,28 @@ class _ReviewPageState extends State<ReviewPage> {
     final game = widget.game;
     final cur = _current;
     final pb = _playback;
-    final showBetter = pb == null && _showBetter && cur != null && cur.bestUci != null;
-    final boardPos = pb != null ? pb.positions[pb.index] : (showBetter ? _positions[_ply - 1] : _positions[_ply]);
+    final showBetter =
+        pb == null && _showBetter && cur != null && cur.bestUci != null;
+    final boardPos = pb != null
+        ? pb.positions[pb.index]
+        : (showBetter ? _positions[_ply - 1] : _positions[_ply]);
     final shapes = <Shape>{
       if (showBetter) ...{
         if (Move.parse(cur.uci) case final NormalMove played)
           Arrow(
-            color: (cur.quality.isError ? p.danger : p.accent).withValues(alpha: 0.75),
+            color: (cur.quality.isError ? p.danger : p.accent).withValues(
+              alpha: 0.75,
+            ),
             orig: played.from,
             dest: played.to,
           ),
         if (cur.bestUci != cur.uci)
           if (Move.parse(cur.bestUci!) case final NormalMove best)
-            Arrow(color: p.success.withValues(alpha: 0.85), orig: best.from, dest: best.to),
+            Arrow(
+              color: p.success.withValues(alpha: 0.85),
+              orig: best.from,
+              dest: best.to,
+            ),
       },
     };
     final lastMove = pb != null
@@ -236,9 +305,9 @@ class _ReviewPageState extends State<ReviewPage> {
         : (!showBetter && _ply > 0 ? Move.parse(game.moves[_ply - 1]) : null);
     final phone = isMobile(context);
     final guide = _review == null ? null : _guideCard(p);
-    final evalScore = _review == null
-        ? null
-        : (_ply == 0 ? _review!.moves.firstOrNull?.before : _review!.moves[_ply - 1].after);
+    final evalScore = _ply == 0
+        ? _review?.moves.firstOrNull?.before
+        : cur?.after;
 
     final when = '${game.date.day}/${game.date.month}/${game.date.year}';
     return KeyboardListener(
@@ -253,18 +322,22 @@ class _ReviewPageState extends State<ReviewPage> {
       },
       child: PageFrame(
         title: 'Game review',
-        subtitle: '${game.outcomeLabel} by ${game.ending} · You played ${game.playerSide == Side.white ? 'White' : 'Black'} '
+        subtitle:
+            '${game.outcomeLabel} by ${game.ending} · You played ${game.playerSide == Side.white ? 'White' : 'Black'} '
             'vs ${SettingsScope.of(context).coachName} ~${game.coachElo} · $when',
         leading: const PageBackButton(),
         scroll: false,
-      compactOnPhone: true,
+        compactOnPhone: true,
         child: BoardLayout(
-        panelTitle: 'Review',
+          panelTitle: 'Review',
           boardLabel: 'Game review, after ${_ply ~/ 2 + _ply % 2} moves.',
           overBoard: evalScore == null
               ? null
-              : EvalBar(whitePercent: evalScore.whiteWinPercent, label: evalScore.label,
-                  flipped: game.playerSide == Side.black),
+              : EvalBar(
+                  whitePercent: evalScore.whiteWinPercent,
+                  label: evalScore.label,
+                  flipped: game.playerSide == Side.black,
+                ),
           board: (size) => StaticChessboard(
             size: size,
             orientation: game.playerSide,
@@ -274,10 +347,16 @@ class _ReviewPageState extends State<ReviewPage> {
             shapes: shapes,
           ),
           actions: phone && guide != null
-              ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  _navButtons(),
-                  Padding(padding: const EdgeInsets.fromLTRB(12, 10, 12, 0), child: guide),
-                ])
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _navButtons(),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                      child: guide,
+                    ),
+                  ],
+                )
               : _navButtons(),
           panel: _panel(p, phone ? null : guide),
         ),
@@ -294,14 +373,20 @@ class _ReviewPageState extends State<ReviewPage> {
       return _GuideFrame(
         title: 'Go through it with $coach',
         children: [
-          Text('Pick what to look at. $coach shows what you played, what was better, where it leads and '
-              'what to do next time.',
-              style: TextStyle(color: p.muted, fontSize: 13, height: 1.4)),
+          Text(
+            'Pick what to look at. $coach shows what you played, what was better, where it leads and '
+            'what to do next time.',
+            style: TextStyle(color: p.muted, fontSize: 13, height: 1.4),
+          ),
           const SizedBox(height: 10),
           for (final f in ReviewFocus.values)
             Padding(
               padding: const EdgeInsets.only(bottom: 6),
-              child: _FocusButton(focus: f, count: guidedSteps(review, f).length, onPressed: () => _startGuide(f)),
+              child: _FocusButton(
+                focus: f,
+                count: guidedSteps(review, f).length,
+                onPressed: () => _startGuide(f),
+              ),
             ),
         ],
       );
@@ -315,20 +400,33 @@ class _ReviewPageState extends State<ReviewPage> {
         onClose: _closeGuide,
         children: [
           Text(
-            n == 0 ? 'Well played! Nothing to fix here.' : 'You went through $n ${n == 1 ? 'move' : 'moves'}.',
+            n == 0
+                ? 'Well played! Nothing to fix here.'
+                : 'You went through $n ${n == 1 ? 'move' : 'moves'}.',
             style: TextStyle(color: p.text, height: 1.4),
           ),
           if (lesson != null) ...[
             const SizedBox(height: 12),
-            _GuideSection(icon: FluentIcons.lightbulb, title: 'The lesson to keep', color: p.warning, text: lesson),
+            _GuideSection(
+              icon: FluentIcons.lightbulb,
+              title: 'The lesson to keep',
+              color: p.warning,
+              text: lesson,
+            ),
           ],
           const SizedBox(height: 12),
-          Wrap(spacing: 8, runSpacing: 8, children: [
-            if (n > 0) Button(onPressed: () => _stepBy(-1), child: const Text('Back')),
-            for (final f in ReviewFocus.values)
-              if (f != guide) Button(onPressed: () => _startGuide(f), child: Text(f.label)),
-            FilledButton(onPressed: _closeGuide, child: const Text('Done')),
-          ]),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (n > 0)
+                Button(onPressed: () => _stepBy(-1), child: const Text('Back')),
+              for (final f in ReviewFocus.values)
+                if (f != guide)
+                  Button(onPressed: () => _startGuide(f), child: Text(f.label)),
+              FilledButton(onPressed: _closeGuide, child: const Text('Done')),
+            ],
+          ),
         ],
       );
     }
@@ -339,31 +437,52 @@ class _ReviewPageState extends State<ReviewPage> {
     final playing = _playback != null;
     Widget lineRow(String label, List<String>? uci, Position start, int ply) {
       final text = uci == null || uci.isEmpty ? null : sanLine(start, ply, uci);
-      return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Expanded(
-          child: Text(text == null ? label : '$label: $text',
-              style: TextStyle(color: p.muted, fontSize: 13, height: 1.4)),
-        ),
-        if (text != null)
-          Tooltip(
-            message: 'Play it on the board',
-            child: IconButton(
-              icon: Icon(FluentIcons.play, size: 14, color: p.accent, semanticLabel: 'Play $label'),
-              onPressed: () => _play(start, uci!),
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(
+              text == null ? label : '$label: $text',
+              style: TextStyle(color: p.muted, fontSize: 13, height: 1.4),
             ),
           ),
-      ]);
+          if (text != null)
+            Tooltip(
+              message: 'Play it on the board',
+              child: IconButton(
+                icon: Icon(
+                  FluentIcons.play,
+                  size: 14,
+                  color: p.accent,
+                  semanticLabel: 'Play $label',
+                ),
+                onPressed: () => _play(start, uci!),
+              ),
+            ),
+        ],
+      );
     }
 
     return _GuideFrame(
       title: 'Step ${_step + 1} of $n',
       onClose: _closeGuide,
       children: [
-        Wrap(spacing: 10, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
-          Text('Move ${m.ply ~/ 2 + 1}: you played ${m.san}',
-              style: TextStyle(color: p.text, fontSize: 17, fontWeight: FontWeight.w700)),
-          Pill(m.quality.label, color: c),
-        ]),
+        Wrap(
+          spacing: 10,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text(
+              'Move ${m.ply ~/ 2 + 1}: you played ${m.san}',
+              style: TextStyle(
+                color: p.text,
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            Pill(m.quality.label, color: c),
+          ],
+        ),
         const SizedBox(height: 10),
         if (m.quality.isError) ...[
           _GuideSection(
@@ -386,7 +505,12 @@ class _ReviewPageState extends State<ReviewPage> {
             icon: FluentIcons.flow,
             title: 'Where your move leads',
             color: p.danger,
-            child: lineRow('Your move, then the best reply', lines?.allows, before, m.ply),
+            child: lineRow(
+              'Your move, then the best reply',
+              lines?.allows,
+              before,
+              m.ply,
+            ),
           ),
           if (m.errorKind != null) ...[
             const SizedBox(height: 10),
@@ -410,35 +534,54 @@ class _ReviewPageState extends State<ReviewPage> {
           ],
         ],
         const SizedBox(height: 12),
-        Row(children: [
-          if (playing)
-            Button(onPressed: _showStep, child: const Text('Back to the move'))
-          else
-            Button(onPressed: _step == 0 ? null : () => _stepBy(-1), child: const Text('Previous')),
-          const Spacer(),
-          FilledButton(onPressed: () => _stepBy(1), child: Text(_step == n - 1 ? 'Finish' : 'Next')),
-        ]),
+        Row(
+          children: [
+            if (playing)
+              Button(
+                onPressed: _showStep,
+                child: const Text('Back to the move'),
+              )
+            else
+              Button(
+                onPressed: _step == 0 ? null : () => _stepBy(-1),
+                child: const Text('Previous'),
+              ),
+            const Spacer(),
+            FilledButton(
+              onPressed: () => _stepBy(1),
+              child: Text(_step == n - 1 ? 'Finish' : 'Next'),
+            ),
+          ],
+        ),
       ],
     );
   }
 
   Widget _navButtons() {
     Widget b(IconData icon, String tip, int target) => Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 3),
-          child: Tooltip(
-            message: tip,
-            child: Button(
-              onPressed: target == _ply || target < 0 || target >= _positions.length ? null : () => _go(target),
-              child: Padding(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), child: Icon(icon, size: 14)),
-            ),
+      padding: const EdgeInsets.symmetric(horizontal: 3),
+      child: Tooltip(
+        message: tip,
+        child: Button(
+          onPressed: target == _ply || target < 0 || target >= _positions.length
+              ? null
+              : () => _go(target),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Icon(icon, size: 14),
           ),
-        );
-    return Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-      b(FluentIcons.previous, 'Start', 0),
-      b(FluentIcons.chevron_left, 'Previous move', _ply - 1),
-      b(FluentIcons.chevron_right, 'Next move', _ply + 1),
-      b(FluentIcons.next, 'End', _positions.length - 1),
-    ]);
+        ),
+      ),
+    );
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        b(FluentIcons.previous, 'Start', 0),
+        b(FluentIcons.chevron_left, 'Previous move', _ply - 1),
+        b(FluentIcons.chevron_right, 'Next move', _ply + 1),
+        b(FluentIcons.next, 'End', _positions.length - 1),
+      ],
+    );
   }
 
   Widget _panel(Palette p, Widget? guide) {
@@ -446,84 +589,172 @@ class _ReviewPageState extends State<ReviewPage> {
     final game = widget.game;
     final children = <Widget>[];
     if (review == null) {
-      children.add(_error != null
-          ? CoachBubble(text: _error!, tone: BubbleTone.warning)
-          : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Your coach is reviewing the game…', style: TextStyle(color: p.text)),
-              const SizedBox(height: 10),
-              Meter(_progress == null || _progress!.$2 <= 0 ? 0.0 : (_progress!.$1 / _progress!.$2).clamp(0.0, 1.0)),
-              const SizedBox(height: 6),
-              Text(_progress == null ? 'Starting engine' : 'Position ${_progress!.$1} of ${_progress!.$2}',
-                  style: TextStyle(color: p.muted, fontSize: 12)),
-            ]));
+      children.add(
+        _error != null
+            ? CoachBubble(text: _error!, tone: BubbleTone.warning)
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Your coach is reviewing the game…',
+                    style: TextStyle(color: p.text),
+                  ),
+                  const SizedBox(height: 10),
+                  Meter(
+                    _progress == null || _progress!.$2 <= 0
+                        ? 0.0
+                        : (_progress!.$1 / _progress!.$2).clamp(0.0, 1.0),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _progress == null
+                        ? 'Starting engine'
+                        : 'Position ${_progress!.$1} of ${_progress!.$2}',
+                    style: TextStyle(color: p.muted, fontSize: 12),
+                  ),
+                ],
+              ),
+      );
+      if (_error != null) {
+        children.add(
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Button(
+              onPressed: _loading ? null : _load,
+              child: const Text('Retry review'),
+            ),
+          ),
+        );
+      }
     } else {
       final me = game.playerSide;
       children.addAll([
-        Row(children: [
-          Expanded(child: _Stat(label: 'Your accuracy', value: '${review.accuracy(me).round()}%', color: p.accent)),
-          const SizedBox(width: 10),
-          Expanded(
-              child: _Stat(label: 'Coach accuracy', value: '${review.accuracy(me.opposite).round()}%', color: p.muted)),
-        ]),
+        Row(
+          children: [
+            Expanded(
+              child: _Stat(
+                label: 'Your accuracy',
+                value: '${review.accuracy(me).round()}%',
+                color: p.accent,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _Stat(
+                label: 'Coach accuracy',
+                value: '${review.accuracy(me.opposite).round()}%',
+                color: p.muted,
+              ),
+            ),
+          ],
+        ),
         const SizedBox(height: 10),
-        Wrap(spacing: 8, runSpacing: 8, children: [
-          for (final q in [MoveQuality.blunder, MoveQuality.mistake, MoveQuality.inaccuracy])
-            Pill(_plural(review.count(me, q), q), color: qualityColor(p, q)),
-        ]),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final q in [
+              MoveQuality.blunder,
+              MoveQuality.mistake,
+              MoveQuality.inaccuracy,
+            ])
+              Pill(_plural(review.count(me, q), q), color: qualityColor(p, q)),
+          ],
+        ),
         const SizedBox(height: 14),
         if (guide != null) ...[guide, const SizedBox(height: 14)],
       ]);
       final cur = _current;
       if (cur != null && _guide == null) {
-        children.add(_MoveCard(
-          move: cur,
-          showBetter: _showBetter,
-          onToggle: cur.quality.isError ? () => setState(() => _showBetter = !_showBetter) : null,
-        ));
+        children.add(
+          _MoveCard(
+            move: cur,
+            showBetter: _showBetter,
+            onToggle: cur.quality.isError
+                ? () => setState(() => _showBetter = !_showBetter)
+                : null,
+          ),
+        );
         children.add(const SizedBox(height: 14));
       }
       final key = review.keyMoments();
-      children.add(Text('Key moments', style: TextStyle(color: p.text, fontWeight: FontWeight.w600)));
+      children.add(
+        Text(
+          'Key moments',
+          style: TextStyle(color: p.text, fontWeight: FontWeight.w600),
+        ),
+      );
       children.add(const SizedBox(height: 6));
       if (key.isEmpty) {
-        children.add(Text('No big mistakes in this game. Well played!', style: TextStyle(color: p.muted)));
+        children.add(
+          Text(
+            'No big mistakes in this game. Well played!',
+            style: TextStyle(color: p.muted),
+          ),
+        );
       }
       for (final m in key) {
-        children.add(HoverButton(
-          onPressed: () => _go(m.ply + 1),
-          builder: (context, states) => Container(
-            margin: const EdgeInsets.only(bottom: 4),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: states.isHovered || _ply == m.ply + 1 ? p.surfaceAlt : null,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(children: [
-              Container(width: 8, height: 8, decoration: BoxDecoration(color: qualityColor(p, m.quality), shape: BoxShape.circle)),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text('Move ${m.ply ~/ 2 + 1}: ${m.san} (${m.quality.label.toLowerCase()})',
-                    style: TextStyle(color: p.text)),
+        children.add(
+          HoverButton(
+            onPressed: () => _go(m.ply + 1),
+            builder: (context, states) => Container(
+              margin: const EdgeInsets.only(bottom: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: states.isHovered || _ply == m.ply + 1
+                    ? p.surfaceAlt
+                    : null,
+                borderRadius: BorderRadius.circular(8),
               ),
-              Text('Best ${m.bestSan ?? '-'}', style: TextStyle(color: p.muted, fontSize: 12)),
-            ]),
+              child: Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: qualityColor(p, m.quality),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Move ${m.ply ~/ 2 + 1}: ${m.san} (${m.quality.label.toLowerCase()})',
+                      style: TextStyle(color: p.text),
+                    ),
+                  ),
+                  Text(
+                    'Best ${m.bestSan ?? '-'}',
+                    style: TextStyle(color: p.muted, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ));
+        );
       }
     }
     children.addAll([
       const SizedBox(height: 14),
-      Text('Moves', style: TextStyle(color: p.text, fontWeight: FontWeight.w600)),
+      Text(
+        'Moves',
+        style: TextStyle(color: p.text, fontWeight: FontWeight.w600),
+      ),
       const SizedBox(height: 6),
-      Wrap(spacing: 2, runSpacing: 2, children: [
-        for (var i = 0; i < _sans.length; i++) _moveChip(p, i),
-      ]),
+      Wrap(
+        spacing: 2,
+        runSpacing: 2,
+        children: [for (var i = 0; i < _sans.length; i++) _moveChip(p, i)],
+      ),
     ]);
-    return SurfaceCard(padding: const EdgeInsets.all(16), child: ListView(children: children));
+    return SurfaceCard(
+      padding: const EdgeInsets.all(16),
+      child: ListView(children: children),
+    );
   }
 
   Widget _moveChip(Palette p, int i) {
-    final q = _review?.moves[i].quality;
+    final q = _reviewedMove(i)?.quality;
     final selected = _ply == i + 1;
     final color = q != null && q.isError ? qualityColor(p, q) : p.text;
     return HoverButton(
@@ -531,11 +762,19 @@ class _ReviewPageState extends State<ReviewPage> {
       builder: (context, states) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
         decoration: BoxDecoration(
-          color: selected ? p.accent.withValues(alpha: 0.2) : (states.isHovered ? p.surfaceAlt : null),
+          color: selected
+              ? p.accent.withValues(alpha: 0.2)
+              : (states.isHovered ? p.surfaceAlt : null),
           borderRadius: BorderRadius.circular(6),
         ),
-        child: Text('${i.isEven ? '${i ~/ 2 + 1}. ' : ''}${_sans[i]}',
-            style: TextStyle(color: color, fontSize: 13, fontWeight: q != null && q.isError ? FontWeight.w600 : null)),
+        child: Text(
+          '${i.isEven ? '${i ~/ 2 + 1}. ' : ''}${_sans[i]}',
+          style: TextStyle(
+            color: color,
+            fontSize: 13,
+            fontWeight: q != null && q.isError ? FontWeight.w600 : null,
+          ),
+        ),
       ),
     );
   }
@@ -561,17 +800,34 @@ class _Stat extends StatelessWidget {
     final p = Palette.of(context);
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: p.surfaceAlt, borderRadius: BorderRadius.circular(10)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: TextStyle(color: p.muted, fontSize: 12)),
-        Text(value, style: TextStyle(color: color, fontSize: 24, fontWeight: FontWeight.w700)),
-      ]),
+      decoration: BoxDecoration(
+        color: p.surfaceAlt,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: TextStyle(color: p.muted, fontSize: 12)),
+          Text(
+            value,
+            style: TextStyle(
+              color: color,
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
 class _MoveCard extends StatelessWidget {
-  const _MoveCard({required this.move, required this.showBetter, required this.onToggle});
+  const _MoveCard({
+    required this.move,
+    required this.showBetter,
+    required this.onToggle,
+  });
 
   final ReviewedMove move;
   final bool showBetter;
@@ -588,36 +844,64 @@ class _MoveCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: c.withValues(alpha: 0.4)),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Expanded(
-            child: Wrap(spacing: 10, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
-              Text('${move.ply ~/ 2 + 1}${move.mover == Side.white ? '.' : '…'} ${move.san}',
-                  style: TextStyle(color: p.text, fontSize: 18, fontWeight: FontWeight.w700)),
-              Pill(move.quality.label, color: c),
-            ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Wrap(
+                  spacing: 10,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      '${move.ply ~/ 2 + 1}${move.mover == Side.white ? '.' : '…'} ${move.san}',
+                      style: TextStyle(
+                        color: p.text,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Pill(move.quality.label, color: c),
+                  ],
+                ),
+              ),
+              Text(
+                move.after.label,
+                style: TextStyle(color: p.muted, fontSize: 12),
+              ),
+            ],
           ),
-          Text(move.after.label, style: TextStyle(color: p.muted, fontSize: 12)),
-        ]),
-        if (move.explanation != null) ...[
-          const SizedBox(height: 8),
-          FriendlyText(move.explanation!, style: TextStyle(color: p.text, height: 1.4)),
+          if (move.explanation != null) ...[
+            const SizedBox(height: 8),
+            FriendlyText(
+              move.explanation!,
+              style: TextStyle(color: p.text, height: 1.4),
+            ),
+          ],
+          if (onToggle != null) ...[
+            const SizedBox(height: 10),
+            Button(
+              onPressed: onToggle,
+              child: Text(
+                showBetter ? 'Back to the game' : 'Show the better move',
+              ),
+            ),
+          ],
         ],
-        if (onToggle != null) ...[
-          const SizedBox(height: 10),
-          Button(
-            onPressed: onToggle,
-            child: Text(showBetter ? 'Back to the game' : 'Show the better move'),
-          ),
-        ],
-      ]),
+      ),
     );
   }
 }
 
 /// The walkthrough's card.
 class _GuideFrame extends StatelessWidget {
-  const _GuideFrame({required this.title, required this.children, this.onClose});
+  const _GuideFrame({
+    required this.title,
+    required this.children,
+    this.onClose,
+  });
 
   final String title;
   final List<Widget> children;
@@ -633,27 +917,46 @@ class _GuideFrame extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: p.accent.withValues(alpha: 0.35)),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Row(children: [
-          Icon(FluentIcons.education, size: 16, color: p.accent),
-          const SizedBox(width: 8),
-          Expanded(child: Text(title, style: TextStyle(color: p.text, fontWeight: FontWeight.w600))),
-          if (onClose != null)
-            Tooltip(
-              message: 'Close the walkthrough',
-              child: IconButton(icon: const Icon(FluentIcons.chrome_close, size: 11), onPressed: onClose),
-            ),
-        ]),
-        const SizedBox(height: 8),
-        ...children,
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(FluentIcons.education, size: 16, color: p.accent),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(color: p.text, fontWeight: FontWeight.w600),
+                ),
+              ),
+              if (onClose != null)
+                Tooltip(
+                  message: 'Close the walkthrough',
+                  child: IconButton(
+                    icon: const Icon(FluentIcons.chrome_close, size: 11),
+                    onPressed: onClose,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...children,
+        ],
+      ),
     );
   }
 }
 
 /// One part of a step: what happened, the better move, where it leads, next time.
 class _GuideSection extends StatelessWidget {
-  const _GuideSection({required this.icon, required this.title, required this.color, this.text, this.child});
+  const _GuideSection({
+    required this.icon,
+    required this.title,
+    required this.color,
+    this.text,
+    this.child,
+  });
 
   final IconData icon;
   final String title;
@@ -664,24 +967,48 @@ class _GuideSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = Palette.of(context);
-    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Padding(padding: const EdgeInsets.only(top: 2), child: Icon(icon, size: 14, color: color)),
-      const SizedBox(width: 10),
-      Expanded(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: TextStyle(color: p.text, fontWeight: FontWeight.w600, fontSize: 13)),
-          const SizedBox(height: 2),
-          if (text != null) FriendlyText(text!, style: TextStyle(color: p.text, fontSize: 13, height: 1.4)),
-          if (child != null) child!,
-        ]),
-      ),
-    ]);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Icon(icon, size: 14, color: color),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  color: p.text,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 2),
+              if (text != null)
+                FriendlyText(
+                  text!,
+                  style: TextStyle(color: p.text, fontSize: 13, height: 1.4),
+                ),
+              if (child != null) child!,
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }
 
 /// "Blunders · 2": starts the walkthrough of one kind of move.
 class _FocusButton extends StatelessWidget {
-  const _FocusButton({required this.focus, required this.count, required this.onPressed});
+  const _FocusButton({
+    required this.focus,
+    required this.count,
+    required this.onPressed,
+  });
 
   final ReviewFocus focus;
   final int count;
@@ -694,18 +1021,32 @@ class _FocusButton extends StatelessWidget {
       onPressed: onPressed,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-        child: Row(children: [
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(focus.label, style: TextStyle(color: p.text, fontWeight: FontWeight.w600)),
-              Text(focus.detail, style: TextStyle(color: p.muted, fontSize: 12)),
-            ]),
-          ),
-          const SizedBox(width: 8),
-          Pill('$count', color: count == 0 ? p.success : p.accent),
-          const SizedBox(width: 4),
-          Icon(FluentIcons.chevron_right, size: 12, color: p.muted),
-        ]),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    focus.label,
+                    style: TextStyle(
+                      color: p.text,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    focus.detail,
+                    style: TextStyle(color: p.muted, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Pill('$count', color: count == 0 ? p.success : p.accent),
+            const SizedBox(width: 4),
+            Icon(FluentIcons.chevron_right, size: 12, color: p.muted),
+          ],
+        ),
       ),
     );
   }

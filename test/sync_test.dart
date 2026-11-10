@@ -33,6 +33,15 @@ class _MemoryFolder implements SyncFolder {
   }
 
   @override
+  Future<List<RemoteFile>> findAll(String name) async {
+    await _check();
+    return [
+      for (final entry in files.entries)
+        if (entry.value.$1 == name) RemoteFile(entry.key, null),
+    ];
+  }
+
+  @override
   Future<List<int>> read(String id) async {
     await _check();
     final f = files[id];

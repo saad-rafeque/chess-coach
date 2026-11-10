@@ -52,7 +52,9 @@ void main() {
 
     await tester.tap(find.text('Play').last);
     await tester.pumpAndSettle();
-    expect(find.text('Training'), findsOneWidget);
+    await tester.tap(find.text('Coach').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Training').hitTestable(), findsOneWidget);
     expect(find.textContaining('New game!').hitTestable(), findsOneWidget);
 
     // Every page must lay out without overflow on a phone.
@@ -112,16 +114,17 @@ void main() {
           greaterThan(size.height < 200 ? 90 : 250),
         );
         expect(find.text('Coach'), findsWidgets);
-        expect(find.text('Hint'), findsOneWidget);
+        expect(find.text('Hint'), findsWidgets);
         if (size.height < 200) {
           expect(
             find.textContaining('White to move').hitTestable(),
             findsOneWidget,
           );
-          await tester.tap(find.text('Coach').last);
-          await tester.pumpAndSettle();
-          checkStep('open Coach suggestions in PiP-sized window');
-          expect(find.textContaining('suggestion'), findsOneWidget);
+          expect(find.text('Home'), findsNothing);
+          expect(
+            find.byIcon(FluentIcons.home_solid).hitTestable(),
+            findsOneWidget,
+          );
         }
       }
     },
@@ -149,8 +152,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Game review'), findsOneWidget);
     expect(find.text('Your accuracy'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.textContaining('Move 3: Nf6'),
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
     expect(find.textContaining('Move 3: Nf6'), findsOneWidget);
-    await tester.ensureVisible(find.textContaining('Move 3: Nf6'));
     await tester.tap(find.textContaining('Move 3: Nf6'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Show the better move'));
@@ -185,6 +192,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Home').last);
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('15 min'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('15 min'));
       await tester.pumpAndSettle();
       await tester.tap(find.byIcon(FluentIcons.back));
@@ -203,7 +212,9 @@ void main() {
     },
   );
 
-  testWidgets('Meter handles NaN and Infinity without throwing', (tester) async {
+  testWidgets('Meter handles NaN and Infinity without throwing', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       const Directionality(
         textDirection: TextDirection.ltr,

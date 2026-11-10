@@ -8,12 +8,18 @@ import 'package:crypto/crypto.dart';
 /// The Google OAuth client ("Desktop app" type) the owner creates once; passed to builds
 /// with `--dart-define` (see docs/google-drive-sync.md). Empty = sync not set up.
 class OAuthConfig {
-  const OAuthConfig({required this.clientId, required this.clientSecret, this.androidServerClientId = ''});
+  const OAuthConfig({
+    required this.clientId,
+    required this.clientSecret,
+    this.androidServerClientId = '',
+  });
 
   static const fromEnvironment = OAuthConfig(
     clientId: String.fromEnvironment('GOOGLE_OAUTH_CLIENT_ID'),
     clientSecret: String.fromEnvironment('GOOGLE_OAUTH_CLIENT_SECRET'),
-    androidServerClientId: String.fromEnvironment('GOOGLE_ANDROID_SERVER_CLIENT_ID'),
+    androidServerClientId: String.fromEnvironment(
+      'GOOGLE_ANDROID_SERVER_CLIENT_ID',
+    ),
   );
 
   final String clientId;
@@ -45,14 +51,16 @@ class AuthException implements Exception {
 
 /// PKCE code verifier: 64 random URL-safe characters.
 String newCodeVerifier([math.Random? random]) {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+  const chars =
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
   final r = random ?? math.Random.secure();
   return List.generate(64, (_) => chars[r.nextInt(chars.length)]).join();
 }
 
 /// PKCE S256 challenge for [verifier].
-String codeChallenge(String verifier) =>
-    base64Url.encode(sha256.convert(ascii.encode(verifier)).bytes).replaceAll('=', '');
+String codeChallenge(String verifier) => base64Url
+    .encode(sha256.convert(ascii.encode(verifier)).bytes)
+    .replaceAll('=', '');
 
 /// Google sign-in for installed apps: the system browser signs in and Google redirects
 /// to a one-shot server on 127.0.0.1 (loopback flow with PKCE). Works the same on
@@ -73,31 +81,46 @@ class GoogleAuth {
   final String revokeEndpoint;
 
   String? _access;
+  String? _accessCredential;
+  int _generation = 0;
   DateTime _expires = DateTime.fromMillisecondsSinceEpoch(0);
   HttpServer? _server;
 
   /// Opens Google sign-in with [openBrowser] and waits for the answer.
   /// Returns the refresh token to store.
-  Future<String> signIn(Future<bool> Function(Uri url) openBrowser,
-      {Duration timeout = const Duration(minutes: 5)}) async {
-    await cancelSignIn();
-    final server = _server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+  Future<String> signIn(
+    Future<bool> Function(Uri url) openBrowser, {
+    Duration timeout = const Duration(minutes: 5),
+  }) async {
+    final generation = ++_generation;
+    _clear();
+    final previous = _server;
+    _server = null;
+    await previous?.close(force: true);
+    _checkCurrent(generation);
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     try {
+      _checkCurrent(generation);
+      _server = server;
       final redirect = 'http://127.0.0.1:${server.port}';
       final verifier = newCodeVerifier();
       final state = newCodeVerifier().substring(0, 24);
-      final url = Uri.parse(authEndpoint).replace(queryParameters: {
-        'client_id': config.clientId,
-        'redirect_uri': redirect,
-        'response_type': 'code',
-        'scope': driveAppDataScope,
-        'code_challenge': codeChallenge(verifier),
-        'code_challenge_method': 'S256',
-        'state': state,
-        'access_type': 'offline',
-        'prompt': 'consent',
-      });
-      if (!await openBrowser(url)) throw const AuthException('Could not open the browser.');
+      final url = Uri.parse(authEndpoint).replace(
+        queryParameters: {
+          'client_id': config.clientId,
+          'redirect_uri': redirect,
+          'response_type': 'code',
+          'scope': driveAppDataScope,
+          'code_challenge': codeChallenge(verifier),
+          'code_challenge_method': 'S256',
+          'state': state,
+          'access_type': 'offline',
+          'prompt': 'consent',
+        },
+      );
+      if (!await openBrowser(url))
+        throw const AuthException('Could not open the browser.');
+      _checkCurrent(generation);
       String? code;
       await for (final req in server.timeout(timeout)) {
         final q = req.uri.queryParameters;
@@ -105,7 +128,9 @@ class GoogleAuth {
         // Only Google's redirect for this sign-in counts (it carries our random state). Anything
         // else, such as a favicon request or another program or web page poking the port, is
         // turned away and we keep waiting, so it can neither slip in its own code nor cancel.
-        if (req.method != 'GET' || req.uri.path != '/' || q['state'] != state ||
+        if (req.method != 'GET' ||
+            req.uri.path != '/' ||
+            q['state'] != state ||
             !(q.containsKey('code') || q.containsKey('error'))) {
           req.response.statusCode = HttpStatus.badRequest;
           await req.response.close();
@@ -115,11 +140,19 @@ class GoogleAuth {
         req.response
           ..statusCode = HttpStatus.ok
           ..headers.contentType = ContentType.html
-          ..write('<!doctype html><html><body style="font-family:sans-serif;text-align:center;padding-top:60px">'
-              '<h2>${ok ? 'Signed in' : 'Sign-in cancelled'}</h2>'
-              '<p>You can close this tab and go back to Chess Coach.</p></body></html>');
+          ..write(
+            '<!doctype html><html><body style="font-family:sans-serif;text-align:center;padding-top:60px">'
+            '<h2>${ok ? 'Signed in' : 'Sign-in cancelled'}</h2>'
+            '<p>You can close this tab and go back to Chess Coach.</p></body></html>',
+          );
         await req.response.close();
-        if (!ok) throw AuthException(q['error'] == 'access_denied' ? 'Sign-in was cancelled.' : 'Sign-in failed.');
+        _checkCurrent(generation);
+        if (!ok)
+          throw AuthException(
+            q['error'] == 'access_denied'
+                ? 'Sign-in was cancelled.'
+                : 'Sign-in failed.',
+          );
         code = q['code'];
         break;
       }
@@ -132,17 +165,22 @@ class GoogleAuth {
         'grant_type': 'authorization_code',
         'code_verifier': verifier,
       });
-      _remember(tokens);
+      _checkCurrent(generation);
       // Google lets people untick the Drive box on the consent page; sync can't work without it.
       final scope = tokens['scope'];
       if (scope is String && !scope.split(' ').contains(driveAppDataScope)) {
-        throw const AuthException('Chess Coach needs access to its own Google Drive folder. Connect again and '
-            'tick the box for it.');
+        throw const AuthException(
+          'Chess Coach needs access to its own Google Drive folder. Connect again and '
+          'tick the box for it.',
+        );
       }
       final refresh = tokens['refresh_token'];
       if (refresh is! String || refresh.isEmpty) {
-        throw const AuthException('Google did not allow offline access. Try again.');
+        throw const AuthException(
+          'Google did not allow offline access. Try again.',
+        );
       }
+      _remember(tokens, refresh);
       return refresh;
     } on TimeoutException {
       throw const AuthException('Sign-in took too long. Try again.');
@@ -154,49 +192,83 @@ class GoogleAuth {
 
   /// Stops waiting for a sign-in started with [signIn].
   Future<void> cancelSignIn() async {
-    await _server?.close(force: true);
+    ++_generation;
+    _clear();
+    final server = _server;
     _server = null;
+    await server?.close(force: true);
   }
 
   /// A valid access token, refreshed with [refreshToken] when needed.
   Future<String> accessToken(String refreshToken) async {
-    if (_access != null && DateTime.now().isBefore(_expires)) return _access!;
+    if (_access != null &&
+        _accessCredential == refreshToken &&
+        DateTime.now().isBefore(_expires))
+      return _access!;
+    final generation = _generation;
     final tokens = await _post(tokenEndpoint, {
       'refresh_token': refreshToken,
       'client_id': config.clientId,
       'client_secret': config.clientSecret,
       'grant_type': 'refresh_token',
     });
-    _remember(tokens);
+    _checkCurrent(generation);
+    _remember(tokens, refreshToken);
     return _access!;
   }
 
   /// Signs out on Google's side too (best effort).
   Future<void> revoke(String token) async {
-    _access = null;
+    ++_generation;
+    _clear();
     try {
       await _post(revokeEndpoint, {'token': token});
     } catch (_) {}
   }
 
-  void _remember(Map<String, dynamic> tokens) {
+  void _checkCurrent(int generation) {
+    if (generation != _generation)
+      throw const AuthException('Sign-in was cancelled.');
+  }
+
+  void _clear() {
+    _access = null;
+    _accessCredential = null;
+  }
+
+  void _remember(Map<String, dynamic> tokens, String credential) {
     final access = tokens['access_token'];
-    if (access is! String || access.isEmpty) throw const AuthException('Google sent no access token.');
+    if (access is! String || access.isEmpty)
+      throw const AuthException('Google sent no access token.');
     _access = access;
-    final seconds = (tokens['expires_in'] is num ? (tokens['expires_in'] as num).toInt() : 3600).clamp(60, 86400);
+    _accessCredential = credential;
+    final seconds =
+        (tokens['expires_in'] is num
+                ? (tokens['expires_in'] as num).toInt()
+                : 3600)
+            .clamp(60, 86400);
     _expires = DateTime.now().add(Duration(seconds: seconds - 60));
   }
 
-  Future<Map<String, dynamic>> _post(String url, Map<String, String> form) async {
+  Future<Map<String, dynamic>> _post(
+    String url,
+    Map<String, String> form,
+  ) async {
     final client = _client()..connectionTimeout = const Duration(seconds: 20);
     try {
       final req = await client.postUrl(Uri.parse(url));
       req.followRedirects = false;
-      req.headers.contentType = ContentType('application', 'x-www-form-urlencoded', charset: 'utf-8');
+      req.headers.contentType = ContentType(
+        'application',
+        'x-www-form-urlencoded',
+        charset: 'utf-8',
+      );
       req.write(Uri(queryParameters: form).query);
       final res = await req.close().timeout(const Duration(seconds: 60));
       if (res.isRedirect || (res.statusCode >= 300 && res.statusCode < 400)) {
-        throw const HttpException('The authentication endpoint unexpectedly redirected.');
+        throw const HttpException(
+          'The authentication endpoint unexpectedly redirected.',
+        );
       }
       final text = utf8.decode(await _readSmall(res), allowMalformed: true);
       Object? json;
@@ -206,10 +278,16 @@ class GoogleAuth {
         json = null;
       }
       // Not JSON: a captive portal or proxy answered instead of Google. Treat it as no network.
-      if (json is! Map<String, dynamic>) throw const HttpException('Unexpected answer from the network.');
+      if (json is! Map<String, dynamic>)
+        throw const HttpException('Unexpected answer from the network.');
       if (res.statusCode != HttpStatus.ok) {
-        final error = json['error'] is String ? json['error'] as String : 'http ${res.statusCode}';
-        throw AuthException('Google sign-in error: $error', signInAgain: error == 'invalid_grant');
+        final error = json['error'] is String
+            ? json['error'] as String
+            : 'http ${res.statusCode}';
+        throw AuthException(
+          'Google sign-in error: $error',
+          signInAgain: error == 'invalid_grant',
+        );
       }
       return json;
     } finally {
@@ -222,7 +300,8 @@ class GoogleAuth {
     final bytes = <int>[];
     await for (final chunk in response.timeout(const Duration(seconds: 60))) {
       bytes.addAll(chunk);
-      if (bytes.length > 64 * 1024) throw const HttpException('Unexpected answer from the network.');
+      if (bytes.length > 64 * 1024)
+        throw const HttpException('Unexpected answer from the network.');
     }
     return bytes;
   }
@@ -234,4 +313,7 @@ void _secureHeaders(HttpResponse response) => response.headers
   ..set('Referrer-Policy', 'no-referrer')
   ..set('X-Content-Type-Options', 'nosniff')
   ..set('X-Frame-Options', 'DENY')
-  ..set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'");
+  ..set(
+    'Content-Security-Policy',
+    "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'",
+  );

@@ -6,6 +6,7 @@ import '../app/settings.dart';
 import '../app/theme.dart';
 import '../app/version.dart';
 import '../widgets/board_picker.dart';
+import '../widgets/board_layout.dart';
 import '../widgets/common.dart';
 import '../widgets/sync_settings.dart';
 import '../widgets/update_ui.dart';
@@ -27,12 +28,44 @@ class SettingsPage extends StatelessWidget {
           const SectionTitle('Profile'),
           const _ProfileCard(),
           const SizedBox(height: 24),
+          const SectionTitle('Interface style'),
+          SurfaceCard(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Segmented<InterfaceStyle>(
+                  options: const {
+                    InterfaceStyle.glass: 'Glass',
+                    InterfaceStyle.fluent: 'Fluent',
+                    InterfaceStyle.material: 'Material',
+                  },
+                  value: s.interfaceStyle,
+                  onChanged: (style) => s.interfaceStyle = style,
+                ),
+                const SizedBox(height: 8),
+                Text(switch (s.interfaceStyle) {
+                  InterfaceStyle.glass =>
+                    'Soft highlights and translucent rounded surfaces.',
+                  InterfaceStyle.fluent =>
+                    'Quiet, flat surfaces with restrained corners.',
+                  InterfaceStyle.material =>
+                    'Solid tonal surfaces with Material controls.',
+                }, style: TextStyle(color: p.muted, fontSize: 12)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
           const SectionTitle('Theme'),
           ResponsiveGrid(
             minItemWidth: 200,
             children: [
               for (final t in AppTheme.values)
-                _ThemeCard(theme: t, selected: s.theme == t, onTap: () => s.theme = t),
+                _ThemeCard(
+                  theme: t,
+                  selected: s.theme == t,
+                  onTap: () => s.theme = t,
+                ),
             ],
           ),
           const SizedBox(height: 24),
@@ -42,59 +75,88 @@ class SettingsPage extends StatelessWidget {
           const SectionTitle('Board and coach'),
           SurfaceCard(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-            child: Column(children: [
-              _SwitchRow(
-                icon: FluentIcons.grid_view_small,
-                title: 'Show coordinates',
-                subtitle: 'Letters and numbers around the board',
-                value: s.showCoordinates,
-                onChanged: (v) => s.showCoordinates = v,
-              ),
-              Divider(style: DividerThemeData(decoration: BoxDecoration(color: p.border))),
-              _SwitchRow(
-                icon: FluentIcons.chat,
-                title: 'Live coach hints',
-                subtitle: 'Warnings and tips during Training games',
-                value: s.trainingHints,
-                onChanged: (v) => s.trainingHints = v,
-              ),
-              Divider(style: DividerThemeData(decoration: BoxDecoration(color: p.border))),
-              _SwitchRow(
-                icon: FluentIcons.chart,
-                title: 'Evaluation bar',
-                subtitle: 'Who is winning, shown above the board in Training games',
-                value: s.evalBar,
-                onChanged: (v) => s.evalBar = v,
-              ),
-              Divider(style: DividerThemeData(decoration: BoxDecoration(color: p.border))),
-              _SwitchRow(
-                icon: FluentIcons.volume2,
-                title: 'Board sounds',
-                subtitle: 'Wooden piece sounds for moves, captures, checks and game endings',
-                value: s.boardSounds,
-                onChanged: (v) => s.boardSounds = v,
-              ),
-              Divider(style: DividerThemeData(decoration: BoxDecoration(color: p.border))),
-              _SwitchRow(
-                icon: FluentIcons.cell_phone,
-                title: 'Phone vibration',
-                subtitle: 'A short buzz when you move, capture or give check',
-                value: s.haptics,
-                onChanged: (v) => s.haptics = v,
-              ),
-              Divider(style: DividerThemeData(decoration: BoxDecoration(color: p.border))),
-              if (RefreshRate.adjustable) ...[
-                const _RefreshRateRow(),
-                Divider(style: DividerThemeData(decoration: BoxDecoration(color: p.border))),
+            child: Column(
+              children: [
+                _SwitchRow(
+                  icon: FluentIcons.grid_view_small,
+                  title: 'Show coordinates',
+                  subtitle: 'Letters and numbers around the board',
+                  value: s.showCoordinates,
+                  onChanged: (v) => s.showCoordinates = v,
+                ),
+                Divider(
+                  style: DividerThemeData(
+                    decoration: BoxDecoration(color: p.border),
+                  ),
+                ),
+                _SwitchRow(
+                  icon: FluentIcons.chat,
+                  title: 'Live coach hints',
+                  subtitle: 'Warnings and tips during Training games',
+                  value: s.trainingHints,
+                  onChanged: (v) => s.trainingHints = v,
+                ),
+                Divider(
+                  style: DividerThemeData(
+                    decoration: BoxDecoration(color: p.border),
+                  ),
+                ),
+                _SwitchRow(
+                  icon: FluentIcons.chart,
+                  title: 'Evaluation bar',
+                  subtitle:
+                      'Who is winning, shown above the board in Training games',
+                  value: s.evalBar,
+                  onChanged: (v) => s.evalBar = v,
+                ),
+                Divider(
+                  style: DividerThemeData(
+                    decoration: BoxDecoration(color: p.border),
+                  ),
+                ),
+                _SwitchRow(
+                  icon: FluentIcons.volume2,
+                  title: 'Board sounds',
+                  subtitle:
+                      'Wooden piece sounds for moves, captures, checks and game endings',
+                  value: s.boardSounds,
+                  onChanged: (v) => s.boardSounds = v,
+                ),
+                Divider(
+                  style: DividerThemeData(
+                    decoration: BoxDecoration(color: p.border),
+                  ),
+                ),
+                _SwitchRow(
+                  icon: FluentIcons.cell_phone,
+                  title: 'Phone vibration',
+                  subtitle: 'A short buzz when you move, capture or give check',
+                  value: s.haptics,
+                  onChanged: (v) => s.haptics = v,
+                ),
+                Divider(
+                  style: DividerThemeData(
+                    decoration: BoxDecoration(color: p.border),
+                  ),
+                ),
+                if (RefreshRate.adjustable) ...[
+                  const _RefreshRateRow(),
+                  Divider(
+                    style: DividerThemeData(
+                      decoration: BoxDecoration(color: p.border),
+                    ),
+                  ),
+                ],
+                _SwitchRow(
+                  icon: FluentIcons.side_panel,
+                  title: 'Coach panel under the board',
+                  subtitle:
+                      'Phones: always show the coach and details below the board, instead of behind a button',
+                  value: s.panelUnderBoard,
+                  onChanged: (v) => s.panelUnderBoard = v,
+                ),
               ],
-              _SwitchRow(
-                icon: FluentIcons.side_panel,
-                title: 'Coach panel under the board',
-                subtitle: 'Phones: always show the coach and details below the board, instead of behind a button',
-                value: s.panelUnderBoard,
-                onChanged: (v) => s.panelUnderBoard = v,
-              ),
-            ]),
+            ),
           ),
           const SizedBox(height: 24),
           const SectionTitle('Coach voice (optional)'),
@@ -107,8 +169,10 @@ class SettingsPage extends StatelessWidget {
           const UpdateSettings(),
           const SizedBox(height: 24),
           Center(
-            child: Text('Chess Coach $appVersion · GPL-3.0 · Stockfish 19',
-                style: TextStyle(color: p.muted, fontSize: 12)),
+            child: Text(
+              'Chess Coach $appVersion · GPL-3.0 · Stockfish 19',
+              style: TextStyle(color: p.muted, fontSize: 12),
+            ),
           ),
         ],
       ),
@@ -125,8 +189,12 @@ class _ProfileCard extends StatefulWidget {
 }
 
 class _ProfileCardState extends State<_ProfileCard> {
-  late final _name = TextEditingController(text: SettingsScope.read(context).playerName);
-  late final _coach = TextEditingController(text: SettingsScope.read(context).coachName);
+  late final _name = TextEditingController(
+    text: SettingsScope.read(context).playerName,
+  );
+  late final _coach = TextEditingController(
+    text: SettingsScope.read(context).coachName,
+  );
 
   @override
   void dispose() {
@@ -139,31 +207,51 @@ class _ProfileCardState extends State<_ProfileCard> {
   Widget build(BuildContext context) {
     final p = Palette.of(context);
     final s = SettingsScope.read(context);
-    Widget field(String label, TextEditingController c, String placeholder, ValueChanged<String> onChanged) =>
-        InfoLabel(
-          label: label,
-          labelStyle: TextStyle(color: p.muted, fontSize: 12),
-          child: TextBox(controller: c, placeholder: placeholder, maxLength: 24, onChanged: onChanged),
-        );
+    Widget field(
+      String label,
+      TextEditingController c,
+      String placeholder,
+      ValueChanged<String> onChanged,
+    ) => InfoLabel(
+      label: label,
+      labelStyle: TextStyle(color: p.muted, fontSize: 12),
+      child: TextBox(
+        controller: c,
+        placeholder: placeholder,
+        maxLength: 24,
+        onChanged: onChanged,
+      ),
+    );
     return SurfaceCard(
       padding: const EdgeInsets.all(16),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        ResponsiveGrid(minItemWidth: 220, spacing: 12, children: [
-          field('Your name', _name, 'Your name', (v) => s.playerName = v),
-          field('Coach\'s name', _coach, 'Coach', (v) => s.coachName = v),
-        ]),
-        const SizedBox(height: 8),
-        HyperlinkButton(
-          onPressed: () => s.onboarded = false,
-          child: const Text('Run the first-start setup again'),
-        ),
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ResponsiveGrid(
+            minItemWidth: 220,
+            spacing: 12,
+            children: [
+              field('Your name', _name, 'Your name', (v) => s.playerName = v),
+              field('Coach\'s name', _coach, 'Coach', (v) => s.coachName = v),
+            ],
+          ),
+          const SizedBox(height: 8),
+          HyperlinkButton(
+            onPressed: () => s.onboarded = false,
+            child: const Text('Run the first-start setup again'),
+          ),
+        ],
+      ),
     );
   }
 }
 
 class _ThemeCard extends StatelessWidget {
-  const _ThemeCard({required this.theme, required this.selected, required this.onTap});
+  const _ThemeCard({
+    required this.theme,
+    required this.selected,
+    required this.onTap,
+  });
 
   final AppTheme theme;
   final bool selected;
@@ -178,6 +266,9 @@ class _ThemeCard extends StatelessWidget {
       AppTheme.light => ('Light', 'Clean and bright'),
       AppTheme.dark => ('Dark', 'Easy on the eyes at night'),
       AppTheme.wooden => ('Wooden', 'Warm, classic club feel'),
+      AppTheme.midnight => ('Midnight', 'Deep blue and cool highlights'),
+      AppTheme.amethyst => ('Amethyst', 'Soft violet for a calmer game'),
+      AppTheme.sand => ('Sand', 'Warm cream and earthy tones'),
     };
     return SurfaceCard(
       onTap: onTap,
@@ -191,46 +282,64 @@ class _ThemeCard extends StatelessWidget {
             child: Container(
               height: 96,
               decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [tp.background, tp.backgroundEnd]),
+                gradient: LinearGradient(
+                  colors: [tp.background, tp.backgroundEnd],
+                ),
               ),
               padding: const EdgeInsets.all(12),
-              child: Row(children: [
-                AspectRatio(
-                  aspectRatio: 1,
-                  child: CustomPaint(painter: _MiniBoard(board.lightSquare, board.darkSquare)),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      for (final w in [1.0, 0.7, 0.45])
-                        Container(
-                          margin: const EdgeInsets.symmetric(vertical: 4),
-                          height: 8,
-                          width: 90 * w,
-                          decoration: BoxDecoration(
-                            color: w == 1 ? tp.accent : tp.surfaceAlt,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                    ],
+              child: Row(
+                children: [
+                  AspectRatio(
+                    aspectRatio: 1,
+                    child: CustomPaint(
+                      painter: _MiniBoard(board.lightSquare, board.darkSquare),
+                    ),
                   ),
-                ),
-              ]),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (final w in [1.0, 0.7, 0.45])
+                          Container(
+                            margin: const EdgeInsets.symmetric(vertical: 4),
+                            height: 8,
+                            width: 90 * w,
+                            decoration: BoxDecoration(
+                              color: w == 1 ? tp.accent : tp.surfaceAlt,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 12),
-          Row(children: [
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(name, style: TextStyle(color: p.text, fontWeight: FontWeight.w600)),
-                Text(blurb, style: TextStyle(color: p.muted, fontSize: 12)),
-              ]),
-            ),
-            if (selected) Icon(FluentIcons.completed_solid, color: p.accent, size: 18),
-          ]),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: TextStyle(
+                        color: p.text,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(blurb, style: TextStyle(color: p.muted, fontSize: 12)),
+                  ],
+                ),
+              ),
+              if (selected)
+                Icon(FluentIcons.completed_solid, color: p.accent, size: 18),
+            ],
+          ),
         ],
       ),
     );
@@ -247,11 +356,17 @@ class _MiniBoard extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     const n = 4;
     final sq = size.width / n;
-    final rrect = RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(6));
+    final rrect = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      const Radius.circular(6),
+    );
     canvas.clipRRect(rrect);
     for (var r = 0; r < n; r++) {
       for (var c = 0; c < n; c++) {
-        canvas.drawRect(Rect.fromLTWH(c * sq, r * sq, sq, sq), Paint()..color = (r + c).isEven ? light : dark);
+        canvas.drawRect(
+          Rect.fromLTWH(c * sq, r * sq, sq, sq),
+          Paint()..color = (r + c).isEven ? light : dark,
+        );
       }
     }
   }
@@ -280,17 +395,22 @@ class _SwitchRow extends StatelessWidget {
     final p = Palette.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(children: [
-        Icon(icon, color: p.muted, size: 18),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: TextStyle(color: p.text)),
-            Text(subtitle, style: TextStyle(color: p.muted, fontSize: 12)),
-          ]),
-        ),
-        ToggleSwitch(checked: value, onChanged: onChanged),
-      ]),
+      child: Row(
+        children: [
+          Icon(icon, color: p.muted, size: 18),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: TextStyle(color: p.text)),
+                Text(subtitle, style: TextStyle(color: p.muted, fontSize: 12)),
+              ],
+            ),
+          ),
+          ToggleSwitch(checked: value, onChanged: onChanged),
+        ],
+      ),
     );
   }
 }
@@ -322,30 +442,41 @@ class _RefreshRateRowState extends State<_RefreshRateRow> {
     String label(int hz) => hz == 0
         ? 'Smoothest${top == null ? '' : ' ($top Hz)'}'
         : hz <= 60
-            ? '$hz Hz (saves battery)'
-            : '$hz Hz';
+        ? '$hz Hz (saves battery)'
+        : '$hz Hz';
     final options = [0, for (final r in _rates.reversed) r];
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(children: [
-        Icon(FluentIcons.speed_high, color: p.muted, size: 18),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Screen refresh rate', style: TextStyle(color: p.text)),
-            Text('Higher is smoother, lower uses less battery', style: TextStyle(color: p.muted, fontSize: 12)),
-          ]),
-        ),
-        ComboBox<int>(
-          value: options.contains(s.refreshRate) ? s.refreshRate : 0,
-          items: [for (final hz in options) ComboBoxItem(value: hz, child: Text(label(hz)))],
-          onChanged: (hz) {
-            if (hz == null) return;
-            s.refreshRate = hz;
-            RefreshRate.apply(hz);
-          },
-        ),
-      ]),
+      child: Row(
+        children: [
+          Icon(FluentIcons.speed_high, color: p.muted, size: 18),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Screen refresh rate', style: TextStyle(color: p.text)),
+                Text(
+                  'Higher is smoother, lower uses less battery',
+                  style: TextStyle(color: p.muted, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          ComboBox<int>(
+            value: options.contains(s.refreshRate) ? s.refreshRate : 0,
+            items: [
+              for (final hz in options)
+                ComboBoxItem(value: hz, child: Text(label(hz))),
+            ],
+            onChanged: (hz) {
+              if (hz == null) return;
+              s.refreshRate = hz;
+              RefreshRate.apply(hz);
+            },
+          ),
+        ],
+      ),
     );
   }
 }

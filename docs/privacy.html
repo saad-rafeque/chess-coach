@@ -38,11 +38,11 @@
     permission: <strong>"See, create and delete its own configuration data in your Google Drive"</strong>
     (<code>drive.appdata</code>). With it, Chess Coach:</p>
   <ul>
-    <li>keeps one file, <code>chess-coach-sync.json.gz</code>, with your app data and settings, in a hidden app folder of
-      <em>your</em> Google Drive, so your devices stay in step;</li>
+    <li>keeps a private snapshot per installation, <code>chess-coach-snapshot.json.gz</code>, with your app data and settings, in a hidden app folder of
+      <em>your</em> Google Drive, so your devices stay in step. Existing legacy sync files are imported without being deleted;</li>
     <li>cannot see, open or change any other file in your Google Drive, and does not access your email, contacts or
       any other Google data;</li>
-    <li>sends this file only between your device and Google. There is no Chess Coach server, and the developer never
+    <li>sends these snapshots only between your device and Google. There is no Chess Coach server, and the developer never
       receives, stores, shares or sells your data;</li>
     <li>stores your Google sign-in only on your device.</li>
   </ul>

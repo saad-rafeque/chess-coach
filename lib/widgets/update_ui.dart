@@ -1,15 +1,18 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
 import '../app/theme.dart';
+import '../app/picture_in_picture.dart';
 import '../app/updater.dart';
 import '../app/version.dart';
 import 'common.dart';
 
 /// Gives widgets the app's [Updater].
 class UpdateScope extends InheritedNotifier<Updater> {
-  const UpdateScope({super.key, required Updater updater, required super.child}) : super(notifier: updater);
+  const UpdateScope({super.key, required Updater updater, required super.child})
+    : super(notifier: updater);
 
-  static Updater of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<UpdateScope>()!.notifier!;
+  static Updater of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<UpdateScope>()!.notifier!;
 }
 
 /// Offers a new version as soon as one is found: at every start until it's installed, unless the
@@ -28,6 +31,12 @@ class _UpdatePromptState extends State<UpdatePrompt> {
   bool _open = false;
 
   @override
+  void initState() {
+    super.initState();
+    PictureInPicture.active.addListener(_changed);
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final u = UpdateScope.of(context);
@@ -39,12 +48,24 @@ class _UpdatePromptState extends State<UpdatePrompt> {
   }
 
   void _changed() {
-    final u = _updater!;
-    if (_open || u.dismissed || u.available == null || u.status == UpdateStatus.checking) return;
+    final u = _updater;
+    if (u == null || PictureInPicture.active.value) return;
+    if (_open ||
+        u.dismissed ||
+        u.available == null ||
+        u.status == UpdateStatus.checking)
+      return;
     _open = true;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-      await showDialog<void>(context: context, builder: (_) => UpdateDialog(updater: u));
+      if (PictureInPicture.active.value) {
+        _open = false;
+        return;
+      }
+      await showDialog<void>(
+        context: context,
+        builder: (_) => UpdateDialog(updater: u),
+      );
       u.dismissed = true;
       _open = false;
     });
@@ -53,6 +74,7 @@ class _UpdatePromptState extends State<UpdatePrompt> {
   @override
   void dispose() {
     _updater?.removeListener(_changed);
+    PictureInPicture.active.removeListener(_changed);
     super.dispose();
   }
 
@@ -72,24 +94,33 @@ class UpdateBanner extends StatelessWidget {
     final u = UpdateScope.of(context);
     final r = u.available;
     if (r == null) return const SizedBox.shrink();
-    final busy = u.status == UpdateStatus.downloading || u.status == UpdateStatus.installing;
+    final busy =
+        u.status == UpdateStatus.downloading ||
+        u.status == UpdateStatus.installing;
     return SurfaceCard(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      child: Row(children: [
-        Icon(FluentIcons.download, color: p.accent, size: 16),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            'Chess Coach ${r.version} is available — you have $appVersion.',
-            style: TextStyle(color: p.text),
+      child: Row(
+        children: [
+          Icon(FluentIcons.download, color: p.accent, size: 16),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Chess Coach ${r.version} is available — you have $appVersion.',
+              style: TextStyle(color: p.text),
+            ),
           ),
-        ),
-        const SizedBox(width: 10),
-        FilledButton(
-          onPressed: busy ? null : () => showDialog<void>(context: context, builder: (_) => UpdateDialog(updater: u)),
-          child: const Text('Update'),
-        ),
-      ]),
+          const SizedBox(width: 10),
+          FilledButton(
+            onPressed: busy
+                ? null
+                : () => showDialog<void>(
+                    context: context,
+                    builder: (_) => UpdateDialog(updater: u),
+                  ),
+            child: const Text('Update'),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -107,37 +138,68 @@ class UpdateDialog extends StatelessWidget {
       listenable: updater,
       builder: (context, _) {
         final r = updater.available;
-        if (r == null) return const SizedBox.shrink();
-        final busy = updater.status == UpdateStatus.downloading || updater.status == UpdateStatus.installing;
+        if (r == null) {
+          return ContentDialog(
+            title: const Text('Update complete'),
+            content: const Text('The update was installed successfully.'),
+            actions: [
+              Button(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Done'),
+              ),
+            ],
+          );
+        }
+        final busy =
+            updater.status == UpdateStatus.downloading ||
+            updater.status == UpdateStatus.installing;
         return ContentDialog(
           title: const Text('Update available'),
           constraints: const BoxConstraints(maxWidth: 520, maxHeight: 620),
-          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Chess Coach ${r.version} is ready. You have $appVersion.', style: TextStyle(color: p.text)),
-            const SizedBox(height: 12),
-            if (r.notes.isNotEmpty)
-              Flexible(child: SingleChildScrollView(child: ReleaseNotes(r.notes))),
-            if (busy) ...[
-              const SizedBox(height: 16),
-              ProgressBar(value: updater.status == UpdateStatus.installing ? null : updater.progress * 100),
-              const SizedBox(height: 6),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Text(
-                updater.status == UpdateStatus.installing
-                    ? 'Installing…'
-                    : 'Downloading… ${(updater.progress * 100).round()}%',
-                style: TextStyle(color: p.muted, fontSize: 12),
+                'Chess Coach ${r.version} is ready. You have $appVersion.',
+                style: TextStyle(color: p.text),
               ),
-            ],
-            if (updater.error != null) ...[
               const SizedBox(height: 12),
-              Text(updater.error!, style: TextStyle(color: p.danger)),
+              if (r.notes.isNotEmpty)
+                Flexible(
+                  child: SingleChildScrollView(child: ReleaseNotes(r.notes)),
+                ),
+              if (busy) ...[
+                const SizedBox(height: 16),
+                ProgressBar(
+                  value: updater.status == UpdateStatus.installing
+                      ? null
+                      : updater.progress * 100,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  updater.status == UpdateStatus.installing
+                      ? 'Installing…'
+                      : 'Downloading… ${(updater.progress * 100).round()}%',
+                  style: TextStyle(color: p.muted, fontSize: 12),
+                ),
+              ],
+              if (updater.error != null) ...[
+                const SizedBox(height: 12),
+                Text(updater.error!, style: TextStyle(color: p.danger)),
+              ],
             ],
-          ]),
+          ),
           actions: [
-            Button(onPressed: busy ? null : () => Navigator.of(context).pop(), child: const Text('Later')),
+            Button(
+              onPressed: busy ? null : () => Navigator.of(context).pop(),
+              child: const Text('Later'),
+            ),
             FilledButton(
               onPressed: busy ? null : updater.install,
-              child: Text(r.asset == null ? 'Open download page' : 'Update now'),
+              child: Text(
+                r.asset == null ? 'Open download page' : 'Update now',
+              ),
             ),
           ],
         );
@@ -155,24 +217,35 @@ class ReleaseNotes extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = Palette.of(context);
-    String clean(String s) => s.replaceAll(RegExp(r'\*\*|__|`'), '').replaceAllMapped(
-        RegExp(r'\[([^\]]+)\]\([^)]+\)'), (m) => m[1]!);
-    final lines = [for (final l in markdown.split('\n')) if (l.trim().isNotEmpty) l.trimRight()];
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      for (final l in lines.take(40))
-        if (l.startsWith('#'))
-          Padding(
-            padding: const EdgeInsets.only(top: 8, bottom: 2),
-            child: Text(clean(l.replaceFirst(RegExp(r'^#+\s*'), '')),
-                style: TextStyle(color: p.text, fontWeight: FontWeight.w600)),
-          )
-        else
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Text(clean(l.replaceFirst(RegExp(r'^\s*[-*]\s+'), '• ')),
-                style: TextStyle(color: p.muted, height: 1.35)),
-          ),
-    ]);
+    String clean(String s) => s
+        .replaceAll(RegExp(r'\*\*|__|`'), '')
+        .replaceAllMapped(RegExp(r'\[([^\]]+)\]\([^)]+\)'), (m) => m[1]!);
+    final lines = [
+      for (final l in markdown.split('\n'))
+        if (l.trim().isNotEmpty) l.trimRight(),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final l in lines.take(40))
+          if (l.startsWith('#'))
+            Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 2),
+              child: Text(
+                clean(l.replaceFirst(RegExp(r'^#+\s*'), '')),
+                style: TextStyle(color: p.text, fontWeight: FontWeight.w600),
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                clean(l.replaceFirst(RegExp(r'^\s*[-*]\s+'), '• ')),
+                style: TextStyle(color: p.muted, height: 1.35),
+              ),
+            ),
+      ],
+    );
   }
 }
 
@@ -189,31 +262,59 @@ class UpdateSettings extends StatelessWidget {
       UpdateStatus.checking => 'Checking…',
       UpdateStatus.downloading => 'Downloading ${(u.progress * 100).round()}%…',
       UpdateStatus.installing => 'Installing…',
-      _ => r != null ? 'Version ${r.version} is available.' : 'You have the latest version.',
+      _ =>
+        r != null
+            ? 'Version ${r.version} is available.'
+            : u.hasChecked
+            ? 'You have the latest version.'
+            : 'Check for the latest version.',
     };
     return SurfaceCard(
       padding: const EdgeInsets.all(16),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Padding(padding: const EdgeInsets.only(top: 2), child: Icon(FluentIcons.download, color: p.muted, size: 18)),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Chess Coach $appVersion', style: TextStyle(color: p.text)),
-            Text(u.error ?? status, style: TextStyle(color: u.error != null ? p.danger : p.muted, fontSize: 12)),
-            const SizedBox(height: 10),
-            if (r != null)
-              FilledButton(
-                onPressed: () => showDialog<void>(context: context, builder: (_) => UpdateDialog(updater: u)),
-                child: const Text('Update'),
-              )
-            else
-              Button(
-                onPressed: u.status == UpdateStatus.checking ? null : () => u.check(force: true),
-                child: const Text('Check for updates'),
-              ),
-          ]),
-        ),
-      ]),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(FluentIcons.download, color: p.muted, size: 18),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Chess Coach $appVersion',
+                  style: TextStyle(color: p.text),
+                ),
+                Text(
+                  u.error ?? status,
+                  style: TextStyle(
+                    color: u.error != null ? p.danger : p.muted,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                if (r != null)
+                  FilledButton(
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (_) => UpdateDialog(updater: u),
+                    ),
+                    child: const Text('Update'),
+                  )
+                else
+                  Button(
+                    onPressed: u.status == UpdateStatus.checking
+                        ? null
+                        : () => u.check(force: true),
+                    child: const Text('Check for updates'),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

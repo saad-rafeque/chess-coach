@@ -11,6 +11,7 @@ class ChessEngine {
   final UciProcess _process;
   Future<void> _queue = Future.value();
   bool _closed = false;
+  bool get isClosed => _closed;
 
   static Future<ChessEngine> start({UciProcess? process, Duration startTimeout = const Duration(seconds: 90)}) async {
     final engine = ChessEngine(process ?? await UciProcess.start());
@@ -111,7 +112,13 @@ class ChessEngine {
     } catch (_) {
       try {
         _process.send('stop');
-      } catch (_) {}
+        // UCI's readyok does not mean a search has stopped. Drain its terminal
+        // bestmove before a queued search can subscribe to the same stream.
+        await done.future.timeout(const Duration(seconds: 2));
+      } catch (_) {
+        // A process that never acknowledges stop cannot safely be reused.
+        await dispose();
+      }
       rethrow;
     } finally {
       await sub.cancel();
@@ -119,6 +126,7 @@ class ChessEngine {
   }
 
   Future<void> dispose() async {
+    if (_closed) return;
     _closed = true;
     await _process.close();
   }

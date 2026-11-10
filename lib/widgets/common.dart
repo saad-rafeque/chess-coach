@@ -1,9 +1,10 @@
 import 'dart:math' as math;
-import 'dart:ui' show ImageFilter;
 
 import 'package:fluent_ui/fluent_ui.dart';
 
 import '../app/theme.dart';
+import '../app/picture_in_picture.dart';
+import 'coach_mark.dart';
 
 const mobileBreakpoint = 700.0;
 
@@ -14,19 +15,16 @@ bool isMobile(BuildContext context) =>
 Duration motion(BuildContext context, Duration d) =>
     MediaQuery.maybeDisableAnimationsOf(context) ?? false ? Duration.zero : d;
 
-/// The app's icon: a golden knight on a dark board.
+/// The app's icon: an ivory knight on a soft green tile.
 class AppLogo extends StatelessWidget {
   const AppLogo({super.key, required this.size});
 
   final double size;
 
   @override
-  Widget build(BuildContext context) => Image.asset(
-    'assets/brand/logo.webp',
-    width: size,
-    height: size,
-    filterQuality: FilterQuality.medium,
-    semanticLabel: 'Chess Coach',
+  Widget build(BuildContext context) => Semantics(
+    label: 'Chess Coach',
+    child: SizedBox.square(dimension: size, child: const CoachMark()),
   );
 }
 
@@ -58,10 +56,12 @@ class PageFrame extends StatelessWidget {
     required this.child,
     this.scroll = true,
     this.compactOnPhone = false,
+    this.hidePhoneHeader = false,
   });
 
   /// Board pages: a small header on phones, so the board gets the room.
   final bool compactOnPhone;
+  final bool hidePhoneHeader;
 
   final String title;
   final String? subtitle;
@@ -77,7 +77,10 @@ class PageFrame extends StatelessWidget {
     final p = Palette.of(context);
     final mobile = isMobile(context);
     final compact = mobile && compactOnPhone;
-    final shortWindow = compact && MediaQuery.sizeOf(context).height < 430;
+    final shortWindow =
+        compactOnPhone && MediaQuery.sizeOf(context).height < 500;
+    final pip = PictureInPicture.active.value;
+    final showHeader = !shortWindow && !pip && !(mobile && hidePhoneHeader);
     final desktopCompact = !mobile && compactOnPhone;
     final pad = mobile ? 16.0 : (desktopCompact ? 20.0 : 32.0);
     final header = Padding(
@@ -98,7 +101,9 @@ class PageFrame extends StatelessWidget {
                 Text(
                   title,
                   style: TextStyle(
-                    fontSize: compact ? 18 : (desktopCompact ? 22 : (mobile ? 26 : 30)),
+                    fontSize: compact
+                        ? 18
+                        : (desktopCompact ? 22 : (mobile ? 26 : 30)),
                     fontWeight: FontWeight.w700,
                     color: p.text,
                     letterSpacing: -0.4,
@@ -119,24 +124,17 @@ class PageFrame extends StatelessWidget {
       ),
     );
     // Board pages on phones get no side padding: the board spans the screen and BoardLayout pads the rest.
-    final side = compact ? 0.0 : pad;
+    final side = compactOnPhone && (mobile || shortWindow) ? 0.0 : pad;
     final body = Padding(
-      padding: EdgeInsets.fromLTRB(side, 0, side, shortWindow ? 0 : pad),
+      padding: EdgeInsets.fromLTRB(side, 0, side, compactOnPhone ? 0 : pad),
       child: child,
     );
     return Container(
       decoration: BoxDecoration(
-        gradient: RadialGradient(
-          center: const Alignment(0.65, -0.85),
-          radius: 1.4,
-          colors: [
-            p.brightness == Brightness.dark
-                ? Color.lerp(p.backgroundEnd, p.accent, 0.09)!
-                : Color.lerp(p.backgroundEnd, p.accent, 0.04)!,
-            p.backgroundEnd,
-            p.background,
-          ],
-          stops: const [0.0, 0.55, 1.0],
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [p.background, p.backgroundEnd],
         ),
       ),
       child: CustomPaint(
@@ -148,12 +146,12 @@ class PageFrame extends StatelessWidget {
             child: scroll
                 ? ListView(
                     padding: EdgeInsets.zero,
-                    children: [if (!shortWindow) header, body],
+                    children: [if (showHeader) header, body],
                   )
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (!shortWindow) header,
+                      if (showHeader) header,
                       Expanded(child: body),
                     ],
                   ),
@@ -233,34 +231,34 @@ class _MacOsTrafficLightsState extends State<MacOsTrafficLights> {
   }
 
   Widget _dot(Color fill, Color border, String? symbol) => Container(
-        width: 12,
-        height: 12,
-        decoration: BoxDecoration(
-          color: fill,
-          shape: BoxShape.circle,
-          border: Border.all(color: border, width: 0.8),
-          boxShadow: [
-            BoxShadow(
-              color: fill.withValues(alpha: 0.35),
-              blurRadius: 4,
-              offset: const Offset(0, 1),
-            ),
-          ],
+    width: 12,
+    height: 12,
+    decoration: BoxDecoration(
+      color: fill,
+      shape: BoxShape.circle,
+      border: Border.all(color: border, width: 0.8),
+      boxShadow: [
+        BoxShadow(
+          color: fill.withValues(alpha: 0.35),
+          blurRadius: 4,
+          offset: const Offset(0, 1),
         ),
-        child: symbol != null
-            ? Center(
-                child: Text(
-                  symbol,
-                  style: const TextStyle(
-                    fontSize: 8,
-                    height: 1.0,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0x99000000),
-                  ),
-                ),
-              )
-            : null,
-      );
+      ],
+    ),
+    child: symbol != null
+        ? Center(
+            child: Text(
+              symbol,
+              style: const TextStyle(
+                fontSize: 8,
+                height: 1.0,
+                fontWeight: FontWeight.w900,
+                color: Color(0x99000000),
+              ),
+            ),
+          )
+        : null,
+  );
 }
 
 /// Rounded surface used for every card in the app, with frosted glass styling.
@@ -283,21 +281,13 @@ class SurfaceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = Palette.of(context);
-    final card = ClipRRect(
-      borderRadius: BorderRadius.circular(18),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-        child: AnimatedContainer(
-          duration: motion(context, const Duration(milliseconds: 160)),
-          padding: padding,
-          decoration: p.glassDecoration(
-            radius: 18,
-            highlight: highlight,
-            macosElevated: elevated,
-          ),
-          child: child,
-        ),
+    final card = Container(
+      padding: padding,
+      decoration: p.glassDecoration(
+        highlight: highlight,
+        macosElevated: elevated,
       ),
+      child: child,
     );
     if (onTap == null) return card;
     return HoverButton(

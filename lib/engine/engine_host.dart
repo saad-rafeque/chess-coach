@@ -12,6 +12,9 @@ class EngineHost {
   final Future<ChessEngine> Function() _starter;
   final status = ValueNotifier(EngineStatus.starting);
   Future<ChessEngine?>? _engine;
+  ChessEngine? _live;
+  bool _disposed = false;
+  Future<void>? _disposing;
   Object? error;
 
   /// After a failed start, the next request tries again once this much time has passed.
@@ -20,6 +23,11 @@ class EngineHost {
 
   /// The running engine, or null when it couldn't start (callers fall back to simple rules).
   Future<ChessEngine?> get engine {
+    if (_disposed) return Future.value(null);
+    if (_live?.isClosed ?? false) {
+      _live = null;
+      _engine = null;
+    }
     final failed = _failedAt;
     if (failed != null && DateTime.now().difference(failed) >= retryAfter) {
       _failedAt = null;
@@ -32,9 +40,16 @@ class EngineHost {
     status.value = EngineStatus.starting;
     try {
       final e = await _starter();
+      if (_disposed) {
+        await e.dispose();
+        return null;
+      }
+      _live = e;
+      error = null;
       status.value = EngineStatus.ready;
       return e;
     } catch (e) {
+      if (_disposed) return null;
       error = e;
       _failedAt = DateTime.now();
       debugPrint('Engine unavailable: $e');
@@ -43,10 +58,14 @@ class EngineHost {
     }
   }
 
-  Future<void> dispose() async {
+  Future<void> dispose() {
+    if (_disposed) return _disposing ?? Future.value();
+    _disposed = true;
     status.dispose();
-    await (await _engine)?.dispose();
+    return _disposing = _close();
   }
+
+  Future<void> _close() async => (await _engine)?.dispose();
 }
 
 /// Makes the app's [EngineHost] available to widgets.

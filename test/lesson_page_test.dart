@@ -51,6 +51,8 @@ void main() {
     await tester.tap(find.text('Home').last);
     await tester.pumpAndSettle();
     expect(find.text('Continue lesson'), findsOneWidget);
+    await tester.ensureVisible(find.text('Opening principles'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Opening principles'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Step 3 of 7'), findsOneWidget);

@@ -101,8 +101,16 @@ class GameController extends ChangeNotifier {
   Square? highlight;
 
   Analysis? _analysis;
+  final _redo = <_GameSnapshot>[];
+  NormalMove? _fallbackHint;
+  NormalMove? _revealedHint;
+  String? _hintFen;
   int _hintLevel = 0;
   int _token = 0;
+  int _modeVersion = 0;
+  int _hintGeneration = 0;
+  int? _pendingHint;
+  CoachMessage? _guidance;
   bool _engineNoticeShown = false;
 
   Position get position => positions.last;
@@ -126,14 +134,52 @@ class GameController extends ChangeNotifier {
 
   bool get isFiftyMoveDraw => position.halfmoves >= 100;
   bool get isOver =>
-      resigned || position.isGameOver || isThreefoldRepetition || isFiftyMoveDraw;
+      resigned ||
+      position.isGameOver ||
+      isThreefoldRepetition ||
+      isFiftyMoveDraw;
   bool get playerToMove =>
-      !isOver && !thinking && (twoPlayers || position.turn == playerSide);
-  bool get canUndo => twoPlayers ? moves.isNotEmpty : _playerMoveCount > 0;
+      !_disposed &&
+      !isOver &&
+      !thinking &&
+      (twoPlayers || position.turn == playerSide);
+  bool get canUndo =>
+      !_disposed && (twoPlayers ? moves.isNotEmpty : _playerMoveCount > 0);
+  bool get canRedo => !_disposed && !thinking && _redo.isNotEmpty;
+
+  /// Available independently from automatic move feedback in Training mode.
+  bool get canHint =>
+      !_disposed && playerToMove && (twoPlayers || mode == PlayMode.training);
+  bool get hintThinking => _pendingHint != null;
+
+  /// Only an explicitly revealed hint for this exact position can be played.
+  /// A feedback arrow showing an earlier mistake is never an actionable move.
+  bool get canPlayHint =>
+      canHint &&
+      _hintFen == position.fen &&
+      _revealedHint != null &&
+      position.isLegal(_revealedHint!);
+
+  Future<void> playHint() async {
+    if (!canPlayHint) return;
+    await playerMove(_revealedHint!);
+  }
+
   int get _playerMoveCount => [
     for (var i = 0; i < moves.length; i++) positions[i].turn,
   ].where((s) => s == playerSide).length;
   NormalMove? get lastMove => moves.isEmpty ? null : moves.last;
+
+  /// Advice relevant to the current position, independent of chat history.
+  /// A hint about the previous turn must not remain in the compact Coach view.
+  String get currentGuidance {
+    if (_guidance != null) return _guidance!.text;
+    if (twoPlayers)
+      return '${_name(position.turn)} to move. Find your next move, or ask for a hint.';
+    if (thinking || position.turn != playerSide)
+      return 'The coach is thinking…';
+    return 'Your move. Look for checks, captures and threats.';
+  }
 
   // ---- game flow ----
 
@@ -143,6 +189,7 @@ class GameController extends ChangeNotifier {
     bool twoPlayers = false,
   }) {
     _token++;
+    _redo.clear();
     lastRecord = null;
     positions
       ..clear()
@@ -161,7 +208,7 @@ class GameController extends ChangeNotifier {
     _analysis = null;
     _say(
       twoPlayers
-          ? 'Two players on one board: pass the device after each move. Either player can tap Hint '
+          ? 'White to move. Two players on one board: pass the device after each move. Either player can tap Hint '
                 'and the coach suggests what to play.'
           : 'New game! You play ${_name(side)}, I play at about $coachElo. '
                 '${mode == PlayMode.training ? 'In Training mode I comment on every move.' : 'Real game: I stay quiet until the end.'}',
@@ -201,6 +248,7 @@ class GameController extends ChangeNotifier {
         restoredSans.add(san);
       }
       _token++;
+      _redo.clear();
       lastRecord = null;
       positions
         ..clear()
@@ -221,6 +269,8 @@ class GameController extends ChangeNotifier {
       resigned = false;
       thinking = false;
       _clearMarks();
+      _analysis = null;
+      evaluation = null;
       _say('Welcome back! Your game is just as you left it.', CoachTone.info);
       notifyListeners();
       if (!twoPlayers && !isOver && position.turn != playerSide) {
@@ -237,7 +287,8 @@ class GameController extends ChangeNotifier {
   void setMode(PlayMode m) {
     if (m == mode) return;
     mode = m;
-    if (m == PlayMode.real) _clearMarks();
+    _modeVersion++;
+    _clearMarks();
     _say(
       m == PlayMode.training
           ? 'Training mode: I\'ll comment on your moves.'
@@ -251,6 +302,8 @@ class GameController extends ChangeNotifier {
   Future<void> playerMove(NormalMove move) async {
     if (!playerToMove || !position.isLegal(move)) return;
     final token = _token;
+    _redo.clear();
+    lastRecord = null;
     final before = position;
     final beforeAnalysis = _analysis?.fen == before.fen ? _analysis : null;
     _push(move);
@@ -290,7 +343,18 @@ class GameController extends ChangeNotifier {
     int token,
   ) async {
     final after = position;
+    final modeVersion = _modeVersion;
+    final ply = moves.length - 1;
+    bool current() =>
+        !_disposed &&
+        token == _token &&
+        position.fen == after.fen &&
+        modeVersion == _modeVersion &&
+        mode == PlayMode.training &&
+        hintsEnabled &&
+        !twoPlayers;
     final engine = await host.engine;
+    if (!current()) return;
     if (engine == null || isOver) {
       if (engine == null) _engineNotice();
       final tip = tipForMove(before, move, after);
@@ -300,11 +364,14 @@ class GameController extends ChangeNotifier {
     }
     beforeAnalysis ??= await _analyseSafely(
       () => engine.analyse(before.fen, depth: feedbackDepth),
+      isCurrent: current,
     );
+    if (!current()) return;
     final afterAnalysis = await _analyseSafely(
       () => engine.analyse(after.fen, depth: feedbackDepth),
+      isCurrent: current,
     );
-    if (token != _token) return;
+    if (!current()) return;
     if (beforeAnalysis == null || afterAnalysis == null) {
       final tip = tipForMove(before, move, after);
       if (tip != null) _say(tip.text, _toneFor(tip.kind));
@@ -324,7 +391,7 @@ class GameController extends ChangeNotifier {
       moverIsWhite: before.turn == Side.white,
       playedBest: playedBest,
     );
-    grades[moves.length - 1] = quality;
+    grades[ply] = quality;
     if (quality.isError) {
       final why = explainError(
         quality: quality,
@@ -374,6 +441,7 @@ class GameController extends ChangeNotifier {
     }
     if (chosen == null) {
       final engine = await host.engine;
+      if (_disposed || token != _token || isOver) return;
       if (engine != null) {
         final a = await _analyseSafely(
           () => engine.analyse(
@@ -430,9 +498,14 @@ class GameController extends ChangeNotifier {
 
   Future<void> _analyseCurrent() async {
     final token = _token;
-    final engine = await host.engine;
-    if (engine == null || isOver) return;
     final fen = position.fen;
+    final engine = await host.engine;
+    if (_disposed ||
+        token != _token ||
+        position.fen != fen ||
+        engine == null ||
+        isOver)
+      return;
     final a = await _analyseSafely(
       () => engine.analyse(fen, depth: feedbackDepth),
     );
@@ -445,46 +518,73 @@ class GameController extends ChangeNotifier {
   // ---- player tools ----
 
   Future<void> hint() async {
-    if (!playerToMove) return;
+    if (!canHint || hintThinking) return;
+    final token = _token;
+    final fen = position.fen;
+    final request = ++_hintGeneration;
+    _pendingHint = request;
+    notifyListeners();
+    bool current() =>
+        request == _hintGeneration &&
+        token == _token &&
+        position.fen == fen &&
+        canHint;
     // In a two-player game the coach addresses the side to move by name.
     final turnName = twoPlayers ? '${_name(position.turn)}: ' : '';
-    final engine = await host.engine;
-    if (engine == null) {
-      _ruleHint(turnName);
-      return;
+    try {
+      final engine = await host.engine;
+      if (!current()) return;
+      if (engine == null) {
+        _ruleHint(turnName);
+        return;
+      }
+      final a = _analysis?.fen == fen
+          ? _analysis
+          : await _analyseSafely(
+              () => engine.analyse(fen, depth: feedbackDepth),
+              isCurrent: current,
+            );
+      if (!current()) return;
+      if (a == null || a.bestMove == null) {
+        _ruleHint(turnName);
+        return;
+      }
+      _analysis = a;
+      final m = Move.parse(a.bestMove!);
+      if (m is! NormalMove || !position.isLegal(m)) {
+        _ruleHint(turnName);
+        return;
+      }
+      final piece = position.board.pieceAt(m.from);
+      if (_hintLevel == 0 && piece != null) {
+        highlight = m.from;
+        _hintLevel = 1;
+        _say(
+          'Hint: ${turnName}look at your ${piece.role.name} on ${m.from.name}. Tap Hint again for the move.',
+          CoachTone.info,
+        );
+      } else {
+        arrow = m;
+        _revealedHint = m;
+        _hintFen = fen;
+        highlight = null;
+        _hintLevel = 2;
+        _say('Hint: $turnName${sanOf(position, a.bestMove!)}.', CoachTone.info);
+      }
+      notifyListeners();
+    } finally {
+      if (_pendingHint == request) {
+        _pendingHint = null;
+        notifyListeners();
+      }
     }
-    final fen = position.fen;
-    final a = _analysis?.fen == fen
-        ? _analysis
-        : await _analyseSafely(() => engine.analyse(fen, depth: feedbackDepth));
-    if (position.fen != fen) return;
-    if (a == null || a.bestMove == null) {
-      _ruleHint(turnName);
-      return;
-    }
-    _analysis = a;
-    final m = Move.parse(a.bestMove!);
-    if (m is! NormalMove) return;
-    final piece = position.board.pieceAt(m.from);
-    if (_hintLevel == 0 && piece != null) {
-      highlight = m.from;
-      _hintLevel = 1;
-      _say(
-        'Hint: ${turnName}look at your ${piece.role.name} on ${m.from.name}. Tap Hint again for the move.',
-        CoachTone.info,
-      );
-    } else {
-      arrow = m;
-      highlight = null;
-      _hintLevel = 2;
-      _say('Hint: $turnName${sanOf(position, a.bestMove!)}.', CoachTone.info);
-    }
-    notifyListeners();
   }
 
   void undo() {
     if (!canUndo) return;
+    _redo.add(_GameSnapshot(this));
     _token++;
+    lastRecord = null;
     thinking = false;
     if (twoPlayers) {
       // Both sides are human: take back exactly the move that was just played.
@@ -509,6 +609,7 @@ class GameController extends ChangeNotifier {
     resigned = false;
     _clearMarks();
     _analysis = null;
+    evaluation = null;
     _say(
       'Move taken back. Take your time and check for threats.',
       CoachTone.info,
@@ -523,9 +624,65 @@ class GameController extends ChangeNotifier {
     }
   }
 
+  /// Restores one undo operation without replaying finished coach moves.
+  /// Undo during a pending reply saves the player's move; redo resumes that
+  /// reply with a fresh token so the cancelled task cannot move twice.
+  void redo() {
+    if (!canRedo) return;
+    final restored = _redo.removeLast();
+    _token++;
+    positions
+      ..clear()
+      ..addAll(restored.positions);
+    moves
+      ..clear()
+      ..addAll(restored.moves);
+    sans
+      ..clear()
+      ..addAll(restored.sans);
+    grades
+      ..clear()
+      ..addAll(restored.grades);
+    resigned = restored.resigned;
+    thinking = false;
+    lastRecord = restored.lastRecord;
+    _clearMarks();
+    _analysis = restored.analysis;
+    evaluation = restored.evaluation;
+    _say(
+      isOver
+          ? restored.guidance ?? 'The finished game has been restored.'
+          : 'Move restored. Continue from this position.',
+      CoachTone.info,
+    );
+    _save();
+    notifyListeners();
+    if (twoPlayers || isOver) return;
+    if (position.turn == playerSide) {
+      unawaited(_analyseCurrent());
+    } else {
+      unawaited(_continueRestoredTurn(_token));
+    }
+  }
+
+  Future<void> _continueRestoredTurn(int token) async {
+    thinking = true;
+    notifyListeners();
+    // A turn may have been undone before its feedback finished.
+    if (moves.isNotEmpty &&
+        mode == PlayMode.training &&
+        hintsEnabled &&
+        !grades.containsKey(moves.length - 1)) {
+      await _feedback(positions[positions.length - 2], moves.last, null, token);
+      if (_disposed || token != _token) return;
+    }
+    await _coachMove(token);
+  }
+
   void resign() {
     if (isOver || moves.isEmpty) return;
     _token++;
+    _redo.clear();
     thinking = false;
     resigned = true;
     _clearMarks();
@@ -535,10 +692,12 @@ class GameController extends ChangeNotifier {
   // ---- helpers ----
 
   String _drawReason() {
-    if (isThreefoldRepetition) return 'Threefold repetition: the game is a draw.';
+    if (isThreefoldRepetition)
+      return 'Threefold repetition: the game is a draw.';
     if (isFiftyMoveDraw) return '50-move rule: the game is a draw.';
     if (position.isStalemate) return 'Stalemate: the game is a draw.';
-    if (position.isInsufficientMaterial) return 'Insufficient material: the game is a draw.';
+    if (position.isInsufficientMaterial)
+      return 'Insufficient material: the game is a draw.';
     return 'The game is a draw.';
   }
 
@@ -629,40 +788,70 @@ class GameController extends ChangeNotifier {
     arrow = null;
     highlight = null;
     _hintLevel = 0;
+    _fallbackHint = null;
+    _revealedHint = null;
+    _hintFen = null;
+    _hintGeneration++;
+    _pendingHint = null;
+    _guidance = null;
   }
 
-  Future<Analysis?> _analyseSafely(Future<Analysis> Function() analyse) async {
+  Future<Analysis?> _analyseSafely(
+    Future<Analysis> Function() analyse, {
+    bool Function()? isCurrent,
+  }) async {
+    final token = _token;
+    final fen = position.fen;
     try {
       return await analyse();
     } catch (e) {
       debugPrint('Stockfish analysis failed: $e');
-      _engineNotice(
-        'Stockfish had a problem. I will keep the game going with simple advice.',
-      );
+      if (!_disposed &&
+          token == _token &&
+          position.fen == fen &&
+          (isCurrent?.call() ?? true)) {
+        _engineNotice(
+          'Stockfish had a problem. I will keep the game going with simple advice.',
+        );
+      }
       return null;
     }
   }
 
   void _ruleHint(String turnName) {
-    for (final m in legalMoves(position)) {
-      final piece = freeCapture(position, m);
-      if (piece != null) {
-        _say(
-          'Hint: ${turnName}the ${piece.role.name} on ${m.to.name} is not defended.',
-          CoachTone.info,
-        );
-        notifyListeners();
-        return;
-      }
+    // Keep the same candidate for the second tap, even without Stockfish.
+    // This is a simple legal suggestion, not a claim of engine-best play.
+    final move = _fallbackHint ??= pickPreviewMove(position, _rnd);
+    if (move == null) return;
+    final piece = position.board.pieceAt(move.from);
+    if (_hintLevel == 0 && piece != null) {
+      highlight = move.from;
+      _hintLevel = 1;
+      _say(
+        'Hint: ${turnName}consider your ${piece.role.name} on ${move.from.name}. '
+        'Simple suggestion; tap Hint again to see the move.',
+        CoachTone.info,
+      );
+    } else {
+      arrow = move;
+      _revealedHint = move;
+      _hintFen = position.fen;
+      highlight = null;
+      _hintLevel = 2;
+      _say(
+        'Hint: ${turnName}try ${sanOf(position, move.uci)}. '
+        'This is a simple suggestion while the engine is unavailable.',
+        CoachTone.info,
+      );
     }
-    _say(
-      'Hint: ${turnName}develop a piece, control the centre or make your king safer.',
-      CoachTone.info,
-    );
     notifyListeners();
   }
 
-  void _say(String text, CoachTone tone) => chat.add(CoachMessage(text, tone));
+  void _say(String text, CoachTone tone) {
+    final message = CoachMessage(text, tone);
+    chat.add(message);
+    _guidance = message;
+  }
 
   /// Plays a board sound, and the matching phone buzz for the player's own moves.
   void _sound(BoardSoundKind kind, {BuzzKind? buzz}) {
@@ -684,15 +873,22 @@ class GameController extends ChangeNotifier {
     final index = chat.length - 1;
     final original = chat[index];
     unawaited(
-      p(facts).then((text) {
-        if (text == null ||
-            token != _token ||
-            index >= chat.length ||
-            !identical(chat[index], original))
-          return;
-        chat[index] = CoachMessage(wrap(text), tone);
-        notifyListeners();
-      }),
+      p(facts)
+          .then((text) {
+            if (text == null ||
+                token != _token ||
+                index >= chat.length ||
+                !identical(chat[index], original))
+              return;
+            chat[index] = CoachMessage(wrap(text), tone);
+            if (identical(_guidance, original)) _guidance = chat[index];
+            notifyListeners();
+          })
+          .catchError((Object error) {
+            // Optional voice polishing must never break the playable game or
+            // surface an unhandled asynchronous error when a model unloads.
+            debugPrint('Coach wording unavailable: $error');
+          }),
     );
   }
 
@@ -740,4 +936,31 @@ class GameController extends ChangeNotifier {
     _token++;
     super.dispose();
   }
+}
+
+/// Immutable history for one Undo action. Positions and moves are immutable;
+/// lists/maps are copied so later play never changes a saved redo branch.
+class _GameSnapshot {
+  _GameSnapshot(GameController game)
+    : positions = List.of(game.positions),
+      moves = List.of(game.moves),
+      sans = List.of(game.sans),
+      grades = Map.of(game.grades),
+      resigned = game.resigned,
+      lastRecord = game.lastRecord,
+      analysis = game._analysis?.fen == game.position.fen
+          ? game._analysis
+          : null,
+      evaluation = game.evaluation,
+      guidance = game._guidance?.text;
+
+  final List<Position> positions;
+  final List<NormalMove> moves;
+  final List<String> sans;
+  final Map<int, MoveQuality> grades;
+  final bool resigned;
+  final GameRecord? lastRecord;
+  final Analysis? analysis;
+  final Score? evaluation;
+  final String? guidance;
 }

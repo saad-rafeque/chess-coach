@@ -12,11 +12,18 @@ import 'fixtures.dart';
 
 // A real Lichess puzzle shape: Black plays ...Qxe5?? and White wins the queen with a fork.
 // Setup move first, then the solution (one player move here).
-const _line = 'tst01\tr1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2\t'
+const _line =
+    'tst01\tr1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2\t'
     'd8h4 f3h4\t700\tfork short';
 
-PuzzleSession _session(String line, {void Function(PuzzleItem, bool)? onResult}) =>
-    PuzzleSession(PuzzleItem.parse(line)!, onResult: onResult, moveDelay: Duration.zero);
+PuzzleSession _session(
+  String line, {
+  void Function(PuzzleItem, bool)? onResult,
+}) => PuzzleSession(
+  PuzzleItem.parse(line)!,
+  onResult: onResult,
+  moveDelay: Duration.zero,
+);
 
 void main() {
   test('parses a puzzle line', () {
@@ -39,54 +46,80 @@ void main() {
     expect(results, [true]);
   });
 
-  test('a wrong move counts as a failure once, but you can still finish', () async {
-    final results = <bool>[];
-    final s = _session(_line, onResult: (_, ok) => results.add(ok));
-    await s.start();
-    expect(await s.playerMove(NormalMove.fromUci('a2a3')), isFalse);
-    expect(s.state, PuzzleState.wrongMove);
-    expect(await s.playerMove(NormalMove.fromUci('f3h4')), isTrue);
-    expect(results, [false]);
-  });
+  test(
+    'a wrong move counts as a failure once, but you can still finish',
+    () async {
+      final results = <bool>[];
+      final s = _session(_line, onResult: (_, ok) => results.add(ok));
+      await s.start();
+      expect(await s.playerMove(NormalMove.fromUci('a2a3')), isFalse);
+      expect(s.state, PuzzleState.wrongMove);
+      expect(await s.playerMove(NormalMove.fromUci('f3h4')), isTrue);
+      expect(results, [false]);
+    },
+  );
 
   test('multi-move puzzles: the opponent replies between your moves', () async {
     // Scholar's mate pattern spread over two player moves.
-    const line = 'tst02\trnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2\t'
-        'f1c4 b8c6 d1h5 g8f6 h5f7\t600\tmateIn2';
-    final s = _session(line);
+    final s = PuzzleSession(
+      const PuzzleItem(
+        id: 'tst02',
+        fen: 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2',
+        moves: ['f1c4', 'b8c6', 'd1h5', 'g8f6', 'h5f7'],
+        rating: 600,
+        themes: ['mateIn2'],
+        setup: false,
+      ),
+      moveDelay: Duration.zero,
+    );
     await s.start();
-    expect(s.playerSide, Side.black);
-    expect(await s.playerMove(NormalMove.fromUci('b8c6')), isTrue);
-    expect(s.position.board.pieceAt(Square.h5)?.role, Role.queen);
-    expect(await s.playerMove(NormalMove.fromUci('g8f6')), isTrue);
+    expect(s.playerSide, Side.white);
+    expect(await s.playerMove(NormalMove.fromUci('f1c4')), isTrue);
+    expect(s.position.board.pieceAt(Square.c6)?.role, Role.knight);
+    expect(await s.playerMove(NormalMove.fromUci('d1h5')), isTrue);
     expect(s.state, PuzzleState.playerToMove);
+    expect(await s.playerMove(NormalMove.fromUci('h5f7')), isTrue);
+    expect(s.state, PuzzleState.solved);
   });
 
   test('any checkmate is accepted on the last move', () async {
     // White to move (no setup): both Qa8# and Qh8#... here only one mates; accept the mate.
     const p = PuzzleItem(
-        id: 'm1', fen: '6k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1', moves: ['a1a8'], rating: 600, themes: ['mateIn1'], setup: false);
+      id: 'm1',
+      fen: '6k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1',
+      moves: ['a1a8'],
+      rating: 600,
+      themes: ['mateIn1'],
+      setup: false,
+    );
     final s = PuzzleSession(p, moveDelay: Duration.zero);
     await s.start();
     expect(await s.playerMove(NormalMove.fromUci('a1a8')), isTrue);
   });
 
-  test('early checkmate is accepted and marks puzzle solved immediately', () async {
-    const p = PuzzleItem(
-      id: 'early_mate',
-      fen: '6k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1',
-      moves: ['a1a8', 'g8f7', 'a8f8'],
-      rating: 700,
-      themes: ['mate'],
-      setup: false,
-    );
-    final results = <bool>[];
-    final s = PuzzleSession(p, onResult: (_, ok) => results.add(ok), moveDelay: Duration.zero);
-    await s.start();
-    expect(await s.playerMove(NormalMove.fromUci('a1a8')), isTrue);
-    expect(s.state, PuzzleState.solved);
-    expect(results, [true]);
-  });
+  test(
+    'early checkmate is accepted and marks puzzle solved immediately',
+    () async {
+      const p = PuzzleItem(
+        id: 'early_mate',
+        fen: '6k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1',
+        moves: ['a1a8', 'g8f7', 'a8f8'],
+        rating: 700,
+        themes: ['mate'],
+        setup: false,
+      );
+      final results = <bool>[];
+      final s = PuzzleSession(
+        p,
+        onResult: (_, ok) => results.add(ok),
+        moveDelay: Duration.zero,
+      );
+      await s.start();
+      expect(await s.playerMove(NormalMove.fromUci('a1a8')), isTrue);
+      expect(s.state, PuzzleState.solved);
+      expect(results, [true]);
+    },
+  );
 
   test('show solution plays the line and counts as failed', () async {
     final results = <bool>[];
@@ -97,17 +130,93 @@ void main() {
     expect(results, [false]);
   });
 
+  test('showing the solution cancels a pending setup move', () async {
+    final results = <bool>[];
+    final s = _session(_line, onResult: (_, ok) => results.add(ok));
+    final setup = s.start();
+    final solution = s.showSolution();
+    await Future.wait([setup, solution]);
+    expect(s.state, PuzzleState.showingSolution);
+    expect(s.lastMove?.uci, 'f3h4');
+    expect(results, [false]);
+    expect(await s.playerMove(NormalMove.fromUci('a7a6')), isFalse);
+  });
+
+  test('showing the solution cancels a pending opponent reply', () async {
+    final results = <bool>[];
+    final s = PuzzleSession(
+      PuzzleItem(
+        id: 'reply',
+        fen: Chess.initial.fen,
+        moves: const ['e2e4', 'e7e5', 'g1f3'],
+        rating: 600,
+        themes: const [],
+        setup: false,
+      ),
+      moveDelay: Duration.zero,
+      onResult: (_, ok) => results.add(ok),
+    );
+    await s.start();
+    final reply = s.playerMove(NormalMove.fromUci('e2e4'));
+    expect(s.state, PuzzleState.opponentMoving);
+    final solution = s.showSolution();
+    await reply;
+    await solution;
+    expect(s.state, PuzzleState.showingSolution);
+    expect(s.lastMove?.uci, 'g1f3');
+    expect(s.position.board.pieceAt(Square.e5)?.role, Role.pawn);
+    expect(results, [false]);
+  });
+
+  test('disposing during setup prevents delayed board mutation', () async {
+    final s = _session(_line);
+    final before = s.position.fen;
+    final pending = s.start();
+    s.dispose();
+    await pending;
+    expect(s.position.fen, before);
+    expect(s.lastMove, isNull);
+  });
+
+  test('starting twice cannot play the setup or solution twice', () async {
+    final s = _session(_line);
+    await Future.wait([s.start(), s.start()]);
+    expect(s.lastMove?.uci, 'd8h4');
+    expect(s.state, PuzzleState.playerToMove);
+    await s.showSolution();
+    await s.start();
+    expect(s.state, PuzzleState.showingSolution);
+    expect(s.lastMove?.uci, 'f3h4');
+  });
+
   test('bank picks puzzles near your rating and skips seen ones', () {
     final bank = PuzzleBank([
       for (var r = 400; r < 2400; r += 50)
-        PuzzleItem(id: 'p$r', fen: '', moves: const ['a2a3'], rating: r, themes: [(r ~/ 50).isEven ? 'fork' : 'pin']),
+        PuzzleItem(
+          id: 'p$r',
+          fen: '',
+          moves: const ['a2a3'],
+          rating: r,
+          themes: [(r ~/ 50).isEven ? 'fork' : 'pin'],
+        ),
     ]);
     final rnd = math.Random(1);
     for (var i = 0; i < 20; i++) {
       final p = bank.next(rating: 1000, random: rnd)!;
       expect(p.rating, inInclusiveRange(940, 1100));
     }
-    expect(bank.next(rating: 1000, exclude: {for (final p in bank.puzzles) if (p.id != 'p2350') p.id})!.id, 'p2350');
+    expect(
+      bank
+          .next(
+            rating: 1000,
+            exclude: {
+              for (final p in bank.puzzles)
+                if (p.id != 'p2350') p.id,
+            },
+          )!
+          .id,
+      'p2350',
+    );
     expect(bank.next(rating: 1000, theme: 'pin', random: rnd)!.themes, ['pin']);
   });
 
@@ -119,12 +228,18 @@ void main() {
   test('stats: rating moves with results, streak counts days', () {
     final now = DateTime(2026, 10, 16, 12);
     AppEvent e(String id, bool ok, int daysAgo) => AppEvent(
-        id: id,
-        type: puzzleEventType,
-        time: now.subtract(Duration(days: daysAgo)).toUtc(),
-        device: 'd',
-        data: {'id': id, 'solved': ok, 'puzzleRating': 900, 'rated': true});
-    final stats = PuzzleStats.fromEvents([e('a', true, 2), e('b', true, 1), e('c', true, 0), e('d', false, 0)], today: now);
+      id: id,
+      type: puzzleEventType,
+      time: now.subtract(Duration(days: daysAgo)).toUtc(),
+      device: 'd',
+      data: {'id': id, 'solved': ok, 'puzzleRating': 900, 'rated': true},
+    );
+    final stats = PuzzleStats.fromEvents([
+      e('a', true, 2),
+      e('b', true, 1),
+      e('c', true, 0),
+      e('d', false, 0),
+    ], today: now);
     expect(stats.solved, 3);
     expect(stats.attempted, 4);
     expect(stats.streakDays, 3);
@@ -138,11 +253,16 @@ void main() {
     expect(puzzles, hasLength(1));
     expect(puzzles.single.moves, ['g7g6']);
     expect(puzzles.single.setup, isFalse);
-    expect(Chess.fromSetup(Setup.parseFen(puzzles.single.fen)).turn, Side.black);
+    expect(
+      Chess.fromSetup(Setup.parseFen(puzzles.single.fen)).turn,
+      Side.black,
+    );
   });
 
   test('bundled puzzle set is valid (every 10th puzzle replayed)', () {
-    final bank = PuzzleBank.fromGzip(io.File('assets/puzzles/puzzles.tsv.gz').readAsBytesSync());
+    final bank = PuzzleBank.fromGzip(
+      io.File('assets/puzzles/puzzles.tsv.gz').readAsBytesSync(),
+    );
     expect(bank.puzzles.length, greaterThan(20000));
     for (var i = 0; i < bank.puzzles.length; i += 10) {
       final p = bank.puzzles[i];
@@ -152,7 +272,11 @@ void main() {
         expect(pos.isLegal(move), isTrue, reason: '${p.id}: $m');
         pos = pos.play(move);
       }
-      expect(p.moves.length.isEven, isTrue, reason: '${p.id} ends on the player\'s move');
+      expect(
+        p.moves.length.isEven,
+        isTrue,
+        reason: '${p.id} ends on the player\'s move',
+      );
     }
     expect(bank.byTheme['fork']!.length, greaterThan(1000));
   });

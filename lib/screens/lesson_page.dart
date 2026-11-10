@@ -21,8 +21,12 @@ import '../widgets/common.dart';
 /// Opens [lesson] where the player left off.
 Future<void> openLesson(BuildContext context, Lesson lesson) {
   final progress = LessonProgress.fromEvents(StoreScope.read(context).events);
-  return Navigator.of(context)
-      .push(FluentPageRoute(builder: (_) => LessonPage(lesson: lesson, startStep: progress.resumeStep(lesson))));
+  return Navigator.of(context).push(
+    FluentPageRoute(
+      builder: (_) =>
+          LessonPage(lesson: lesson, startStep: progress.resumeStep(lesson)),
+    ),
+  );
 }
 
 /// Moves written out with move numbers, e.g. "4.Ng5 d5 5.exd5".
@@ -147,6 +151,8 @@ class _LessonPageState extends State<LessonPage> {
   void _playDemo() {
     _demoTimer?.cancel();
     _demoPly = 0;
+    _refreshBoard(animate: false);
+    if (mounted) setState(() {});
     _demoTimer = Timer.periodic(widget.demoDelay, (t) {
       if (!mounted) {
         t.cancel();
@@ -159,8 +165,10 @@ class _LessonPageState extends State<LessonPage> {
       setState(() => _demoPly++);
       _refreshBoard(animate: true);
       final settings = SettingsScope.read(context);
-      BoardSound.instance.play(_demo[_demoPly].isCheck ? BoardSoundKind.check : BoardSoundKind.move,
-          soundOn: settings.boardSounds);
+      BoardSound.instance.play(
+        _demo[_demoPly].isCheck ? BoardSoundKind.check : BoardSoundKind.move,
+        soundOn: settings.boardSounds,
+      );
       if (_demoPly >= _demo.length - 1) t.cancel();
     });
   }
@@ -192,12 +200,16 @@ class _LessonPageState extends State<LessonPage> {
         _exerciseSound(BoardSoundKind.victory);
       case PuzzleState.opponentMoving:
         // The player's move was correct.
-        _exerciseSound(s.position.isCheck ? BoardSoundKind.check : BoardSoundKind.move,
-            buzz: s.position.isCheck ? BuzzKind.alarm : BuzzKind.tap);
+        _exerciseSound(
+          s.position.isCheck ? BoardSoundKind.check : BoardSoundKind.move,
+          buzz: s.position.isCheck ? BuzzKind.alarm : BuzzKind.tap,
+        );
       case PuzzleState.playerToMove:
         // The opponent's reply to the player's correct move.
         if (last == PuzzleState.opponentMoving) {
-          _exerciseSound(s.position.isCheck ? BoardSoundKind.check : BoardSoundKind.move);
+          _exerciseSound(
+            s.position.isCheck ? BoardSoundKind.check : BoardSoundKind.move,
+          );
         }
       case PuzzleState.wrongMove || PuzzleState.showingSolution:
         break;
@@ -214,11 +226,15 @@ class _LessonPageState extends State<LessonPage> {
     final s = _session;
     if (s != null) {
       final pos = s.position;
-      final canMove = s.state == PuzzleState.playerToMove || s.state == PuzzleState.wrongMove;
+      final canMove =
+          s.state == PuzzleState.playerToMove ||
+          s.state == PuzzleState.wrongMove;
       return GameData(
         fen: pos.fen,
         lastMove: s.lastMove ?? _step?.lastMove,
-        playerSide: canMove ? (s.playerSide == Side.white ? PlayerSide.white : PlayerSide.black) : PlayerSide.none,
+        playerSide: canMove
+            ? (s.playerSide == Side.white ? PlayerSide.white : PlayerSide.black)
+            : PlayerSide.none,
         sideToMove: pos.turn,
         validMoves: canMove ? makeLegalMoves(pos) : const {},
         kingSquareInCheck: pos.isCheck ? pos.board.kingOf(pos.turn) : null,
@@ -228,7 +244,9 @@ class _LessonPageState extends State<LessonPage> {
     final step = _step;
     return GameData(
       fen: pos.fen,
-      lastMove: step == null ? null : (_demoPly > 0 ? step.demo[_demoPly - 1] : step.lastMove),
+      lastMove: step == null
+          ? null
+          : (_demoPly > 0 ? step.demo[_demoPly - 1] : step.lastMove),
       playerSide: PlayerSide.none,
       sideToMove: pos.turn,
       validMoves: const {},
@@ -238,7 +256,11 @@ class _LessonPageState extends State<LessonPage> {
 
   void _refreshBoard({required bool animate}) {
     final data = _gameData();
-    _board.updatePosition(data, animate: animate && data.fen != _shownFen, resetPremove: true);
+    _board.updatePosition(
+      data,
+      animate: animate && data.fen != _shownFen,
+      resetPremove: true,
+    );
     _shownFen = data.fen;
   }
 
@@ -252,12 +274,20 @@ class _LessonPageState extends State<LessonPage> {
   void _onMove(Move move, {bool? viaDragAndDrop}) {
     final s = _session;
     if (s == null || move is! NormalMove) return;
-    unawaited(s.playerMove(move).then((ok) {
-      if (!ok && mounted) _refreshBoard(animate: false);
-    }));
+    unawaited(
+      s.playerMove(move).then((ok) {
+        if (!ok && mounted && identical(s, _session))
+          _refreshBoard(animate: false);
+      }),
+    );
   }
 
   void _hint() {
+    final session = _session;
+    if (session == null ||
+        session.finished ||
+        session.state == PuzzleState.opponentMoving)
+      return;
     _session?.hint();
     setState(() => _hintShown = true);
   }
@@ -265,9 +295,14 @@ class _LessonPageState extends State<LessonPage> {
   void _record(int i) {
     if (!_recorded.add(i)) return;
     StoreScope.read(context).add(
-          lessonEventType,
-          lessonStepData(lesson, i, solved: _isFind ? (_firstTry ?? false) : null, done: _last),
-        );
+      lessonEventType,
+      lessonStepData(
+        lesson,
+        i,
+        solved: _isFind ? (_firstTry ?? false) : null,
+        done: _last,
+      ),
+    );
   }
 
   void _next() {
@@ -303,7 +338,8 @@ class _LessonPageState extends State<LessonPage> {
         for (final (a, b) in step.arrows) Arrow(color: color, orig: a, dest: b),
         for (final c in step.circles) Circle(color: color, orig: c),
       ],
-      if (s?.hintSquare != null) Circle(color: p.success.withValues(alpha: 0.9), orig: s!.hintSquare!),
+      if (s?.hintSquare != null)
+        Circle(color: p.success.withValues(alpha: 0.9), orig: s!.hintSquare!),
     };
   }
 
@@ -333,17 +369,69 @@ class _LessonPageState extends State<LessonPage> {
   Widget _page(Palette p, BoardStyle style, AppSettings settings, int n) {
     return PageFrame(
       title: lesson.title,
-      subtitle: _complete ? 'Lesson complete' : 'Step ${_index + 1} of $n · ${lesson.summary}',
+      subtitle: _complete
+          ? 'Lesson complete'
+          : 'Step ${_index + 1} of $n · ${lesson.summary}',
       leading: const PageBackButton(),
       scroll: false,
+      compactOnPhone: true,
+      hidePhoneHeader: true,
       child: BoardLayout(
+        portraitHeader: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const PageBackButton(),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    lesson.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: p.text,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _complete ? 'Lesson complete' : 'Step ${_index + 1} of $n',
+              style: TextStyle(
+                color: p.accent,
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Meter(_complete ? 1 : _index / n),
+          ],
+        ),
+        panelTitle: 'Lesson guide',
+        compactMessage: _compactMessage,
+        compactHint: _complete
+            ? null
+            : _canContinue
+            ? _next
+            : _session != null &&
+                  !_session!.finished &&
+                  _session!.state != PuzzleState.opponentMoving
+            ? _hint
+            : null,
+        compactActionLabel: _canContinue ? (_last ? 'Finish' : 'Next') : 'Hint',
         boardLabel: _isFind
             ? 'Find the move. ${_orientation == Side.white ? 'White' : 'Black'} to play.'
             : 'Lesson board.',
         board: (size) => CheckPulse(
           size: size,
           orientation: _orientation,
-          kingSquare: _shownPosition.isCheck ? _shownPosition.board.kingOf(_shownPosition.turn) : null,
+          kingSquare: _shownPosition.isCheck
+              ? _shownPosition.board.kingOf(_shownPosition.turn)
+              : null,
           child: Chessboard(
             size: size,
             controller: _board,
@@ -362,53 +450,117 @@ class _LessonPageState extends State<LessonPage> {
     );
   }
 
+  String get _compactMessage {
+    if (_complete)
+      return 'Lesson complete! Open the guide to choose your next lesson.';
+    if (_error != null) return _error!;
+    final s = _session;
+    if (s == null) return _content.text;
+    if (_hintShown && !s.finished) {
+      if (_content.hint != null) return 'Hint: ${_content.hint}';
+      final square = s.hintSquare;
+      if (square != null) {
+        final piece = s.position.board.pieceAt(square);
+        return 'Hint: look at your ${piece?.role.name ?? 'piece'} on ${square.name}.';
+      }
+    }
+    return switch (s.state) {
+      PuzzleState.opponentMoving => 'Good! Now watch the reply…',
+      PuzzleState.playerToMove =>
+        'Your move as ${s.playerSide == Side.white ? 'White' : 'Black'}. ${_content.text}',
+      PuzzleState.wrongMove =>
+        'Not quite. Look for checks, captures and threats, then try again.',
+      PuzzleState.solved =>
+        _content.success ?? 'Well done! Continue to the next step.',
+      PuzzleState.showingSolution =>
+        'The answer: ${[for (var i = 0; i < _step!.solutionSan.length; i += 2) _step!.solutionSan[i]].join(', then ')}.',
+    };
+  }
+
   Widget _stepPanel(Palette p) {
     final n = lesson.steps.length;
     final s = _session;
     final step = _step;
-    return ListView(children: [
-      Row(children: [
-        Flexible(child: Pill(_isFind ? 'Find the move' : 'Learn', color: _isFind ? p.warning : p.accent)),
-        const Spacer(),
-        Text('${_index + 1} / $n', style: TextStyle(color: p.muted, fontSize: 12)),
-      ]),
-      const SizedBox(height: 10),
-      Meter((_index + (_canContinue ? 1 : 0)) / n),
-      const SizedBox(height: 16),
-      AnimatedSwitcher(
-        duration: motion(context, const Duration(milliseconds: 250)),
-        child: Text(_content.text,
-            key: ValueKey(_index), style: TextStyle(color: p.text, fontSize: 15, height: 1.45)),
-      ),
-      const SizedBox(height: 14),
-      if (_error != null) CoachBubble(text: _error!, tone: BubbleTone.warning),
-      if (step != null && s == null && step.demo.isNotEmpty)
-        CoachBubble(
-          text: _demoPly < _demo.length - 1
-              ? 'Watch: ${formatMoves(step.start, step.demo.take(_demoPly))}…'
-              : formatMoves(step.start, step.demo),
-          tone: BubbleTone.move,
+    return ListView(
+      children: [
+        Row(
+          children: [
+            Flexible(
+              child: Pill(
+                _isFind ? 'Find the move' : 'Learn',
+                color: _isFind ? p.warning : p.accent,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              'Step ${_index + 1} of $n',
+              style: TextStyle(color: p.muted, fontSize: 12),
+            ),
+          ],
         ),
-      if (s != null) ..._findStatus(s, step!),
-    ]);
+        const SizedBox(height: 10),
+        Meter((_index + (_canContinue ? 1 : 0)) / n),
+        const SizedBox(height: 16),
+        AnimatedSwitcher(
+          duration: motion(context, const Duration(milliseconds: 250)),
+          child: Text(
+            _content.text,
+            key: ValueKey(_index),
+            style: TextStyle(color: p.text, fontSize: 15, height: 1.45),
+          ),
+        ),
+        const SizedBox(height: 14),
+        if (_error != null)
+          CoachBubble(text: _error!, tone: BubbleTone.warning),
+        if (step != null && s == null && step.demo.isNotEmpty)
+          CoachBubble(
+            text: _demoPly < _demo.length - 1
+                ? 'Watch: ${formatMoves(step.start, step.demo.take(_demoPly))}…'
+                : formatMoves(step.start, step.demo),
+            tone: BubbleTone.move,
+          ),
+        if (s != null) ..._findStatus(s, step!),
+        if (MediaQuery.sizeOf(context).height < 500) ...[
+          const SizedBox(height: 12),
+          Button(
+            onPressed: () => Navigator.of(context).maybePop(),
+            child: const Text('Back to lessons'),
+          ),
+        ],
+      ],
+    );
   }
 
   List<Widget> _findStatus(PuzzleSession s, StepBoard step) {
     final side = s.playerSide == Side.white ? 'White' : 'Black';
     final hint = _content.hint;
-    final playerMoves = [for (var i = 0; i < step.solutionSan.length; i += 2) step.solutionSan[i]];
+    final playerMoves = [
+      for (var i = 0; i < step.solutionSan.length; i += 2) step.solutionSan[i],
+    ];
     return [
       switch (s.state) {
-        PuzzleState.opponentMoving => const CoachBubble(text: 'Good! Now watch the reply…', tone: BubbleTone.move),
+        PuzzleState.opponentMoving => const CoachBubble(
+          text: 'Good! Now watch the reply…',
+          tone: BubbleTone.move,
+        ),
         PuzzleState.playerToMove => CoachBubble(text: 'Your move as $side.'),
-        PuzzleState.wrongMove => const CoachBubble(text: 'Not quite. Read the task again and try another move.',
-            tone: BubbleTone.warning),
-        PuzzleState.solved => CoachBubble(text: _content.success ?? 'Well done!', tone: BubbleTone.good),
+        PuzzleState.wrongMove => const CoachBubble(
+          text: 'Not quite. Read the task again and try another move.',
+          tone: BubbleTone.warning,
+        ),
+        PuzzleState.solved => CoachBubble(
+          text: _content.success ?? 'Well done!',
+          tone: BubbleTone.good,
+        ),
         PuzzleState.showingSolution => CoachBubble(
-            text: 'The answer: ${playerMoves.join(', then ')}. ${_content.success ?? ''}'.trim(),
-            tone: BubbleTone.move),
+          text:
+              'The answer: ${playerMoves.join(', then ')}. ${_content.success ?? ''}'
+                  .trim(),
+          tone: BubbleTone.move,
+        ),
       },
-      if (_hintShown && hint != null && !s.finished) CoachBubble(text: 'Hint: $hint'),
+      if (_hintShown && hint != null && !s.finished)
+        CoachBubble(text: 'Hint: $hint'),
     ];
   }
 
@@ -416,64 +568,111 @@ class _LessonPageState extends State<LessonPage> {
     final progress = LessonProgress.fromEvents(StoreScope.of(context).events);
     final r = progress.records[lesson.id];
     final next = progress.next();
-    return ListView(children: [
-      Row(children: [
-        Icon(FluentIcons.completed_solid, color: p.success, size: 22),
-        const SizedBox(width: 10),
-        Text('Lesson complete!', style: TextStyle(color: p.text, fontSize: 20, fontWeight: FontWeight.w600)),
-      ]),
-      const SizedBox(height: 12),
-      if (r != null && r.tried > 0)
-        CoachBubble(
-          text: 'You found ${r.found} of ${r.tried} moves on the first try.',
-          tone: r.found == r.tried ? BubbleTone.good : BubbleTone.info,
+    return ListView(
+      children: [
+        Row(
+          children: [
+            Icon(FluentIcons.completed_solid, color: p.success, size: 22),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Lesson complete!',
+                style: TextStyle(
+                  color: p.text,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
         ),
-      const SizedBox(height: 8),
-      Wrap(spacing: 8, runSpacing: 8, children: [
-        Button(onPressed: () => Navigator.of(context).maybePop(), child: const Text('Back to lessons')),
-        Button(onPressed: () => _enter(0), child: const Text('Repeat')),
-        if (next != null)
-          FilledButton(
-            onPressed: () => Navigator.of(context).pushReplacement(FluentPageRoute(
-                builder: (_) => LessonPage(lesson: next, startStep: progress.resumeStep(next)))),
-            child: Text('Next: ${next.title}', overflow: TextOverflow.ellipsis),
+        const SizedBox(height: 12),
+        if (r != null && r.tried > 0)
+          CoachBubble(
+            text: 'You found ${r.found} of ${r.tried} moves on the first try.',
+            tone: r.found == r.tried ? BubbleTone.good : BubbleTone.info,
           ),
-      ]),
-    ]);
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            Button(
+              onPressed: () => Navigator.of(context).maybePop(),
+              child: const Text('Back to lessons'),
+            ),
+            Button(onPressed: () => _enter(0), child: const Text('Repeat')),
+            if (next != null)
+              FilledButton(
+                onPressed: () => Navigator.of(context).pushReplacement(
+                  FluentPageRoute(
+                    builder: (_) => LessonPage(
+                      lesson: next,
+                      startStep: progress.resumeStep(next),
+                    ),
+                  ),
+                ),
+                child: Text(
+                  'Next: ${next.title}',
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
   }
 
   Widget _actions() {
     final s = _session;
-    final open = s != null && !s.finished && s.state != PuzzleState.opponentMoving;
-    return Wrap(alignment: WrapAlignment.center, spacing: 8, runSpacing: 8, children: [
-      Button(
-        onPressed: _index == 0 ? null : () => _enter(_index - 1),
-        child: const Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(FluentIcons.chevron_left, size: 12),
-          SizedBox(width: 6),
-          Text('Back'),
-        ]),
-      ),
-      if (s != null) ...[
+    final open =
+        s != null && !s.finished && s.state != PuzzleState.opponentMoving;
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 8,
+      runSpacing: 8,
+      children: [
         Button(
-          onPressed: open ? _hint : null,
-          child: const Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(FluentIcons.lightbulb, size: 14),
-            SizedBox(width: 6),
-            Text('Hint'),
-          ]),
+          onPressed: _index == 0 ? null : () => _enter(_index - 1),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(FluentIcons.chevron_left, size: 12),
+              SizedBox(width: 6),
+              Text('Back'),
+            ],
+          ),
         ),
-        Button(onPressed: open ? s.showSolution : null, child: const Text('Show answer')),
-      ] else if (_demo.length > 1)
-        Button(onPressed: _playDemo, child: const Text('Replay')),
-      FilledButton(
-        onPressed: _canContinue ? _next : null,
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Text(_last ? 'Finish' : 'Next'),
-          const SizedBox(width: 6),
-          const Icon(FluentIcons.chevron_right, size: 12),
-        ]),
-      ),
-    ]);
+        if (s != null) ...[
+          FilledButton(
+            onPressed: open ? _hint : null,
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(FluentIcons.lightbulb, size: 18),
+                SizedBox(width: 6),
+                Text('Hint', style: TextStyle(fontWeight: FontWeight.w700)),
+              ],
+            ),
+          ),
+          Button(
+            onPressed: open ? s.showSolution : null,
+            child: const Text('Show answer'),
+          ),
+        ] else if (_demo.length > 1)
+          Button(onPressed: _playDemo, child: const Text('Replay')),
+        FilledButton(
+          onPressed: _canContinue ? _next : null,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(_last ? 'Finish' : 'Next'),
+              const SizedBox(width: 6),
+              const Icon(FluentIcons.chevron_right, size: 12),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }

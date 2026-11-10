@@ -20,6 +20,7 @@ class Palette {
     this.warning = const Color(0xFFF59E0B),
     this.danger = const Color(0xFFEF4444),
     this.woodGrain = false,
+    this.interfaceStyle = InterfaceStyle.glass,
   });
 
   final Brightness brightness;
@@ -37,73 +38,112 @@ class Palette {
   final Color warning;
   final Color danger;
   final bool woodGrain;
+  final InterfaceStyle interfaceStyle;
+  bool get isGlass => interfaceStyle == InterfaceStyle.glass;
+  double corner(double radius) =>
+      interfaceStyle == InterfaceStyle.fluent ? radius.clamp(0, 12) : radius;
 
-  Color get glassFill => surface.withValues(alpha: brightness == Brightness.dark ? 0.76 : 0.88);
-  Color get glassFillSubtle => surfaceAlt.withValues(alpha: brightness == Brightness.dark ? 0.55 : 0.70);
-  Color get glassBorder => brightness == Brightness.dark ? const Color(0x28FFFFFF) : const Color(0x1E000000);
-  Color get glassBorderSubtle => brightness == Brightness.dark ? const Color(0x18FFFFFF) : const Color(0x12000000);
-  Color get specularBorder => brightness == Brightness.dark ? const Color(0x38FFFFFF) : const Color(0x28FFFFFF);
+  Palette withStyle(InterfaceStyle style) => Palette(
+    brightness: brightness,
+    background: background,
+    backgroundEnd: backgroundEnd,
+    pane: pane,
+    surface: surface,
+    surfaceAlt: surfaceAlt,
+    border: border,
+    text: text,
+    muted: muted,
+    accent: accent,
+    onAccent: onAccent,
+    success: success,
+    warning: warning,
+    danger: danger,
+    woodGrain: woodGrain,
+    interfaceStyle: style,
+  );
 
+  Color get glassFill => isGlass ? surface.withValues(alpha: 0.88) : surface;
+  Color get glassFillSubtle =>
+      isGlass ? surfaceAlt.withValues(alpha: 0.64) : surfaceAlt;
+  Color get glassBorder => Color.lerp(border, text, 0.12)!;
+  Color get glassBorderSubtle => border.withValues(alpha: 0.65);
+  Color get specularBorder => text.withValues(alpha: 0.20);
+
+  // Translucent layers and a static light falloff give the glass finish without
+  // a backdrop blur pass on every card while pieces and lists are moving.
   BoxDecoration glassDecoration({
-    double radius = 18,
+    double radius = 24,
     bool highlight = false,
     bool subtle = false,
     bool macosElevated = false,
-  }) =>
-      BoxDecoration(
-        color: subtle ? glassFillSubtle : glassFill,
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(
-          color: highlight
-              ? accent
-              : (subtle ? glassBorderSubtle : (macosElevated ? specularBorder : glassBorder)),
-          width: highlight ? 1.6 : 1.0,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF000000).withValues(
-              alpha: brightness == Brightness.light ? 0.06 : 0.32,
-            ),
-            blurRadius: macosElevated ? 28 : 20,
-            offset: Offset(0, macosElevated ? 10 : 6),
-            spreadRadius: macosElevated ? 1 : 0,
+  }) => BoxDecoration(
+    color: isGlass
+        ? null
+        : Color.lerp(
+            subtle ? surfaceAlt : surface,
+            accent,
+            highlight ? 0.13 : 0,
           ),
-          if (highlight)
+    gradient: !isGlass
+        ? null
+        : LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color.lerp(
+                surface,
+                highlight ? accent : text,
+                highlight ? 0.14 : 0.06,
+              )!.withValues(alpha: subtle ? 0.76 : 0.96),
+              (subtle ? surfaceAlt : surface).withValues(
+                alpha: subtle ? 0.56 : 0.82,
+              ),
+            ],
+          ),
+    borderRadius: BorderRadius.circular(corner(radius)),
+    border: Border.all(
+      color: highlight ? accent.withValues(alpha: 0.32) : glassBorder,
+    ),
+    boxShadow: !isGlass || (subtle && !macosElevated)
+        ? null
+        : [
             BoxShadow(
-              color: accent.withValues(alpha: 0.22),
-              blurRadius: 18,
-              spreadRadius: 1.5,
+              color: const Color(
+                0xFF09140B,
+              ).withValues(alpha: brightness == Brightness.dark ? 0.16 : 0.06),
+              blurRadius: macosElevated ? 22 : 14,
+              offset: const Offset(0, 5),
             ),
-        ],
-      );
+          ],
+  );
 
   static const light = Palette(
     brightness: Brightness.light,
-    background: Color(0xFFF8FAFC),
-    backgroundEnd: Color(0xFFEDF2F7),
-    pane: Color(0xFFF1F5F9),
+    background: Color(0xFFF3F6EF),
+    backgroundEnd: Color(0xFFE5EDE1),
+    pane: Color(0xFFEDF2E8),
     surface: Color(0xFFFFFFFF),
-    surfaceAlt: Color(0xFFF1F5F9),
-    border: Color(0xFFE2E8F0),
-    text: Color(0xFF0F172A),
-    muted: Color(0xFF64748B),
-    accent: Color(0xFF0284C7),
+    surfaceAlt: Color(0xFFEAF0E5),
+    border: Color(0xFFD7E1CF),
+    text: Color(0xFF263025),
+    muted: Color(0xFF5D6B58),
+    accent: Color(0xFF507C37),
     onAccent: Color(0xFFFFFFFF),
     success: Color(0xFF10B981),
   );
 
   static const dark = Palette(
     brightness: Brightness.dark,
-    background: Color(0xFF0B0F17),
-    backgroundEnd: Color(0xFF141A24),
-    pane: Color(0xFF0A0D14),
-    surface: Color(0xFF161D29),
-    surfaceAlt: Color(0xFF1E2838),
-    border: Color(0xFF263346),
-    text: Color(0xFFF1F5F9),
-    muted: Color(0xFF94A3B8),
-    accent: Color(0xFF38BDF8),
-    onAccent: Color(0xFF0B132B),
+    background: Color(0xFF2A342D),
+    backgroundEnd: Color(0xFF202521),
+    pane: Color(0xFF242D26),
+    surface: Color(0xFF323D34),
+    surfaceAlt: Color(0xFF39453B),
+    border: Color(0xFF49564A),
+    text: Color(0xFFF3F5EE),
+    muted: Color(0xFFBBC5B7),
+    accent: Color(0xFFB4D992),
+    onAccent: Color(0xFF202719),
   );
 
   static const wooden = Palette(
@@ -122,15 +162,59 @@ class Palette {
     woodGrain: true,
   );
 
+  static const midnight = Palette(
+    brightness: Brightness.dark,
+    background: Color(0xFF172638),
+    backgroundEnd: Color(0xFF101721),
+    pane: Color(0xFF172230),
+    surface: Color(0xFF223246),
+    surfaceAlt: Color(0xFF2B4057),
+    border: Color(0xFF40556C),
+    text: Color(0xFFF0F5FC),
+    muted: Color(0xFFAFBED1),
+    accent: Color(0xFF9CCAFF),
+    onAccent: Color(0xFF112840),
+  );
+  static const amethyst = Palette(
+    brightness: Brightness.dark,
+    background: Color(0xFF30243D),
+    backgroundEnd: Color(0xFF1C1826),
+    pane: Color(0xFF271F32),
+    surface: Color(0xFF3A2E48),
+    surfaceAlt: Color(0xFF493957),
+    border: Color(0xFF62516E),
+    text: Color(0xFFF8F1FC),
+    muted: Color(0xFFC8B9D1),
+    accent: Color(0xFFD6B5FA),
+    onAccent: Color(0xFF30203E),
+  );
+  static const sand = Palette(
+    brightness: Brightness.light,
+    background: Color(0xFFFAF4E9),
+    backgroundEnd: Color(0xFFEDE1CD),
+    pane: Color(0xFFF2E7D5),
+    surface: Color(0xFFFFFBF4),
+    surfaceAlt: Color(0xFFF0E5D1),
+    border: Color(0xFFD9C8AD),
+    text: Color(0xFF372C20),
+    muted: Color(0xFF75634D),
+    accent: Color(0xFF8C5725),
+    onAccent: Color(0xFFFFFFFF),
+    success: Color(0xFF36703F),
+  );
+
   static Palette of(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<PaletteScope>()?.palette ??
       dark;
 
   static Palette forTheme(AppTheme theme) => switch (theme) {
-        AppTheme.light => light,
-        AppTheme.dark => dark,
-        AppTheme.wooden => wooden,
-      };
+    AppTheme.light => light,
+    AppTheme.dark => dark,
+    AppTheme.wooden => wooden,
+    AppTheme.midnight => midnight,
+    AppTheme.amethyst => amethyst,
+    AppTheme.sand => sand,
+  };
 }
 
 class PaletteScope extends InheritedWidget {
@@ -139,7 +223,8 @@ class PaletteScope extends InheritedWidget {
   final Palette palette;
 
   @override
-  bool updateShouldNotify(PaletteScope oldWidget) => palette != oldWidget.palette;
+  bool updateShouldNotify(PaletteScope oldWidget) =>
+      palette != oldWidget.palette;
 }
 
 FluentThemeData buildFluentTheme(Palette p, {String? fontFamily}) {
@@ -160,6 +245,25 @@ FluentThemeData buildFluentTheme(Palette p, {String? fontFamily}) {
     cardColor: p.surface,
     micaBackgroundColor: p.background,
     visualDensity: VisualDensity.standard,
+    buttonTheme: ButtonThemeData(
+      defaultButtonStyle: ButtonStyle(
+        shape: WidgetStateProperty.resolveWith(
+          (states) => RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(p.corner(16)),
+            side: BorderSide(
+              color: states.isHovered ? p.glassBorder : p.glassBorderSubtle,
+            ),
+          ),
+        ),
+      ),
+      filledButtonStyle: const ButtonStyle(
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(16)),
+          ),
+        ),
+      ),
+    ),
     navigationPaneTheme: NavigationPaneThemeData(backgroundColor: p.pane),
     resources: p.brightness == Brightness.light
         ? const ResourceDictionary.light()

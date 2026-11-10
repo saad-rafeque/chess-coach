@@ -148,15 +148,17 @@ class SkillModel {
     );
   }
 
-  static final _cache = Expando<(int, SkillModel)>();
+  static final _cache = Expando<(int, DateTime, SkillModel)>();
 
   /// The model for [store], rebuilt only when events were added.
-  static SkillModel of(EventStore store) {
+  static SkillModel of(EventStore store, {DateTime? now}) {
+    final time = (now ?? DateTime.now()).toLocal();
+    final day = DateTime(time.year, time.month, time.day);
     final n = store.events.length;
     final hit = _cache[store];
-    if (hit != null && hit.$1 == n) return hit.$2;
-    final model = SkillModel.fromEvents(store.events);
-    _cache[store] = (n, model);
+    if (hit != null && hit.$1 == n && hit.$2 == day) return hit.$3;
+    final model = SkillModel.fromEvents(store.events, now: time);
+    _cache[store] = (n, day, model);
     return model;
   }
 

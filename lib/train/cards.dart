@@ -94,16 +94,18 @@ class CardDeck {
     return CardDeck._(cards, states, introduced);
   }
 
-  static final _cache = Expando<(int, bool, CardDeck)>();
+  static final _cache = Expando<(int, bool, DateTime, CardDeck)>();
 
   /// The deck for [store], rebuilt only when events were added (or the puzzle set finished loading).
-  static CardDeck of(EventStore store) {
+  static CardDeck of(EventStore store, {DateTime? now}) {
+    final time = (now ?? DateTime.now()).toLocal();
+    final day = DateTime(time.year, time.month, time.day);
     final n = store.events.length;
     final bank = PuzzleBank.loaded != null;
     final hit = _cache[store];
-    if (hit != null && hit.$1 == n && hit.$2 == bank) return hit.$3;
-    final deck = CardDeck.fromStore(store);
-    _cache[store] = (n, bank, deck);
+    if (hit != null && hit.$1 == n && hit.$2 == bank && hit.$3 == day) return hit.$4;
+    final deck = CardDeck.fromStore(store, now: time);
+    _cache[store] = (n, bank, day, deck);
     return deck;
   }
 

@@ -20,7 +20,9 @@ class SettingsScope extends InheritedNotifier<AppSettings> {
       context.getInheritedWidgetOfExactType<SettingsScope>()!.notifier!;
 }
 
-enum AppTheme { light, dark, wooden }
+enum AppTheme { light, dark, wooden, midnight, amethyst, sand }
+
+enum InterfaceStyle { glass, fluent, material }
 
 /// A name as typed: one line, no control characters, at most 24 characters.
 String cleanName(String value) {
@@ -40,6 +42,11 @@ class AppSettings extends ChangeNotifier {
     : _theme =
           AppTheme.values.asNameMap()[_prefs?.getString('theme')] ??
           AppTheme.dark,
+      _interfaceStyle =
+          InterfaceStyle.values.asNameMap()[_prefs?.getString(
+            'interfaceStyle',
+          )] ??
+          InterfaceStyle.glass,
       _showCoordinates = _prefs?.getBool('coords') ?? true,
       _trainingHints = _prefs?.getBool('hints') ?? true,
       _evalBar = _prefs?.getBool('evalBar') ?? true,
@@ -83,6 +90,7 @@ class AppSettings extends ChangeNotifier {
   /// The settings shared between devices.
   Map<String, dynamic> toSyncJson() => {
     'theme': _theme.name,
+    'interfaceStyle': _interfaceStyle.name,
     'coords': _showCoordinates,
     'hints': _trainingHints,
     'evalBar': _evalBar,
@@ -101,6 +109,9 @@ class AppSettings extends ChangeNotifier {
     bool flag(String key, bool current) =>
         j[key] is bool ? j[key] as bool : current;
     _theme = AppTheme.values.asNameMap()[j['theme']] ?? _theme;
+    _interfaceStyle =
+        InterfaceStyle.values.asNameMap()[j['interfaceStyle']] ??
+        _interfaceStyle;
     _showCoordinates = flag('coords', _showCoordinates);
     _trainingHints = flag('hints', _trainingHints);
     _evalBar = flag('evalBar', _evalBar);
@@ -121,6 +132,7 @@ class AppSettings extends ChangeNotifier {
     _pieceSet = choice(j['pieceSet'], pieceChoices.containsKey, _pieceSet);
     _prefs
       ?..setString('theme', _theme.name)
+      ..setString('interfaceStyle', _interfaceStyle.name)
       ..setBool('coords', _showCoordinates)
       ..setBool('hints', _trainingHints)
       ..setBool('evalBar', _evalBar)
@@ -150,6 +162,16 @@ class AppSettings extends ChangeNotifier {
     } else {
       value == null ? _prefs.remove(key) : _prefs.setString(key, value);
     }
+  }
+
+  InterfaceStyle _interfaceStyle;
+  InterfaceStyle get interfaceStyle => _interfaceStyle;
+  set interfaceStyle(InterfaceStyle value) {
+    if (_interfaceStyle == value) return;
+    _interfaceStyle = value;
+    _prefs?.setString('interfaceStyle', value.name);
+    _touch();
+    notifyListeners();
   }
 
   AppTheme _theme;
@@ -320,10 +342,10 @@ class AppSettings extends ChangeNotifier {
 
   /// Random id of this install, stamped on stored events (for sync).
   String get deviceId {
-    var id = _prefs?.getString('deviceId');
+    var id = readValue('deviceId');
     if (id == null) {
       id = newId();
-      _prefs?.setString('deviceId', id);
+      writeValue('deviceId', id);
     }
     return id;
   }
@@ -333,7 +355,9 @@ class AppSettings extends ChangeNotifier {
       _prefs == null ? _memory['savedGame'] : _prefs.getString('savedGame');
   set savedGame(String? value) {
     if (_prefs == null) {
-      value == null ? _memory.remove('savedGame') : _memory['savedGame'] = value;
+      value == null
+          ? _memory.remove('savedGame')
+          : _memory['savedGame'] = value;
     } else {
       value == null
           ? _prefs.remove('savedGame')

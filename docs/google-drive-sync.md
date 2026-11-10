@@ -7,7 +7,7 @@
 > authorised domain `saad-rafeque.github.io`. Both GitHub secrets are set; forks don't receive them.
 
 Sync keeps your phone, Windows PC and Ubuntu PC in step. Each device stores your games, puzzles and lessons
-locally; the app merges them through **one small file in a hidden app folder of your Google Drive**. Only
+locally; the app merges them through **private snapshots in a hidden app folder of your Google Drive**. Only
 Chess Coach can see that folder, and it can't see any of your other files.
 
 Google needs a "client" for the app's sign-in. Because this is your personal app, you create it in your own
@@ -80,3 +80,28 @@ The same Desktop client works on the phone too: the app signs in through your br
 Do this on each device with the same Google account. From then on the app syncs by itself when it opens and
 when you close it or switch away, and it retries a few times if you are offline. **Sync now** forces a sync,
 and **Disconnect** stops it on that device (the file in Drive stays).
+
+## Concurrent devices and migration (November 2026)
+
+Each current installation writes only its own `chess-coach-snapshot.json.gz` file, identified by a random
+local writer ID. Every sync lists and reads all current snapshots plus every legacy
+`chess-coach-sync.json.gz` file, merges events by ID, and applies the newest valid settings timestamp.
+It never writes another installation's snapshot and never deletes legacy or duplicate files. This
+avoids two devices overwriting each other's events while uploading at the same time. Reconnecting
+the same installation reuses its snapshot; reinstalling may leave an additional read-only snapshot.
+
+**Update every device to this version for two-way sync.** Old versions can continue writing their
+legacy file, and the new version imports those changes, but old versions cannot read the new snapshot
+files. This deliberate compatibility boundary protects new snapshots from old shared-file writers.
+
+Sync is eventually consistent: an offline device keeps its progress locally, and a concurrent upload
+that arrives after another device's read is picked up on the next successful sync. “Synced” records
+the last successful exchange; it cannot mean that currently offline devices have received it.
+Settings-only changes are uploaded on backgrounding, and changes made during an upload trigger a
+follow-up pass. Account disconnect/cancel invalidates pending results before they can modify local
+account metadata or merge newly downloaded data. A network request already sent cannot be recalled.
+
+Discovery follows all `nextPageToken` results as specified by Google's
+[files.list API](https://developers.google.com/workspace/drive/api/reference/rest/v3/files/list),
+using only the [private appDataFolder](https://developers.google.com/workspace/drive/api/guides/appdata).
+It does not rely on undocumented compare-and-swap behavior for media uploads.

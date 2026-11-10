@@ -84,18 +84,41 @@ class EventStore extends ChangeNotifier {
   final String device;
   final _events = <AppEvent>[];
   final _ids = <String>{};
+  Future<void> _writes = Future.value();
 
   List<AppEvent> get events => List.unmodifiable(_events);
 
   /// Set when progress can't be saved (no storage, disk full...). The app keeps working in memory.
   String? storageError;
 
-  Future<void> _append(String text) async {
+  Future<void> _append(String text) {
+    // Keep a local completion and a sync merge from interleaving file writes.
+    return _writes = _writes.then((_) => _write(text));
+  }
+
+  Future<void> _write(String text) async {
     final f = _file;
     if (f == null) return;
     try {
       await secureDataFile(f);
-      await f.writeAsString(text, mode: FileMode.append, flush: true);
+      var separator = '';
+      final length = await f.length();
+      if (length > 0) {
+        final reader = await f.open();
+        try {
+          await reader.setPosition(length - 1);
+          if (await reader.readByte() != 10) separator = '\n';
+        } finally {
+          await reader.close();
+        }
+      }
+      // A crash can leave an incomplete final JSON line. Preserve it for
+      // recovery, but never concatenate the next valid record onto it.
+      await f.writeAsString(
+        '$separator$text',
+        mode: FileMode.append,
+        flush: true,
+      );
     } catch (e) {
       storageError = 'Your progress could not be saved on this device ($e).';
     }
@@ -120,17 +143,19 @@ class EventStore extends ChangeNotifier {
     try {
       final lines = f
           .openRead()
-          .transform(utf8.decoder)
+          // Split bytes at ASCII newlines before decoding UTF-8, so a damaged
+          // character in one record cannot abort all subsequent history.
+          .transform(const Latin1Decoder())
           .transform(const LineSplitter());
       await for (final line in lines) {
         if (line.trim().isEmpty) continue;
-        if (line.length > maxEventChars * 2) {
+        if (line.length > maxEventChars * 4) {
           skipped++;
           continue;
         }
         AppEvent? e;
         try {
-          e = parseEvent(jsonDecode(line));
+          e = parseEvent(jsonDecode(utf8.decode(latin1.encode(line))));
         } catch (_) {}
         if (e == null) {
           skipped++;
@@ -139,9 +164,14 @@ class EventStore extends ChangeNotifier {
         }
       }
     } catch (e) {
+      storageError = 'Some saved progress could not be read on this device.';
       debugPrint('Error reading event log: $e');
     }
-    if (skipped > 0) debugPrint('Skipped $skipped damaged event lines');
+    if (skipped > 0) {
+      storageError ??=
+          'Some damaged progress records were skipped. Your other progress is available.';
+      debugPrint('Skipped $skipped damaged event lines');
+    }
   }
 
   bool _insert(AppEvent e) {
