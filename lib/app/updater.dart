@@ -184,9 +184,9 @@ class Updater extends ChangeNotifier {
       final tag = json['tag_name'];
       if (tag is! String || !RegExp(r'^v\d+\.\d+\.\d+$').hasMatch(tag))
         throw const FormatException('Bad release tag.');
-      _checked = DateTime.now();
       if (compareVersions(tag, current) <= 0) {
         available = null;
+        _checked = DateTime.now();
         return;
       }
       final assets = <String, ({String name, String url, int size})>{};
@@ -241,6 +241,9 @@ class Updater extends ChangeNotifier {
         asset: sum == null ? null : asset,
         sha256: sum,
       );
+      // Only a complete check is throttled. A failed metadata/checksum fetch
+      // must remain retryable when the network returns.
+      _checked = DateTime.now();
     } catch (e) {
       debugPrint('Update check failed: $e');
       status = UpdateStatus.failed;

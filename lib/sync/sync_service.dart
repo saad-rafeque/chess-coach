@@ -284,7 +284,11 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
     return _running = running;
   }
 
-  Future<bool> _sync(int generation, {bool afterCreate = false}) async {
+  Future<bool> _sync(
+    int generation, {
+    bool afterCreate = false,
+    bool refreshedAuthorization = false,
+  }) async {
     if (!configured || !_current(generation)) return false;
     await _load();
     if (!_current(generation)) return false;
@@ -385,10 +389,15 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
       // Changes made during the upload were not in its payload. Send them in
       // another pass instead of marking them synced or waiting for an app switch.
       if (_dirty || (created && !afterCreate))
-        return await _sync(generation, afterCreate: true);
+        return await _sync(
+          generation,
+          afterCreate: true,
+          refreshedAuthorization: refreshedAuthorization,
+        );
       return true;
     } on AuthException catch (e) {
       if (!_current(generation)) return false;
+      _offline = false;
       _error = e.signInAgain
           ? 'Google sign-in expired. Connect again.'
           : e.message;
@@ -411,6 +420,33 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
       return false;
     } catch (e) {
       if (!_current(generation)) return false;
+      // A definite Drive response replaces any previous network failure.
+      // Otherwise an expired grant can be hidden behind the Offline status.
+      if (e is DriveException) _offline = false;
+      if (e is DriveException && e.status == HttpStatus.unauthorized) {
+        if (!refreshedAuthorization) {
+          try {
+            await auth.invalidateAccessToken(refresh);
+          } catch (_) {
+            if (_current(generation)) {
+              _error = 'Could not refresh Google sign-in. Try syncing again.';
+            }
+            return false;
+          }
+          if (!_current(generation)) return false;
+          return await _sync(
+            generation,
+            afterCreate: afterCreate,
+            refreshedAuthorization: true,
+          );
+        }
+        // A fresh token was also rejected. Retrying the cached credential
+        // forever cannot recover a removed grant; offer Connect instead.
+        _refreshToken = null;
+        _error = 'Google sign-in expired. Connect again.';
+        await _save(null);
+        return false;
+      }
       _error = e is DriveException && e.status >= 500
           ? 'Google Drive is busy. Will try again later.'
           : 'Sync failed: $e';

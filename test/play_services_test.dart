@@ -19,6 +19,14 @@ class _FakePlay extends GoogleSignInPlatform {
   Future<ClientAuthorizationTokenData?> Function(AuthorizationRequestDetails)?
   authorization;
   final requests = <AuthorizationRequestDetails>[];
+  final cleared = <String>[];
+
+  @override
+  Future<void> clearAuthorizationToken(
+    ClearAuthorizationTokenParams params,
+  ) async {
+    cleared.add(params.accessToken);
+  }
 
   @override
   Future<void> init(InitParameters params) async =>
@@ -107,6 +115,22 @@ void main() {
       ),
     );
   });
+
+  test(
+    'rejected native token is evicted from both caches for its account',
+    () async {
+      final play = _FakePlay();
+      final auth = PlayServicesAuth(config, platform: play);
+      expect(await auth.accessToken('play:a@example.com'), 'token1');
+      await auth.invalidateAccessToken('play:b@example.com');
+      expect(await auth.accessToken('play:a@example.com'), 'token1');
+      expect(play.cleared, isEmpty);
+      await auth.invalidateAccessToken('play:a@example.com');
+      expect(play.cleared, ['token1']);
+      expect(await auth.accessToken('play:a@example.com'), 'token2');
+      expect(play.requests.last.email, 'a@example.com');
+    },
+  );
 
   test(
     'native cached access tokens are reused only for their account',

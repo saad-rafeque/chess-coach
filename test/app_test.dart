@@ -31,7 +31,8 @@ void main() {
     await _pumpAt(tester, const Size(1400, 900), settings);
 
     expect(find.text('Chess Coach'), findsOneWidget);
-    expect(find.text('How much time do you have?'), findsOneWidget);
+    expect(find.text('Training options'), findsOneWidget);
+    expect(find.text('How much time do you have?'), findsNothing);
 
     await tester.tap(find.text('Settings').last);
     await tester.pumpAndSettle();
@@ -65,7 +66,7 @@ void main() {
   });
 
   testWidgets(
-    'short split-screen and PiP windows keep the board and coach controls visible',
+    'short split-screen windows keep the board and coach controls visible',
     (tester) async {
       void checkStep(String step) {
         final error = tester.takeException();
@@ -145,6 +146,10 @@ void main() {
       AppSettings.memory(),
       store: await storeWithReviewedGame(),
     );
+    await tester.ensureVisible(find.text('Your progress'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Your progress'));
+    await tester.pumpAndSettle();
     expect(find.text('Recent games'), findsOneWidget);
     await tester.ensureVisible(find.text('Review').first);
     await tester.pumpAndSettle();
@@ -192,6 +197,10 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Home').last);
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Training options'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Training options'));
+      await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('15 min'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('15 min'));
@@ -203,6 +212,10 @@ void main() {
       await tester.tap(find.textContaining('to review'));
       await tester.pumpAndSettle();
       await tester.tap(find.byIcon(FluentIcons.back));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Your progress'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Your progress'));
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Review').first);
       await tester.pumpAndSettle();

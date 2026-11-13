@@ -6,7 +6,6 @@ import '../screens/play_page.dart';
 import '../screens/puzzles_page.dart';
 import '../screens/settings_page.dart';
 import '../widgets/common.dart';
-import 'picture_in_picture.dart';
 import 'theme.dart';
 
 const _labels = ['Home', 'Play', 'Puzzles', 'Lessons', 'Settings'];
@@ -18,7 +17,7 @@ const _icons = [
   FluentIcons.settings,
 ];
 
-/// One stable page tree across phone, landscape, split-screen and PiP.
+/// One stable page tree across phone, landscape, split-screen.
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
   @override
@@ -47,19 +46,7 @@ class _AppShellState extends State<AppShell>
   ];
 
   @override
-  void initState() {
-    super.initState();
-    PictureInPicture.initialize();
-    PictureInPicture.active.addListener(_pipChanged);
-  }
-
-  void _pipChanged() {
-    if (mounted) setState(() {});
-  }
-
-  @override
   void dispose() {
-    PictureInPicture.active.removeListener(_pipChanged);
     _transition.dispose();
     super.dispose();
   }
@@ -81,8 +68,7 @@ class _AppShellState extends State<AppShell>
   Widget build(BuildContext context) {
     final p = Palette.of(context);
     final size = MediaQuery.sizeOf(context);
-    final pip = PictureInPicture.active.value;
-    final rail = !pip && size.width >= mobileBreakpoint;
+    final rail = size.width >= mobileBreakpoint;
     final expandedRail = size.width >= 1100 && size.height >= 500;
     final short = size.height < 500;
     return ColoredBox(
@@ -164,7 +150,7 @@ class _AppShellState extends State<AppShell>
                     ),
                   ),
                 ),
-                if (!rail && !pip)
+                if (!rail)
                   Container(
                     margin: const EdgeInsets.symmetric(horizontal: 8),
                     decoration: p.glassDecoration(

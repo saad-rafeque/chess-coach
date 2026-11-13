@@ -138,6 +138,23 @@ class PlayServicesAuth extends GoogleAuth {
   }
 
   @override
+  Future<void> invalidateAccessToken(String refreshToken) async {
+    if (!refreshToken.startsWith(prefix)) {
+      return super.invalidateAccessToken(refreshToken);
+    }
+    final email = refreshToken.substring(prefix.length);
+    if (_accessEmail != email) return;
+    final access = _access;
+    _clear();
+    if (access != null) {
+      // Play services has its own cache as well as this Dart-side cache.
+      await _api.clearAuthorizationToken(
+        ClearAuthorizationTokenParams(accessToken: access),
+      );
+    }
+  }
+
+  @override
   Future<void> revoke(String token) async {
     if (!token.startsWith(prefix)) return super.revoke(token);
     await cancelSignIn();

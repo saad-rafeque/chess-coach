@@ -2,7 +2,6 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:chess_coach/app/board_style.dart';
-import 'package:chess_coach/app/picture_in_picture.dart';
 import 'package:chess_coach/app/settings.dart';
 import 'package:chess_coach/data/event_store.dart';
 import 'package:chess_coach/data/curriculum.dart';
@@ -40,7 +39,6 @@ void main() {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(390, 844);
     addTearDown(tester.view.reset);
-    addTearDown(() => PictureInPicture.active.value = false);
     final key = GlobalKey();
     final settings = AppSettings.memory();
     await tester.pumpWidget(
@@ -83,9 +81,6 @@ void main() {
     await capture('split', const Size(390, 380));
     await capture('landscape', const Size(844, 390));
     await capture('play_desktop', const Size(1440, 900));
-    PictureInPicture.active.value = true;
-    await capture('pip', const Size(320, 180));
-    PictureInPicture.active.value = false;
     await capture('restored', const Size(390, 844));
     settings.theme = AppTheme.light;
     await capture('play_light', const Size(390, 844));

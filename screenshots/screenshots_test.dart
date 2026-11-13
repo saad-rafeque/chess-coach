@@ -110,6 +110,12 @@ Future<void> _shoot(
     if (page == 'Review') {
       await tester.tap(find.text('Home').last);
       await tester.pumpAndSettle();
+      if (find.text('Recent games').evaluate().isEmpty) {
+        await tester.ensureVisible(find.text('Your progress'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Your progress'));
+        await tester.pumpAndSettle();
+      }
       await tester.ensureVisible(find.text('Review').first);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Review').first);
@@ -121,6 +127,12 @@ Future<void> _shoot(
     } else if (page == 'Session') {
       await tester.tap(find.text('Home').last);
       await tester.pumpAndSettle();
+      if (find.text('1 hour').evaluate().isEmpty) {
+        await tester.ensureVisible(find.text('Training options'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Training options'));
+        await tester.pumpAndSettle();
+      }
       await tester.ensureVisible(find.text('1 hour'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('1 hour'));

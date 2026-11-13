@@ -1,7 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
 import '../app/theme.dart';
-import '../app/picture_in_picture.dart';
 import '../app/updater.dart';
 import '../app/version.dart';
 import 'common.dart';
@@ -31,12 +30,6 @@ class _UpdatePromptState extends State<UpdatePrompt> {
   bool _open = false;
 
   @override
-  void initState() {
-    super.initState();
-    PictureInPicture.active.addListener(_changed);
-  }
-
-  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final u = UpdateScope.of(context);
@@ -49,7 +42,7 @@ class _UpdatePromptState extends State<UpdatePrompt> {
 
   void _changed() {
     final u = _updater;
-    if (u == null || PictureInPicture.active.value) return;
+    if (u == null) return;
     if (_open ||
         u.dismissed ||
         u.available == null ||
@@ -58,10 +51,6 @@ class _UpdatePromptState extends State<UpdatePrompt> {
     _open = true;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-      if (PictureInPicture.active.value) {
-        _open = false;
-        return;
-      }
       await showDialog<void>(
         context: context,
         builder: (_) => UpdateDialog(updater: u),
@@ -74,7 +63,6 @@ class _UpdatePromptState extends State<UpdatePrompt> {
   @override
   void dispose() {
     _updater?.removeListener(_changed);
-    PictureInPicture.active.removeListener(_changed);
     super.dispose();
   }
 

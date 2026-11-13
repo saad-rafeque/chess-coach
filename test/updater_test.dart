@@ -27,6 +27,7 @@ void main() {
   var assetSize = 0;
   var assetRequested = false;
   var failCheck = false;
+  var failChecksums = false;
   String sumsBody() => '$sum  ChessCoach-9.9.9-x86_64.AppImage\nabc  other\n';
 
   setUp(() async {
@@ -39,6 +40,7 @@ void main() {
     assetSize = appImage.length;
     assetRequested = false;
     failCheck = false;
+    failChecksums = false;
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((req) async {
       final path = req.uri.path;
@@ -78,7 +80,11 @@ void main() {
           }),
         );
       } else if (path == '$dl/SHA256SUMS.txt') {
-        req.response.write(sumsBody());
+        if (failChecksums) {
+          req.response.statusCode = 503;
+        } else {
+          req.response.write(sumsBody());
+        }
       } else if (path == '$dl/SHA256SUMS.txt.sig') {
         final bytes = utf8.encode(sumsBody());
         if (signSums) {
@@ -140,6 +146,23 @@ void main() {
     expect(compareVersions('0.9.2', 'v0.9.2'), 0);
     expect(compareVersions('1.0.0', '1.0.1'), lessThan(0));
   });
+
+  test(
+    'failed checksum fetch does not suppress a later automatic retry',
+    () async {
+      failChecksums = true;
+      final u = updater(InstallKind.appImage);
+      addTearDown(u.dispose);
+      await u.check();
+      expect(u.status, UpdateStatus.failed);
+      expect(u.hasChecked, isFalse);
+      failChecksums = false;
+      await u.check();
+      expect(u.available?.sha256, sum);
+      expect(u.status, UpdateStatus.idle);
+      expect(u.hasChecked, isTrue);
+    },
+  );
 
   test(
     'finds a newer release with the file and checksum for this device',

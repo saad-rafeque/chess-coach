@@ -18,9 +18,11 @@ abstract interface class TokenStore {
 /// to [FileTokenStore], so sign-in keeps working. A token stored by an older
 /// version in the plain file is moved into the keychain on the next read.
 class SecureTokenStore implements TokenStore {
-  SecureTokenStore({FlutterSecureStorage? storage, Future<Directory> Function()? directory})
-      : _storage = storage ?? const FlutterSecureStorage(),
-        _file = FileTokenStore(directory);
+  SecureTokenStore({
+    FlutterSecureStorage? storage,
+    Future<Directory> Function()? directory,
+  }) : _storage = storage ?? const FlutterSecureStorage(),
+       _file = FileTokenStore(directory);
 
   static const _key = 'google-sync-token';
 
@@ -29,13 +31,17 @@ class SecureTokenStore implements TokenStore {
 
   @override
   Future<String?> read() async {
+    // A fallback may be newer than the keychain, for example when the desktop
+    // keychain was locked during sign-out or an account switch. Its presence
+    // is authoritative even when it is an empty sign-out tombstone.
+    if (await _file.exists()) {
+      final fallback = await _file.read();
+      await write(fallback);
+      return fallback;
+    }
     try {
       final token = await _storage.read(key: _key);
-      if (token != null && token.isNotEmpty) return token;
-      final legacy = await _file.read();
-      if (legacy == null) return null;
-      await write(legacy); // move it out of the plain file
-      return legacy;
+      return token == null || token.isEmpty ? null : token;
     } on PlatformException {
       return _file.read();
     } on MissingPluginException {
@@ -45,6 +51,9 @@ class SecureTokenStore implements TokenStore {
 
   @override
   Future<void> write(String? token) async {
+    // Keep an existing fallback current even if removing it fails after a
+    // successful keychain write. SyncService serializes credential writes.
+    if (await _file.exists()) await _file.writeFallback(token);
     try {
       if (token == null) {
         await _storage.delete(key: _key);
@@ -53,9 +62,9 @@ class SecureTokenStore implements TokenStore {
       }
       await _file.write(null); // no plain copy next to the keychain one
     } on PlatformException {
-      await _file.write(token);
+      await _file.writeFallback(token);
     } on MissingPluginException {
-      await _file.write(token);
+      await _file.writeFallback(token);
     }
   }
 }
@@ -65,13 +74,21 @@ class SecureTokenStore implements TokenStore {
 /// Windows keeps the folder per user and Android per app (and the app is excluded from backups).
 /// Prefer [SecureTokenStore], which uses the platform keychain and falls back to this file.
 class FileTokenStore implements TokenStore {
-  FileTokenStore([Future<Directory> Function()? directory]) : _directory = directory ?? getApplicationSupportDirectory;
+  FileTokenStore([Future<Directory> Function()? directory])
+    : _directory = directory ?? getApplicationSupportDirectory;
 
   final Future<Directory> Function() _directory;
 
   static const fileName = 'google-sync-token';
 
-  Future<File> _file() async => File('${(await _directory()).path}${Platform.pathSeparator}$fileName');
+  Future<File> _file() async =>
+      File('${(await _directory()).path}${Platform.pathSeparator}$fileName');
+
+  Future<bool> exists() async => (await _file()).exists();
+
+  /// An empty private file remembers sign-out until the keychain is available
+  /// to delete its old credential. Ordinary [write] still removes null values.
+  Future<void> writeFallback(String? token) => write(token ?? '');
 
   @override
   Future<String?> read() async {
@@ -94,7 +111,11 @@ class FileTokenStore implements TokenStore {
     await tmp.writeAsString('');
     if (Platform.isLinux || Platform.isMacOS) {
       final r = await Process.run('chmod', ['600', tmp.path]);
-      if (r.exitCode != 0) throw FileSystemException('Could not protect the sign-in file', tmp.path);
+      if (r.exitCode != 0)
+        throw FileSystemException(
+          'Could not protect the sign-in file',
+          tmp.path,
+        );
     }
     await tmp.writeAsString(token, flush: true);
     await tmp.rename(f.path);

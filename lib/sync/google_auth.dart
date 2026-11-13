@@ -217,6 +217,11 @@ class GoogleAuth {
     return _access!;
   }
 
+  /// Discards a token rejected by Drive without forgetting the account grant.
+  Future<void> invalidateAccessToken(String refreshToken) async {
+    if (_accessCredential == refreshToken) _clear();
+  }
+
   /// Signs out on Google's side too (best effort).
   Future<void> revoke(String token) async {
     ++_generation;

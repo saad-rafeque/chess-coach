@@ -166,11 +166,12 @@ class PuzzleStats {
     }
     final now = today ?? DateTime.now();
     var day = DateTime(now.year, now.month, now.day);
-    if (!days.contains(day)) day = day.subtract(const Duration(days: 1));
+    // Calendar days can be 23 or 25 hours where daylight saving changes.
+    if (!days.contains(day)) day = DateTime(day.year, day.month, day.day - 1);
     var streak = 0;
     while (days.contains(day)) {
       streak++;
-      day = day.subtract(const Duration(days: 1));
+      day = DateTime(day.year, day.month, day.day - 1);
     }
     return PuzzleStats(
       rating: r,

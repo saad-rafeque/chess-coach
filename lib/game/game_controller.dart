@@ -119,12 +119,15 @@ class GameController extends ChangeNotifier {
   bool get isThreefoldRepetition {
     if (positions.length < 5) return false;
     final current = positions.last;
+    // A double pawn push only changes repetition rights when an en-passant
+    // capture is legal. Raw FEN targets also include uncapturable squares.
+    final enPassant = current.epSquareOf(EnPassantMode.legal);
     var count = 0;
     for (final p in positions) {
       if (p.turn == current.turn &&
           p.board == current.board &&
           p.castles == current.castles &&
-          p.epSquare == current.epSquare) {
+          p.epSquareOf(EnPassantMode.legal) == enPassant) {
         count++;
         if (count >= 3) return true;
       }

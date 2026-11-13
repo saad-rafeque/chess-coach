@@ -141,34 +141,12 @@ class _LessonRow extends StatelessWidget {
               : null,
           borderRadius: BorderRadius.circular(p.corner(16)),
         ),
-        child: Row(
-          children: [
-            Icon(icon, color: color, size: 16),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    lesson.title,
-                    style: TextStyle(
-                      color: p.text,
-                      fontWeight: status == LessonStatus.inProgress
-                          ? FontWeight.w600
-                          : FontWeight.w400,
-                    ),
-                  ),
-                  Text(
-                    lesson.summary,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: p.muted, fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact =
+                constraints.maxWidth <
+                240 * MediaQuery.textScalerOf(context).scale(12) / 12;
+            final detail = Text(
               status == LessonStatus.inProgress
                   ? '$done/$steps'
                   : '${lesson.level}',
@@ -176,10 +154,40 @@ class _LessonRow extends StatelessWidget {
                 color: status == LessonStatus.inProgress ? p.accent : p.muted,
                 fontSize: 12,
               ),
-            ),
-            const SizedBox(width: 8),
-            Icon(FluentIcons.chevron_right, color: p.muted, size: 10),
-          ],
+            );
+            return Row(
+              children: [
+                Icon(icon, color: color, size: 16),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        lesson.title,
+                        style: TextStyle(
+                          color: p.text,
+                          fontWeight: status == LessonStatus.inProgress
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                        ),
+                      ),
+                      Text(
+                        lesson.summary,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: p.muted, fontSize: 12),
+                      ),
+                      if (compact) detail,
+                    ],
+                  ),
+                ),
+                if (!compact) ...[const SizedBox(width: 8), detail],
+                const SizedBox(width: 8),
+                Icon(FluentIcons.chevron_right, color: p.muted, size: 10),
+              ],
+            );
+          },
         ),
       ),
     );

@@ -131,11 +131,12 @@ class SkillModel {
     final today = now ?? DateTime.now();
     var day = DateTime(today.year, today.month, today.day);
     final activeToday = days.contains(day);
-    if (!activeToday) day = day.subtract(const Duration(days: 1));
+    // Count local calendar days, including daylight-saving transitions.
+    if (!activeToday) day = DateTime(day.year, day.month, day.day - 1);
     var streak = 0;
     while (days.contains(day)) {
       streak++;
-      day = day.subtract(const Duration(days: 1));
+      day = DateTime(day.year, day.month, day.day - 1);
     }
     return SkillModel._(
       areas: areas,

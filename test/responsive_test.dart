@@ -1,4 +1,3 @@
-import 'package:chess_coach/app/picture_in_picture.dart';
 import 'package:chess_coach/app/settings.dart';
 import 'package:chess_coach/app/theme.dart';
 import 'package:chess_coach/data/event_store.dart';
@@ -113,12 +112,11 @@ void main() {
   );
 
   testWidgets(
-    'game controller survives every shell breakpoint and PiP roundtrip',
+    'game controller survives every shell breakpoint and split-screen roundtrip',
     (tester) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(390, 844);
       addTearDown(tester.view.reset);
-      addTearDown(() => PictureInPicture.active.value = false);
       await tester.pumpWidget(
         ChessCoachApp(
           settings: AppSettings.memory(),
@@ -156,20 +154,6 @@ void main() {
           findsOneWidget,
         );
       }
-      PictureInPicture.active.value = true;
-      tester.view.physicalSize = const Size(320, 180);
-      tester.binding.handleMetricsChanged();
-      await tester.pumpAndSettle();
-      expect(tester.takeException(), isNull);
-      expect(find.byIcon(FluentIcons.home_solid), findsNothing);
-      expect(find.textContaining('New game!').hitTestable(), findsOneWidget);
-      expect(
-        tester
-            .widget<Chessboard>(find.byKey(const ValueKey('play-board')))
-            .controller,
-        same(controller),
-      );
-      PictureInPicture.active.value = false;
       tester.view.physicalSize = const Size(390, 844);
       tester.binding.handleMetricsChanged();
       await tester.pumpAndSettle();

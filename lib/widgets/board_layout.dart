@@ -4,7 +4,6 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/material.dart' as material;
 
 import '../app/settings.dart';
-import '../app/picture_in_picture.dart';
 import '../app/theme.dart';
 import 'common.dart';
 
@@ -43,7 +42,7 @@ class BoardLayout extends StatefulWidget {
   /// (e.g. the coach's latest message); tapping it opens the panel.
   final Widget? peek;
 
-  /// Latest coach text for short split-screen and PiP layouts.
+  /// Latest coach text for short split-screen layouts.
   final String? compactMessage;
 
   /// Optional primary action beside the coach strip in short layouts.
@@ -72,6 +71,9 @@ class _BoardLayoutState extends State<BoardLayout> {
   bool _panelHidden = false;
   final _boardKey = GlobalKey(debugLabel: 'adaptive-board');
 
+  double get _evaluationHeight =>
+      MediaQuery.textScalerOf(context).scale(14) + 6;
+
   Widget _board(double size) => Semantics(
     key: _boardKey,
     container: true,
@@ -82,254 +84,249 @@ class _BoardLayoutState extends State<BoardLayout> {
   );
 
   @override
-  Widget build(BuildContext context) => ValueListenableBuilder<bool>(
-    valueListenable: PictureInPicture.active,
-    builder: (context, pip, _) => PopScope(
-      canPop: !_sheet,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && _sheet) setState(() => _sheet = false);
-      },
-      child: LayoutBuilder(
-        builder: (context, c) {
-          if (pip) return _pip(c);
-          final short = c.maxHeight < 500 && widget.panelTitle != null;
-          final wide = c.maxWidth >= 600 && c.maxWidth > c.maxHeight * 1.25;
-          final sidePanel = wide && !_panelHidden;
-          final panelWidth = (c.maxWidth * 0.34).clamp(240.0, 340.0);
-          if (short) {
-            // A narrow split keeps a square board and readable coach; landscape
-            // uses spare horizontal space rather than shrinking everything.
-            final beside = c.maxWidth > c.maxHeight * 1.35;
-            if (beside) {
-              final size = math.max(
-                1.0,
-                math.min(c.maxHeight, c.maxWidth * 0.56),
-              );
-              return Stack(
-                children: [
-                  Row(
-                    children: [
-                      _board(size),
-                      const SizedBox(width: 10),
-                      Expanded(child: _compactCoach(actions: true)),
-                    ],
-                  ),
-                  if (_sheet) _sheetOverlay(c),
-                ],
-              );
-            }
-            final footer = math.min(64.0, c.maxHeight * 0.25);
+  Widget build(BuildContext context) => PopScope(
+    canPop: !_sheet,
+    onPopInvokedWithResult: (didPop, _) {
+      if (!didPop && _sheet) setState(() => _sheet = false);
+    },
+    child: LayoutBuilder(
+      builder: (context, c) {
+        final short = c.maxHeight < 500 && widget.panelTitle != null;
+        final wide = c.maxWidth >= 600 && c.maxWidth > c.maxHeight * 1.25;
+        final sidePanel = wide && !_panelHidden;
+        final panelWidth = (c.maxWidth * 0.34).clamp(240.0, 340.0);
+        if (short) {
+          // A narrow split keeps a square board and readable coach; landscape
+          // uses spare horizontal space rather than shrinking everything.
+          final beside = c.maxWidth > c.maxHeight * 1.35;
+          if (beside) {
             final size = math.max(
               1.0,
-              math.min(c.maxWidth, c.maxHeight - footer),
+              math.min(c.maxHeight, c.maxWidth * 0.56),
             );
             return Stack(
               children: [
-                Column(
+                Row(
                   children: [
-                    Expanded(child: Center(child: _board(size))),
-                    SizedBox(
-                      height: footer,
-                      child: Row(
-                        children: [
-                          Expanded(child: _coachStrip(lines: 1)),
-                          if (widget.compactHint != null)
-                            FilledButton(
-                              onPressed: widget.compactHint,
-                              child: Text(widget.compactActionLabel),
-                            ),
-                        ],
-                      ),
-                    ),
+                    _board(size),
+                    const SizedBox(width: 10),
+                    Expanded(child: _compactCoach(actions: true)),
                   ],
                 ),
                 if (_sheet) _sheetOverlay(c),
               ],
             );
           }
-          if (wide) {
-            final available = sidePanel
-                ? c.maxWidth - panelWidth - 16
-                : c.maxWidth;
-            final bars =
-                (widget.top == null ? 0.0 : 40.0) +
-                (widget.bottom == null ? 0.0 : 40.0) +
-                (widget.overBoard == null ? 0.0 : 14.0) +
-                32 +
-                (_panelHidden && widget.actions != null ? 60 : 0);
-            final size = math.max(1.0, math.min(available, c.maxHeight - bars));
-            final column = SizedBox(
-              width: size,
-              child: Column(
+          final footer = math.min(64.0, c.maxHeight * 0.25);
+          final size = math.max(
+            1.0,
+            math.min(c.maxWidth, c.maxHeight - footer),
+          );
+          return Stack(
+            children: [
+              Column(
                 children: [
+                  Expanded(child: Center(child: _board(size))),
                   SizedBox(
-                    height: 32,
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: Tooltip(
-                        message: _panelHidden
-                            ? 'Show coach panel'
-                            : 'Focus on board',
-                        child: IconButton(
-                          icon: Icon(
-                            _panelHidden
-                                ? FluentIcons.dock_right
-                                : FluentIcons.dock_left,
-                            size: 16,
-                          ),
-                          onPressed: () =>
-                              setState(() => _panelHidden = !_panelHidden),
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (widget.top != null)
-                    SizedBox(height: 40, child: widget.top),
-                  if (widget.overBoard != null)
-                    SizedBox(height: 14, child: widget.overBoard),
-                  _board(size),
-                  if (widget.bottom != null)
-                    SizedBox(height: 40, child: widget.bottom),
-                  if (_panelHidden && widget.actions != null)
-                    SizedBox(height: 60, child: widget.actions),
-                ],
-              ),
-            );
-            return Row(
-              children: [
-                Expanded(child: Center(child: column)),
-                if (sidePanel) ...[
-                  const SizedBox(width: 16),
-                  SizedBox(
-                    width: panelWidth,
-                    child: Column(
+                    height: footer,
+                    child: Row(
                       children: [
-                        Expanded(child: widget.panel),
-                        if (widget.actions != null)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: widget.actions!,
+                        Expanded(child: _coachStrip(lines: 1)),
+                        if (widget.compactHint != null)
+                          FilledButton(
+                            onPressed: widget.compactHint,
+                            child: Text(widget.compactActionLabel),
                           ),
                       ],
                     ),
                   ),
                 ],
-              ],
-            );
-          }
-          final under =
-              widget.panelTitle == null ||
-              SettingsScope.of(context).panelUnderBoard;
-          final textScale = MediaQuery.textScalerOf(context).scale(13) / 13;
-          // Reserve equal bands around the board, then place the opponent at
-          // the bottom of the upper band and the player at the top of the lower
-          // band. This centres the board itself, rather than the whole column.
-          final band = (c.maxHeight - c.maxWidth) / 2;
-          final minBand = 156.0 + math.max(0.0, textScale - 1) * 220;
-          if (widget.portraitHeader != null && !under && band >= minBand) {
-            return Stack(
-              children: [
-                Column(
-                  children: [
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            const SizedBox(height: 4),
-                            widget.portraitHeader!,
-                            const Spacer(),
-                            if (widget.top != null)
-                              SizedBox(height: 40, child: widget.top),
-                            // Keep the board stationary when evaluation arrives.
-                            SizedBox(height: 14, child: widget.overBoard),
-                          ],
-                        ),
-                      ),
-                    ),
-                    _board(c.maxWidth),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 2, 12, 6),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            if (widget.bottom != null)
-                              SizedBox(height: 40, child: widget.bottom),
-                            if (widget.actions != null)
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 6,
-                                ),
-                                child: widget.actions!,
-                              ),
-                            const Spacer(),
-                            _coachStrip(
-                              lines: widget.bottom == null
-                                  ? (band >= 200 ? 4 : 3)
-                                  : (band >= 178 ? 2 : 1),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                if (_sheet) _sheetOverlay(c),
-              ],
-            );
-          }
-          // Portrait boards use the full available width. Controls and learning
-          // content scroll on small phones and at large font sizes.
-          final size = c.maxWidth;
-          Widget inset(Widget child) => Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: child,
+              ),
+              if (_sheet) _sheetOverlay(c),
+            ],
           );
+        }
+        if (wide) {
+          final available = sidePanel
+              ? c.maxWidth - panelWidth - 16
+              : c.maxWidth;
+          final bars =
+              (widget.top == null ? 0.0 : 40.0) +
+              (widget.bottom == null ? 0.0 : 40.0) +
+              (widget.overBoard == null ? 0.0 : _evaluationHeight) +
+              32 +
+              (_panelHidden && widget.actions != null ? 60 : 0);
+          final size = math.max(1.0, math.min(available, c.maxHeight - bars));
+          final column = SizedBox(
+            width: size,
+            child: Column(
+              children: [
+                SizedBox(
+                  height: 32,
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Tooltip(
+                      message: _panelHidden
+                          ? 'Show coach panel'
+                          : 'Focus on board',
+                      child: IconButton(
+                        icon: Icon(
+                          _panelHidden
+                              ? FluentIcons.dock_right
+                              : FluentIcons.dock_left,
+                          size: 16,
+                        ),
+                        onPressed: () =>
+                            setState(() => _panelHidden = !_panelHidden),
+                      ),
+                    ),
+                  ),
+                ),
+                if (widget.top != null) SizedBox(height: 40, child: widget.top),
+                if (widget.overBoard != null)
+                  SizedBox(height: _evaluationHeight, child: widget.overBoard),
+                _board(size),
+                if (widget.bottom != null)
+                  SizedBox(height: 40, child: widget.bottom),
+                if (_panelHidden && widget.actions != null)
+                  SizedBox(height: 60, child: widget.actions),
+              ],
+            ),
+          );
+          return Row(
+            children: [
+              Expanded(child: Center(child: column)),
+              if (sidePanel) ...[
+                const SizedBox(width: 16),
+                SizedBox(
+                  width: panelWidth,
+                  child: Column(
+                    children: [
+                      Expanded(child: widget.panel),
+                      if (widget.actions != null)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: widget.actions!,
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          );
+        }
+        final under =
+            widget.panelTitle == null ||
+            SettingsScope.of(context).panelUnderBoard;
+        final textScale = MediaQuery.textScalerOf(context).scale(13) / 13;
+        // Reserve equal bands around the board, then place the opponent at
+        // the bottom of the upper band and the player at the top of the lower
+        // band. This centres the board itself, rather than the whole column.
+        final band = (c.maxHeight - c.maxWidth) / 2;
+        final minBand = 156.0 + math.max(0.0, textScale - 1) * 220;
+        if (widget.portraitHeader != null && !under && band >= minBand) {
           return Stack(
             children: [
-              ListView(
-                padding: EdgeInsets.zero,
+              Column(
                 children: [
-                  if (widget.portraitHeader != null)
-                    inset(
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: widget.portraitHeader!,
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          widget.portraitHeader!,
+                          const Spacer(),
+                          if (widget.top != null)
+                            SizedBox(height: 40, child: widget.top),
+                          // Keep the board stationary when evaluation arrives.
+                          SizedBox(
+                            height: _evaluationHeight,
+                            child: widget.overBoard,
+                          ),
+                        ],
                       ),
                     ),
-                  if (widget.top != null)
-                    inset(SizedBox(height: 44, child: widget.top)),
-                  if (widget.overBoard != null)
-                    SizedBox(height: 14, child: widget.overBoard),
-                  _board(size),
-                  if (widget.bottom != null)
-                    inset(SizedBox(height: 44, child: widget.bottom)),
-                  if (widget.actions != null)
-                    inset(
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        child: widget.actions!,
+                  ),
+                  _board(c.maxWidth),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 2, 12, 6),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (widget.bottom != null)
+                            SizedBox(height: 40, child: widget.bottom),
+                          if (widget.actions != null)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              child: widget.actions!,
+                            ),
+                          const Spacer(),
+                          _coachStrip(
+                            lines: widget.bottom == null
+                                ? (band >= 200 ? 4 : 3)
+                                : (band >= 178 ? 2 : 1),
+                          ),
+                        ],
                       ),
                     ),
-                  if (under)
-                    inset(
-                      SizedBox(
-                        height: math.max(260.0, c.maxHeight - size - 160),
-                        child: widget.panel,
-                      ),
-                    )
-                  else
-                    inset(_coachStrip()),
-                  const SizedBox(height: 12),
+                  ),
                 ],
               ),
               if (_sheet) _sheetOverlay(c),
             ],
           );
-        },
-      ),
+        }
+        // Portrait boards use the full available width. Controls and learning
+        // content scroll on small phones and at large font sizes.
+        final size = c.maxWidth;
+        Widget inset(Widget child) => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: child,
+        );
+        return Stack(
+          children: [
+            ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                if (widget.portraitHeader != null)
+                  inset(
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: widget.portraitHeader!,
+                    ),
+                  ),
+                if (widget.top != null)
+                  inset(SizedBox(height: 44, child: widget.top)),
+                if (widget.overBoard != null)
+                  SizedBox(height: _evaluationHeight, child: widget.overBoard),
+                _board(size),
+                if (widget.bottom != null)
+                  inset(SizedBox(height: 44, child: widget.bottom)),
+                if (widget.actions != null)
+                  inset(
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: widget.actions!,
+                    ),
+                  ),
+                if (under)
+                  inset(
+                    SizedBox(
+                      height: math.max(260.0, c.maxHeight - size - 160),
+                      child: widget.panel,
+                    ),
+                  )
+                else
+                  inset(_coachStrip()),
+                const SizedBox(height: 12),
+              ],
+            ),
+            if (_sheet) _sheetOverlay(c),
+          ],
+        );
+      },
     ),
   );
 
@@ -456,62 +453,6 @@ class _BoardLayoutState extends State<BoardLayout> {
                 child: Text('Open ${widget.panelTitle ?? 'details'}'),
               ),
             ),
-        ],
-      ),
-    );
-  }
-
-  Widget _pip(BoxConstraints c) {
-    final p = Palette.of(context);
-    final size = math.max(1.0, math.min(c.maxHeight, c.maxWidth * 0.43));
-    return ColoredBox(
-      color: p.background,
-      child: Row(
-        children: [
-          IgnorePointer(child: _board(size)),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: LayoutBuilder(
-                builder: (context, text) {
-                  final scale = MediaQuery.textScalerOf(context);
-                  final lines = math.max(
-                    1,
-                    ((text.maxHeight - scale.scale(16) - 4) / scale.scale(17))
-                        .floor(),
-                  );
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.panelTitle ?? 'Coach',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: p.accent,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Expanded(
-                        child: Text(
-                          widget.compactMessage ?? 'Ready for your next move.',
-                          maxLines: lines,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: p.text,
-                            fontSize: 12,
-                            height: 1.4,
-                          ),
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-          ),
         ],
       ),
     );

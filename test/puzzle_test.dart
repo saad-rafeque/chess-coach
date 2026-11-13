@@ -259,12 +259,12 @@ void main() {
     );
   });
 
-  test('bundled puzzle set is valid (every 10th puzzle replayed)', () {
+  test('every bundled puzzle solution is legal', () {
     final bank = PuzzleBank.fromGzip(
       io.File('assets/puzzles/puzzles.tsv.gz').readAsBytesSync(),
     );
     expect(bank.puzzles.length, greaterThan(20000));
-    for (var i = 0; i < bank.puzzles.length; i += 10) {
+    for (var i = 0; i < bank.puzzles.length; i++) {
       final p = bank.puzzles[i];
       Position pos = Chess.fromSetup(Setup.parseFen(p.fen));
       for (final m in p.moves) {

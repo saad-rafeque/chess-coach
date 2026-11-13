@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:fluent_ui/fluent_ui.dart';
 
 import '../app/theme.dart';
-import '../app/picture_in_picture.dart';
 import 'coach_mark.dart';
 
 const mobileBreakpoint = 700.0;
@@ -79,8 +78,7 @@ class PageFrame extends StatelessWidget {
     final compact = mobile && compactOnPhone;
     final shortWindow =
         compactOnPhone && MediaQuery.sizeOf(context).height < 500;
-    final pip = PictureInPicture.active.value;
-    final showHeader = !shortWindow && !pip && !(mobile && hidePhoneHeader);
+    final showHeader = !shortWindow && !(mobile && hidePhoneHeader);
     final desktopCompact = !mobile && compactOnPhone;
     final pad = mobile ? 16.0 : (desktopCompact ? 20.0 : 32.0);
     final header = Padding(
@@ -90,37 +88,50 @@ class PageFrame extends StatelessWidget {
         pad,
         compact ? 4 : (desktopCompact ? 6 : 10),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          if (leading != null) ...[leading!, const SizedBox(width: 12)],
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: compact
-                        ? 18
-                        : (desktopCompact ? 22 : (mobile ? 26 : 30)),
-                    fontWeight: FontWeight.w700,
-                    color: p.text,
-                    letterSpacing: -0.4,
-                  ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final stacked =
+              trailing != null &&
+              constraints.maxWidth <
+                  360 * MediaQuery.textScalerOf(context).scale(14) / 14;
+          final heading = Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (leading != null) ...[leading!, const SizedBox(width: 12)],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: compact
+                            ? 18
+                            : (desktopCompact ? 22 : (mobile ? 26 : 30)),
+                        fontWeight: FontWeight.w700,
+                        color: p.text,
+                        letterSpacing: -0.4,
+                      ),
+                    ),
+                    if (subtitle != null && !compact && !desktopCompact) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle!,
+                        style: TextStyle(fontSize: 14, color: p.muted),
+                      ),
+                    ],
+                  ],
                 ),
-                if (subtitle != null && !compact && !desktopCompact) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle!,
-                    style: TextStyle(fontSize: 14, color: p.muted),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          if (trailing != null) trailing!,
-        ],
+              ),
+              if (trailing != null && !stacked) trailing!,
+            ],
+          );
+          if (!stacked) return heading;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [heading, const SizedBox(height: 8), trailing!],
+          );
+        },
       ),
     );
     // Board pages on phones get no side padding: the board spans the screen and BoardLayout pads the rest.

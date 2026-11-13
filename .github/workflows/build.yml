@@ -43,6 +43,8 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
+      - name: Release tooling regression tests
+        run: python3 -m unittest discover -s tool -p "test_*.py"
       - name: Render screenshots
         run: flutter test screenshots/screenshots_test.dart
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -57,7 +59,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - run: sudo apt-get update && sudo apt-get install -y ninja-build libgtk-3-dev clang cmake pkg-config liblzma-dev libsecret-1-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+      - run: sudo apt-get update && sudo apt-get install -y ninja-build libgtk-3-dev clang cmake pkg-config liblzma-dev libsecret-1-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev xvfb
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -75,6 +77,18 @@ jobs:
           printf '{"GOOGLE_OAUTH_CLIENT_ID":"%s","GOOGLE_OAUTH_CLIENT_SECRET":"%s","GOOGLE_ANDROID_SERVER_CLIENT_ID":"%s"}' \
             "$GOOGLE_OAUTH_CLIENT_ID" "$GOOGLE_OAUTH_CLIENT_SECRET" "$GOOGLE_ANDROID_SERVER_CLIENT_ID" > build/oauth.json
       - run: flutter build linux --release --dart-define-from-file=build/oauth.json --obfuscate --split-debug-info=build/debug-info
+      - name: Smoke-test the native Linux app
+        run: |
+          set +e
+          timeout 12s xvfb-run -a build/linux/x64/release/bundle/chess_coach > /tmp/linux-startup.log 2>&1
+          result=$?
+          set -e
+          if [ "$result" -ne 124 ]; then
+            cat /tmp/linux-startup.log
+            echo "::error::Linux app exited before the startup smoke check completed (code $result)."
+            exit 1
+          fi
+          echo "Linux app stayed running under Xvfb."
       - name: Check the downloaded llama.cpp runtime
         run: dart run tool/check_native_bundles.dart linux-x64
       - run: bash packaging/linux/build_appimage.sh ${{ needs.check.outputs.version }}
@@ -168,6 +182,8 @@ jobs:
           mkdir -p build
           printf '{"GOOGLE_OAUTH_CLIENT_ID":"%s","GOOGLE_OAUTH_CLIENT_SECRET":"%s","GOOGLE_ANDROID_SERVER_CLIENT_ID":"%s"}' \
             "$GOOGLE_OAUTH_CLIENT_ID" "$GOOGLE_OAUTH_CLIENT_SECRET" "$GOOGLE_ANDROID_SERVER_CLIENT_ID" > build/oauth.json
+      - name: Test on Windows (including native Stockfish)
+        run: flutter test --concurrency=2
       - run: flutter build windows --release --dart-define-from-file=build/oauth.json --obfuscate --split-debug-info=build/debug-info
       - name: Check the downloaded llama.cpp runtime
         shell: bash
@@ -203,7 +219,8 @@ jobs:
   release:
     name: GitHub Release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [check, linux, android, windows]
+    # Publish only after security and independent rebuild checks pass.
+    needs: [check, linux, android, windows, security-scan, verify, verify-windows, verify-android]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -245,7 +262,7 @@ jobs:
   verify:
     name: Rebuild Linux and compare (reproducible builds)
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [check, release]
+    needs: [check, linux]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -276,32 +293,26 @@ jobs:
           GZIP=-n tar --sort=name --mtime="@${SOURCE_DATE_EPOCH}" --owner=0 --group=0 --numeric-owner \
             -czf build/ChessCoach-${{ needs.check.outputs.version }}-linux-x64.tar.gz \
             -C build/linux/x64/release/bundle .
-      - name: Compare with the published checksums
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Download the original linux build
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: linux
+          path: original
+      - name: Compare with the original build
         run: |
           v=${{ needs.check.outputs.version }}
-          for i in 1 2 3; do
-            gh release download "$GITHUB_REF_NAME" --pattern SHA256SUMS.txt --output /tmp/published-sums.txt && break
-            sleep 15
-          done
-          test -s /tmp/published-sums.txt || { echo "::error::Could not fetch the published checksums."; exit 1; }
-          (cd build && sha256sum ChessCoach-$v-x86_64.AppImage ChessCoach-$v-amd64.deb ChessCoach-$v-linux-x64.tar.gz > /tmp/rebuild-sums.txt)
-          # Fail loudly on any mismatch: the release was then not reproducible.
           for f in ChessCoach-$v-x86_64.AppImage ChessCoach-$v-amd64.deb ChessCoach-$v-linux-x64.tar.gz; do
-            want="$(grep -F "  $f" /tmp/published-sums.txt | cut -d' ' -f1)"
-            got="$(grep -F "  $f" /tmp/rebuild-sums.txt | cut -d' ' -f1)"
-            if [ -z "$want" ] || [ "$want" != "$got" ]; then
-              echo "::error::$f is not reproducible: release=${want:-missing}, rebuild=${got:-missing}"
+            if ! cmp "original/$f" "build/$f"; then
+              echo "::error::$f differs between the original build and independent rebuild."
               exit 1
             fi
-            echo "OK $f $got"
+            echo "OK $f"
           done
 
   verify-windows:
     name: Rebuild Windows and compare (reproducible builds)
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [check, release]
+    needs: [check, windows]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -347,36 +358,27 @@ jobs:
           Copy-Item "build\installer\ChessCoach-$v-Setup.exe" build\
           # Deterministic zip: Compress-Archive writes non-reproducible metadata.
           python tool/make_zip.py build/windows/x64/runner/Release "build/ChessCoach-$v-windows-x64.zip"
-      - name: Compare with the published checksums
+      - name: Download the original windows build
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: windows
+          path: original
+      - name: Compare with the original build
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          set -x
           v=${{ needs.check.outputs.version }}
-          # Plain relative paths: Windows gh does not understand git-bash's /tmp.
-          for i in 1 2 3; do
-            gh release download "$GITHUB_REF_NAME" --pattern SHA256SUMS.txt --output published-sums.txt && break
-            sleep 15
-          done
-          test -s published-sums.txt || { echo "::error::Could not fetch the published checksums."; exit 1; }
-          (cd build && sha256sum "ChessCoach-$v-Setup.exe" "ChessCoach-$v-windows-x64.zip" > ../rebuild-sums.txt)
-          # Match the name at the end of the line: Windows sha256sum marks
-          # files as binary and puts a '*' between hash and name.
           for f in "ChessCoach-$v-Setup.exe" "ChessCoach-$v-windows-x64.zip"; do
-            want="$(grep -F "$f" published-sums.txt | head -1 | cut -d' ' -f1)"
-            got="$(grep -F "$f" rebuild-sums.txt | head -1 | cut -d' ' -f1)"
-            if [ -z "$want" ] || [ "$want" != "$got" ]; then
-              echo "::error::$f is not reproducible: release=${want:-missing}, rebuild=${got:-missing}"
+            if ! cmp "original/$f" "build/$f"; then
+              echo "::error::$f differs between the original build and independent rebuild."
               exit 1
             fi
-            echo "OK $f $got"
+            echo "OK $f"
           done
 
   verify-android:
     name: Rebuild Android and compare (reproducible builds)
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [check, release]
+    needs: [check, android]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -418,33 +420,26 @@ jobs:
       - name: Check the downloaded llama.cpp runtime
         run: dart run tool/check_native_bundles.dart android-arm64
       - run: cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk build/ChessCoach-${{ needs.check.outputs.version }}-android-arm64.apk
-      - name: Compare every file in the APK and verify the signature
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Download the original android build
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: android
+          path: original
+      - name: Compare every file in the APK and verify the signing certificate
         run: |
           v=${{ needs.check.outputs.version }}
-          # APK signatures embed a random salt, so signed APKs legitimately
-          # differ between identical builds. Reproducibility is proven by
-          # comparing every file inside the APK (names, sizes, CRCs) and by
-          # verifying the rebuilt signature against the release certificate.
-          for i in 1 2 3; do
-            gh release download "$GITHUB_REF_NAME" --pattern "ChessCoach-$v-android-arm64.apk" --output published.apk && break
-            sleep 15
-          done
-          test -s published.apk || { echo "::error::Could not fetch the published APK."; exit 1; }
-          unzip -lv published.apk | awk '{print $1, $3, $7, $8}' > /tmp/published.list
-          unzip -lv build/ChessCoach-$v-android-arm64.apk | awk '{print $1, $3, $7, $8}' > /tmp/rebuild.list
-          if ! diff /tmp/published.list /tmp/rebuild.list; then
-            echo "::error::The APK contents differ between the release and the rebuild."
-            exit 1
-          fi
-          echo "OK every file inside the APK matches (name, size, CRC)"
-          apksigner="$(find "$ANDROID_HOME"/build-tools /usr/local/lib/android/sdk/build-tools -name apksigner 2>/dev/null | sort | tail -1)"
-          echo "Release certificate:"
-          "$apksigner" verify --print-certs published.apk | head -3
-          echo "Rebuilt APK:"
-          "$apksigner" verify --print-certs build/ChessCoach-$v-android-arm64.apk | head -3
-          "$apksigner" verify build/ChessCoach-$v-android-arm64.apk
+          original="original/ChessCoach-$v-android-arm64.apk"
+          rebuilt="build/ChessCoach-$v-android-arm64.apk"
+          # V2 signing blocks contain random salt outside ZIP entries. Compare
+          # every payload byte, then require valid signatures and the same key.
+          python3 tool/compare_apks.py "$original" "$rebuilt"
+          apksigner="$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)"
+          "$apksigner" verify --print-certs "$original" > original-cert.txt
+          "$apksigner" verify --print-certs "$rebuilt" > rebuilt-cert.txt
+          grep -E '^Signer #[0-9]+ certificate SHA-256 digest:' original-cert.txt > original-key.txt
+          grep -E '^Signer #[0-9]+ certificate SHA-256 digest:' rebuilt-cert.txt > rebuilt-key.txt
+          diff original-key.txt rebuilt-key.txt
+          echo "OK APK payloads and signing certificates match"
 
   security-scan:
     name: Dependency scan (OSV)

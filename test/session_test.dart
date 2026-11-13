@@ -117,12 +117,21 @@ void main() {
   ) async {
     await _pump(tester, EventStore.memory());
     expect(find.text('Preview data'), findsNothing);
+    await tester.ensureVisible(find.text('Your progress'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Your progress'));
+    await tester.pumpAndSettle();
     expect(
       find.text('New'),
       findsOneWidget,
       reason: 'no rating before any training',
     );
 
+    await tester.ensureVisible(find.text('Training options'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Training options'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('15 min'));
     await tester.tap(find.text('15 min'));
     await tester.pumpAndSettle();
     expect(find.text('15-minute session'), findsOneWidget);

@@ -12,15 +12,23 @@ if ! out=$(flutter analyze 2>&1); then
   echo "pre-push: analyzer found problems, push blocked."
   exit 1
 fi
-if ! out=$(flutter test -r compact 2>&1); then
+echo "$out" | tail -1
+if ! python3 -m unittest discover -s tool -p 'test_*.py'; then
+  echo "pre-push: release tooling tests failed, push blocked."
+  exit 1
+fi
+# Keep the gate within the memory budget of developer laptops.
+if ! out=$(flutter test --concurrency=2 -r expanded 2>&1); then
   echo "$out" | tail -30
   echo "pre-push: tests failed, push blocked."
   exit 1
 fi
+echo "$out" | tail -1
 # CI renders every screen too; a layout that breaks there must not get pushed either.
-if ! out=$(flutter test -r compact screenshots/screenshots_test.dart 2>&1); then
+if ! out=$(flutter test --concurrency=1 -r expanded screenshots/screenshots_test.dart 2>&1); then
   echo "$out" | tail -30
   echo "pre-push: screenshot test failed, push blocked."
   exit 1
 fi
+echo "$out" | tail -1
 echo "pre-push: all checks passed."

@@ -42,3 +42,7 @@ key.properties
 .env
 oauth.json
 google-sync-token
+
+# Python tooling cache
+__pycache__/
+*.pyc

@@ -135,6 +135,13 @@ GameReview buildReview(GameRecord game, GameAnalysis analysis) {
   final positions = game.positions();
   final sans = game.sans();
   final reviewed = <ReviewedMove>[];
+  String? legalBest(int index) {
+    final uci = analysis.best[index];
+    final move = uci == null ? null : Move.parse(uci);
+    // Synced analyses validate the move's notation without the original board.
+    // Do not turn an illegal cached suggestion into advice or a study puzzle.
+    return move is NormalMove && positions[index].isLegal(move) ? uci : null;
+  }
   // An analysis from a damaged copy may be shorter than the game: review what it covers.
   final n = math.min(game.moves.length, math.min(analysis.scores.length, analysis.best.length) - 1);
   for (var i = 0; i < n; i++) {
@@ -145,7 +152,7 @@ GameReview buildReview(GameRecord game, GameAnalysis analysis) {
     final sAfter = analysis.scores[i + 1];
     double win(Score s) => mover == Side.white ? s.whiteWinPercent : 100 - s.whiteWinPercent;
     final drop = win(sBefore) - win(sAfter);
-    final bestUci = analysis.best[i];
+    final bestUci = legalBest(i);
     final bestMove = bestUci == null ? null : Move.parse(bestUci);
     final playedBest = bestMove != null && before.isLegal(bestMove) && before.play(bestMove).fen == after.fen;
     final quality = classifyMove(before: sBefore, after: sAfter, moverIsWhite: mover == Side.white, playedBest: playedBest);
@@ -158,7 +165,7 @@ GameReview buildReview(GameRecord game, GameAnalysis analysis) {
         before: before,
         beforeAnalysis: wrap(before, sBefore, bestUci),
         after: after,
-        afterAnalysis: wrap(after, sAfter, analysis.best[i + 1]),
+        afterAnalysis: wrap(after, sAfter, legalBest(i + 1)),
       );
     }
     reviewed.add(ReviewedMove(

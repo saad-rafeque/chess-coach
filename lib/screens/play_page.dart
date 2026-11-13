@@ -4,12 +4,8 @@ import 'dart:math' as math;
 import 'package:chessground/chessground.dart';
 import 'package:dartchess/dartchess.dart';
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flutter/foundation.dart'
-    show defaultTargetPlatform, TargetPlatform;
-import 'package:flutter/services.dart' show PlatformException;
 
 import '../app/board_style.dart';
-import '../app/picture_in_picture.dart';
 import '../app/settings.dart';
 import '../app/theme.dart';
 import '../coach/coach_player.dart';
@@ -55,7 +51,6 @@ class _PlayPageState extends State<PlayPage> {
   late final ChessboardController _board;
   late final GameController _game;
   bool _flipped = false;
-  (bool, bool, bool)? _pipActions;
   String _shownFen = '';
   int _chatLength = 0;
 
@@ -98,19 +93,10 @@ class _PlayPageState extends State<PlayPage> {
     _shownFen = _game.position.fen;
     _wasOver = _game.isOver;
     _game.addListener(_onGameChanged);
-    PictureInPicture.hints.addListener(_pipHint);
-    PictureInPicture.undoRequests.addListener(_pipUndo);
-    PictureInPicture.playHintRequests.addListener(_pipPlayHint);
-    PictureInPicture.active.addListener(_pipChanged);
-    _updatePipHint();
   }
 
   @override
   void dispose() {
-    PictureInPicture.hints.removeListener(_pipHint);
-    PictureInPicture.undoRequests.removeListener(_pipUndo);
-    PictureInPicture.playHintRequests.removeListener(_pipPlayHint);
-    PictureInPicture.active.removeListener(_pipChanged);
     _game.removeListener(_onGameChanged);
     _game.dispose();
     _board.dispose();
@@ -134,42 +120,7 @@ class _PlayPageState extends State<PlayPage> {
     );
   }
 
-  void _pipChanged() {
-    if (mounted) setState(() {});
-    if (!PictureInPicture.active.value) _scheduleReview();
-  }
-
-  void _pipHint() {
-    if (PictureInPicture.active.value && _game.canHint) _game.hint();
-  }
-
-  void _pipUndo() {
-    if (PictureInPicture.active.value && _game.canUndo) _game.undo();
-  }
-
-  void _pipPlayHint() {
-    if (PictureInPicture.active.value && _game.canPlayHint) _game.playHint();
-  }
-
-  void _updatePipHint() {
-    final actions = (
-      _game.canHint && !_game.hintThinking,
-      _game.canUndo,
-      _game.canPlayHint,
-    );
-    if (_pipActions == actions) return;
-    _pipActions = actions;
-    unawaited(
-      PictureInPicture.setActionsAvailable(
-        hint: actions.$1,
-        undo: actions.$2,
-        playHint: actions.$3,
-      ),
-    );
-  }
-
   void _onGameChanged() {
-    _updatePipHint();
     final fen = _game.position.fen;
     _board.updatePosition(_gameData(), animate: fen != _shownFen);
     _shownFen = fen;
@@ -202,7 +153,6 @@ class _PlayPageState extends State<PlayPage> {
   Future<void> _offerReview(GameRecord record) async {
     if (!mounted ||
         _reviewOpen ||
-        PictureInPicture.active.value ||
         !TickerMode.valuesOf(context).enabled ||
         !(ModalRoute.of(context)?.isCurrent ?? true))
       return;
@@ -311,18 +261,6 @@ class _PlayPageState extends State<PlayPage> {
                 onPressed: () => Navigator.pop(context, 'flip'),
                 child: const Text('Flip board'),
               ),
-              if (defaultTargetPlatform == TargetPlatform.android) ...[
-                const SizedBox(height: 8),
-                FilledButton(
-                  onPressed: () => Navigator.pop(context, 'pip'),
-                  child: const Text('PiP coach'),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Tap the floating window to reveal Hint, Play hint and Undo. Expand it to move pieces yourself.',
-                  style: TextStyle(fontSize: 12),
-                ),
-              ],
               const SizedBox(height: 8),
               Button(
                 onPressed: _game.isOver || _game.moves.isEmpty
@@ -345,8 +283,6 @@ class _PlayPageState extends State<PlayPage> {
     switch (action) {
       case 'flip':
         setState(() => _flipped = !_flipped);
-      case 'pip':
-        await _enterPictureInPicture();
       case 'resign':
         _game.resign();
     }
@@ -370,93 +306,98 @@ class _PlayPageState extends State<PlayPage> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialog) => ContentDialog(
-          title: const Text('New game'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Opponent'),
-              const SizedBox(height: 8),
-              Segmented<String>(
-                options: const {'coach': 'The coach', 'two': 'Two players'},
-                value: kind,
-                onChanged: (v) => setDialog(() => kind = v),
-              ),
-              const SizedBox(height: 16),
-              if (kind == 'coach') ...[
-                const Text('Play as'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Semantics(
+                  header: true,
+                  child: Text(
+                    'New game',
+                    style: FluentTheme.of(context).typography.title,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text('Opponent'),
                 const SizedBox(height: 8),
                 Segmented<String>(
-                  options: const {
-                    'white': 'White',
-                    'black': 'Black',
-                    'random': 'Random',
-                  },
-                  value: side,
-                  onChanged: (v) => setDialog(() => side = v),
+                  options: const {'coach': 'The coach', 'two': 'Two players'},
+                  value: kind,
+                  onChanged: (v) => setDialog(() => kind = v),
                 ),
                 const SizedBox(height: 16),
-                const Text('Coach strength'),
-                const SizedBox(height: 8),
-                ToggleSwitch(
-                  checked: auto,
-                  onChanged: (v) => setDialog(() => auto = v),
-                  content: SizedBox(
-                    width: math.max(
-                      100.0,
-                      math.min(300.0, MediaQuery.sizeOf(context).width - 140),
-                    ),
-                    child: const Text('Match my level automatically'),
+                if (kind == 'coach') ...[
+                  const Text('Play as'),
+                  const SizedBox(height: 8),
+                  Segmented<String>(
+                    options: const {
+                      'white': 'White',
+                      'black': 'Black',
+                      'random': 'Random',
+                    },
+                    value: side,
+                    onChanged: (v) => setDialog(() => side = v),
                   ),
-                ),
-                const SizedBox(height: 8),
-                if (auto)
-                  Text(
-                    'Your coach plays at about $recommended, so you win a bit less than half of your games. '
-                    'It follows your results.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Palette.of(context).muted,
+                  const SizedBox(height: 16),
+                  const Text('Coach strength'),
+                  const SizedBox(height: 8),
+                  ToggleSwitch(
+                    checked: auto,
+                    onChanged: (v) => setDialog(() => auto = v),
+                    content: const Flexible(
+                      child: Text('Match my level automatically'),
                     ),
-                  )
-                else ...[
-                  ComboBox<int>(
-                    value: elo,
-                    isExpanded: true,
-                    items: [
-                      for (final l in coachLevels)
-                        ComboBoxItem(
-                          value: l,
-                          child: Text(
-                            l >= 3200
-                                ? 'Maximum (Stockfish)'
-                                : l <= MaiaPlayer.maxElo
-                                ? 'About $l · plays like a human'
-                                : 'About $l · Stockfish',
-                          ),
-                        ),
-                    ],
-                    onChanged: (v) => setDialog(() => elo = v ?? elo),
                   ),
                   const SizedBox(height: 8),
+                  if (auto)
+                    Text(
+                      'Your coach plays at about $recommended, so you win a bit less than half of your games. '
+                      'It follows your results.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Palette.of(context).muted,
+                      ),
+                    )
+                  else ...[
+                    ComboBox<int>(
+                      value: elo,
+                      isExpanded: true,
+                      items: [
+                        for (final l in coachLevels)
+                          ComboBoxItem(
+                            value: l,
+                            child: Text(
+                              l >= 3200
+                                  ? 'Maximum (Stockfish)'
+                                  : l <= MaiaPlayer.maxElo
+                                  ? 'About $l · plays like a human'
+                                  : 'About $l · Stockfish',
+                            ),
+                          ),
+                      ],
+                      onChanged: (v) => setDialog(() => elo = v ?? elo),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Beginners: start around 600–800. Move up when you win most games.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Palette.of(context).muted,
+                      ),
+                    ),
+                  ],
+                ] else
                   Text(
-                    'Beginners: start around 600–800. Move up when you win most games.',
+                    'Two people play each other on this device. Pass it over after each move — and '
+                    'either player can tap Hint to ask the coach what to play.',
                     style: TextStyle(
                       fontSize: 12,
                       color: Palette.of(context).muted,
                     ),
                   ),
-                ],
-              ] else
-                Text(
-                  'Two people play each other on this device. Pass it over after each move — and '
-                  'either player can tap Hint to ask the coach what to play.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Palette.of(context).muted,
-                  ),
-                ),
-            ],
+              ],
+            ),
           ),
           actions: [
             Button(
@@ -488,44 +429,6 @@ class _PlayPageState extends State<PlayPage> {
         : Side.values.byName(side);
     setState(() => _flipped = false);
     _game.newGame(side: s, elo: elo);
-  }
-
-  Future<void> _enterPictureInPicture() async {
-    try {
-      final entered = await PictureInPicture.enter();
-      if (!entered && mounted) {
-        await showDialog<void>(
-          context: context,
-          builder: (context) => ContentDialog(
-            title: const Text('Picture-in-picture unavailable'),
-            content: const Text(
-              'This Android version or device does not support picture-in-picture.',
-            ),
-            actions: [
-              Button(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('OK'),
-              ),
-            ],
-          ),
-        );
-      }
-    } on PlatformException {
-      if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (context) => ContentDialog(
-          title: const Text('Could not open the floating board'),
-          content: const Text('Keep Chess Coach open and try again.'),
-          actions: [
-            Button(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-    }
   }
 
   @override
@@ -602,9 +505,13 @@ class _PlayPageState extends State<PlayPage> {
           const SizedBox(height: 14),
           Row(
             children: [
-              Text(
-                g.twoPlayers ? 'Two players' : s.coachName,
-                style: TextStyle(color: p.text, fontWeight: FontWeight.w600),
+              Expanded(
+                child: Text(
+                  g.twoPlayers ? 'Two players' : s.coachName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: p.text, fontWeight: FontWeight.w600),
+                ),
               ),
               const SizedBox(width: 8),
               if (g.thinking && coachToMove)
