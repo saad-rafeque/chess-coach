@@ -18,6 +18,8 @@ permissions:
 
 env:
   FLUTTER_VERSION: 3.47.7
+  # Do not silently change signature verifier when the hosted image updates.
+  ANDROID_VERIFY_BUILD_TOOLS: '36.0.0'
   # Every build stores this as the file date, so artifacts are reproducible
   # (dpkg-deb, mksquashfs and the tar/zip steps below all honor it).
   SOURCE_DATE_EPOCH: '1700000000'
@@ -447,12 +449,12 @@ jobs:
           # V2 signing blocks contain random salt outside ZIP entries. Compare
           # every payload byte, then require valid signatures and the same key.
           python3 tool/compare_apks.py "$original" "$rebuilt"
-          apksigner="$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)"
-          "$apksigner" verify --print-certs "$original" > original-cert.txt
-          "$apksigner" verify --print-certs "$rebuilt" > rebuilt-cert.txt
-          grep -E '^Signer #[0-9]+ certificate SHA-256 digest:' original-cert.txt > original-key.txt
-          grep -E '^Signer #[0-9]+ certificate SHA-256 digest:' rebuilt-cert.txt > rebuilt-key.txt
-          diff original-key.txt rebuilt-key.txt
+          apksigner="$ANDROID_HOME/build-tools/$ANDROID_VERIFY_BUILD_TOOLS/apksigner"
+          if [ ! -x "$apksigner" ]; then
+            sdkmanager --install "build-tools;$ANDROID_VERIFY_BUILD_TOOLS"
+          fi
+          echo "Verifying signatures with $apksigner"
+          python3 tool/verify_apk_signers.py "$apksigner" "$original" "$rebuilt"
           echo "OK APK payloads and signing certificates match"
 
   security-scan:
