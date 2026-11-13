@@ -48,15 +48,20 @@ built here: `sha256sum -c SHA256SUMS.txt --ignore-missing`.
 
 ## Build it yourself
 
-You need [Flutter](https://flutter.dev) 3.47, and on Linux the package `libsecret-1-dev` (the refresh
+You need [Flutter](https://flutter.dev) 3.47.7, and on Linux the package `libsecret-1-dev` (the refresh
 token is kept in the desktop keychain).
 
 ```bash
 sudo apt install libsecret-1-dev   # Ubuntu / Debian
+python3 tool/prepare_flutter.py   # same deterministic asset ordering used by CI
 bash tool/fetch_engines.sh linux
 flutter test
 flutter run -d linux
 ```
+
+The preparation script applies a guarded Flutter SDK fix for unordered image
+resolution variants and rebuilds the Flutter tool on its next invocation. It
+keeps release APK payload comparisons exact; see the [release audit](docs/audit-2026-11-13.md).
 
 Google Drive sync needs your own free Google OAuth client ("Desktop app"); without one the app works fully
 and only sync is switched off. Setup steps: [docs/google-drive-sync.md](docs/google-drive-sync.md). The plan

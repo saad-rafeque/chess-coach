@@ -39,6 +39,8 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+      - name: Stabilize Flutter asset variant ordering
+        run: python tool/prepare_flutter.py
       - run: bash tool/fetch_engines.sh linux
       - run: flutter pub get
       - run: flutter analyze
@@ -65,6 +67,8 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+      - name: Stabilize Flutter asset variant ordering
+        run: python tool/prepare_flutter.py
       - run: bash tool/fetch_engines.sh linux
       - name: Google sign-in client for sync (empty until the secrets exist)
         shell: bash
@@ -122,6 +126,8 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+      - name: Stabilize Flutter asset variant ordering
+        run: python tool/prepare_flutter.py
       - name: Release signing key
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -170,6 +176,8 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+      - name: Stabilize Flutter asset variant ordering
+        run: python tool/prepare_flutter.py
       - run: bash tool/fetch_engines.sh windows
         shell: bash
       - name: Google sign-in client for sync (empty until the secrets exist)
@@ -272,6 +280,8 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+      - name: Stabilize Flutter asset variant ordering
+        run: python tool/prepare_flutter.py
       - run: bash tool/fetch_engines.sh linux
       - name: Google sign-in client for sync (must match the release build)
         shell: bash
@@ -321,6 +331,8 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+      - name: Stabilize Flutter asset variant ordering
+        run: python tool/prepare_flutter.py
       - run: bash tool/fetch_engines.sh windows
         shell: bash
       - name: Google sign-in client for sync (must match the release build)
@@ -391,6 +403,8 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+      - name: Stabilize Flutter asset variant ordering
+        run: python tool/prepare_flutter.py
       - name: Release signing key
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
